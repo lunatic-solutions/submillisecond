@@ -1,5 +1,5 @@
 use http::Response;
 
-pub trait IntoResponse<T> {
-    fn into_response(self) -> Response<T>;
+pub trait IntoResponse {
+    fn into_response(self) -> Response<Vec<u8>>;
 }
