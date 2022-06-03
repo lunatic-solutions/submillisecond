@@ -10,6 +10,7 @@ pub mod core;
 pub mod defaults;
 pub mod json;
 pub mod router;
+pub mod response;
 
 pub struct Application {
     listener: TcpListener,
@@ -75,3 +76,4 @@ impl Application {
         }
     }
 }
+
