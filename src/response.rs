@@ -2,8 +2,6 @@
 
 use std::borrow::Cow;
 
-use http::StatusCode;
-
 /// Type alias for [`http::Response`] whose body defaults to [`Vec<u8>`].
 pub type Response<T = Vec<u8>> = http::Response<T>;
 
@@ -76,10 +74,24 @@ where
     }
 }
 
-impl IntoResponse for StatusCode {
+impl IntoResponse for http::StatusCode {
     fn into_response(self) -> Response {
         let mut res = ().into_response();
         *res.status_mut() = self;
+        res
+    }
+}
+
+impl IntoResponse for &dyn askama::DynTemplate {
+    fn into_response(self) -> Response {
+        self.dyn_render().into_response()
+    }
+}
+
+impl IntoResponse for askama::Error {
+    fn into_response(self) -> Response {
+        let mut res = ().into_response();
+        *res.status_mut() = http::StatusCode::INTERNAL_SERVER_ERROR;
         res
     }
 }
