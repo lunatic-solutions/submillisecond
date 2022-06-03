@@ -7,9 +7,9 @@ use lunatic::{
 use router::{HandlerFn, Router};
 use std::io::Result as IoResult;
 pub mod core;
+pub mod defaults;
 pub mod json;
 pub mod router;
-pub mod util;
 
 pub struct Application {
     listener: TcpListener,

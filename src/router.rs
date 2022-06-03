@@ -1,7 +1,7 @@
 use http::{Method, Request, Response};
 use std::mem;
 
-use crate::util;
+use crate::defaults;
 
 pub type HandlerFn<Req = String, Res = String> = fn(Request<Req>) -> Response<Res>;
 
@@ -55,6 +55,6 @@ impl Router {
                 return *handler;
             }
         }
-        util::err_404
+        defaults::err_404
     }
 }
