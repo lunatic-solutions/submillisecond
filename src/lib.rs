@@ -1,4 +1,3 @@
-extern crate http;
 pub use http::{Method, Request, Response};
 use lunatic::{
     net::{TcpListener, TcpStream},
@@ -9,8 +8,8 @@ use std::io::Result as IoResult;
 pub mod core;
 pub mod defaults;
 pub mod json;
-pub mod router;
 pub mod response;
+pub mod router;
 
 pub struct Application {
     listener: TcpListener,
@@ -76,4 +75,3 @@ impl Application {
         }
     }
 }
-
