@@ -58,3 +58,9 @@ impl Router {
         defaults::err_404
     }
 }
+
+impl Default for Router {
+    fn default() -> Self {
+        Router::new()
+    }
+}

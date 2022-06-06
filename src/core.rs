@@ -15,7 +15,7 @@ pub fn write_response(mut stream: TcpStream, response: Response<String>) -> IoRe
     // writing headers
     for (key, value) in response.headers().iter() {
         if let Ok(value) = String::from_utf8(value.as_ref().to_vec()) {
-            write!(stream, "{}: {}\r\n", key.to_string(), value)?;
+            write!(stream, "{}: {}\r\n", key, value)?;
         }
     }
     // separator between header and data
@@ -24,7 +24,7 @@ pub fn write_response(mut stream: TcpStream, response: Response<String>) -> IoRe
     Ok(())
 }
 
-pub fn parse_request<'a>(mut stream: TcpStream) -> Request<String> {
+pub fn parse_request(mut stream: TcpStream) -> Request<String> {
     let mut headers = [httparse::EMPTY_HEADER; 16];
     let mut buf = [0; 200];
     if let Err(e) = stream.read(&mut buf) {
@@ -59,9 +59,7 @@ pub fn parse_request<'a>(mut stream: TcpStream) -> Request<String> {
     }
 
     // TODO: handle error if non-utf8 data received
-    let request = request_builder
+    request_builder
         .body::<String>(String::from_utf8(body).unwrap())
-        .unwrap();
-
-    request
+        .unwrap()
 }
