@@ -1,97 +1,38 @@
-//! TODO response documentation
+use bytes::Bytes;
+use http_body::Body;
 
-use std::borrow::Cow;
+use crate::{BoxError, Error};
+
+pub use into_response::*;
+pub use into_response_parts::*;
+
+mod into_response;
+mod into_response_parts;
+
+/// A boxed [`Body`] trait object.
+pub type BoxBody = http_body::combinators::UnsyncBoxBody<Bytes, Error>;
 
 /// Type alias for [`http::Response`] whose body defaults to [`Vec<u8>`].
-pub type Response<T = Vec<u8>> = http::Response<T>;
+pub type Response<T = BoxBody> = http::Response<T>;
 
-/// Converts a type into a [`Response`].
-///
-/// Types implementing `IntoResponse` can be returned from handlers.
-pub trait IntoResponse {
-    /// Create a response.
-    fn into_response(self) -> Response;
-}
-
-impl IntoResponse for Response {
-    fn into_response(self) -> Response {
-        self
-    }
-}
-
-impl IntoResponse for () {
-    fn into_response(self) -> Response {
-        Response::default()
-    }
-}
-
-impl IntoResponse for &[u8] {
-    fn into_response(self) -> Response {
-        Response::new(self.to_vec())
-    }
-}
-
-impl IntoResponse for Cow<'static, [u8]> {
-    fn into_response(self) -> Response {
-        Response::new(self.to_vec())
-    }
-}
-
-impl IntoResponse for &str {
-    fn into_response(self) -> Response {
-        Response::new(self.as_bytes().to_vec())
-    }
-}
-
-impl IntoResponse for Cow<'static, str> {
-    fn into_response(self) -> Response {
-        Response::new(self.as_bytes().to_vec())
-    }
-}
-
-impl IntoResponse for Vec<u8> {
-    fn into_response(self) -> Response {
-        Response::new(self)
-    }
-}
-
-impl IntoResponse for String {
-    fn into_response(self) -> Response {
-        Response::new(self.into_bytes())
-    }
-}
-
-impl<T, E> IntoResponse for Result<T, E>
+/// Convert a [`http_body::Body`] into a [`BoxBody`].
+pub fn boxed<B>(body: B) -> BoxBody
 where
-    T: IntoResponse,
-    E: IntoResponse,
+    B: http_body::Body<Data = Bytes> + Send + 'static,
+    B::Error: Into<BoxError>,
 {
-    fn into_response(self) -> Response {
-        match self {
-            Ok(value) => value.into_response(),
-            Err(err) => err.into_response(),
-        }
-    }
+    try_downcast(body).unwrap_or_else(|body| body.map_err(Error::new).boxed_unsync())
 }
 
-impl IntoResponse for http::StatusCode {
-    fn into_response(self) -> Response {
-        let mut res = ().into_response();
-        *res.status_mut() = self;
-        res
-    }
-}
-
-impl IntoResponse for &dyn askama::DynTemplate {
-    fn into_response(self) -> Response {
-        self.dyn_render().into_response()
-    }
-}
-
-impl IntoResponse for askama::Error {
-    fn into_response(self) -> Response {
-        let mut res = ().into_response();
-        *res.status_mut() = http::StatusCode::INTERNAL_SERVER_ERROR;
-        res
+pub(crate) fn try_downcast<T, K>(k: K) -> Result<T, K>
+where
+    T: 'static,
+    K: Send + 'static,
+{
+    let mut k = Some(k);
+    if let Some(k) = <dyn std::any::Any>::downcast_mut::<Option<T>>(&mut k) {
+        Ok(k.take().unwrap())
+    } else {
+        Err(k.unwrap())
     }
 }

@@ -1,13 +1,20 @@
+use std::io::Result as IoResult;
+
 pub use http::{Method, Request, Response};
 use lunatic::{
     net::{TcpListener, TcpStream},
     Mailbox, Process,
 };
 use router::{HandlerFn, Router};
-use std::io::Result as IoResult;
+
+pub use crate::error::{BoxError, Error};
+
 pub mod core;
 pub mod defaults;
+mod error;
 pub mod json;
+#[macro_use]
+pub(crate) mod macros;
 pub mod response;
 pub mod router;
 
