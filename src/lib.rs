@@ -17,6 +17,7 @@ pub mod json;
 pub(crate) mod macros;
 pub mod response;
 pub mod router;
+pub mod template;
 
 pub struct Application {
     listener: TcpListener,
