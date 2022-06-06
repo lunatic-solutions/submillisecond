@@ -1,0 +1,27 @@
+name: CI Testing
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check out repository"
+        uses: actions/checkout@v1
+      - name: "Install lunatic"
+        run: cargo install --git https://github.com/lunatic-solutions/lunatic
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-wasi
+          override: true
+          components: rustfmt, clippy
+      - name: "Run tests"
+        run: cargo test
+      - name: "Run clippy"
+        run: cargo clippy -- -D warnings
+      - name: "Check formatting"
+        run: cargo fmt -- --check
