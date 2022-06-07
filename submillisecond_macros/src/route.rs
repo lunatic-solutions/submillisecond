@@ -7,7 +7,11 @@ use syn::{
     FnArg, Ident, ItemFn, LitStr, Pat, PatType, ReturnType, Type,
 };
 
-const REQUEST_TYPES: [&str; 3] = ["::submillisecond::Request", "submillisecond::Request", "Request"];
+const REQUEST_TYPES: [&str; 3] = [
+    "::submillisecond::Request",
+    "submillisecond::Request",
+    "Request",
+];
 
 pub struct Route {
     attrs: RouteAttrs,
@@ -25,14 +29,21 @@ impl Route {
         // Get request param and overwrite it with submillisecond::Request
         let mut req_pat = None;
 
-        let extractors = item_fn.sig.inputs.iter()
+        let extractors = item_fn
+            .sig
+            .inputs
+            .iter()
             .filter_map(|input| match input {
-                FnArg::Receiver(_) => Some(Err(syn::Error::new(input.span(), "routes cannot take self"))),
+                FnArg::Receiver(_) => Some(Err(syn::Error::new(
+                    input.span(),
+                    "routes cannot take self",
+                ))),
                 FnArg::Typed(PatType { pat, ty, .. }) => {
                     let ty_string = ty.to_token_stream().to_string().replace(' ', "");
-                    if REQUEST_TYPES.iter().any(|request_type| {
-                        ty_string.starts_with(request_type)
-                    }) {
+                    if REQUEST_TYPES
+                        .iter()
+                        .any(|request_type| ty_string.starts_with(request_type))
+                    {
                         if req_pat.is_some() {
                             Some(Err(syn::Error::new(ty.span(), "request defined twice")))
                         } else {
@@ -46,8 +57,7 @@ impl Route {
             })
             .collect::<Result<_, _>>()?;
 
-        let req_arg: FnArg =
-            syn::parse2(quote! { mut req: ::submillisecond::Request }).unwrap();
+        let req_arg: FnArg = syn::parse2(quote! { mut req: ::submillisecond::Request }).unwrap();
         item_fn.sig.inputs = Punctuated::from_iter([req_arg]);
 
         // Get return type and overwrite it with submillisecond::Response
