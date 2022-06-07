@@ -10,6 +10,7 @@ pub use submillisecond_macros::*;
 
 pub mod core;
 pub mod defaults;
+pub mod extract;
 pub mod json;
 pub mod response;
 pub mod router;

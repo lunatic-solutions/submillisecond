@@ -1,7 +1,11 @@
-use submillisecond::{route, Application};
+use http::HeaderMap;
+use submillisecond::{route, Application, Request};
 
 #[route("/hey")]
-fn hello() -> String {
+fn hello(req: Request, headers: HeaderMap) -> String {
+    println!("{:#?}", headers);
+    println!("{:#?}", req.uri());
+
     "Hello world!".to_string()
 }
 

@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
@@ -7,10 +7,13 @@ use syn::{
     FnArg, Ident, ItemFn, LitStr, Pat, PatType, ReturnType, Type,
 };
 
+const REQUEST_TYPES: [&str; 3] = ["::submillisecond::Request", "submillisecond::Request", "Request"];
+
 pub struct Route {
     attrs: RouteAttrs,
     item_fn: ItemFn,
-    req_pat: Option<Pat>,
+    req_pat: Option<(Pat, Type)>,
+    extractors: Vec<(Pat, Type)>,
     return_ty: Option<Type>,
 }
 
@@ -20,25 +23,31 @@ impl Route {
         let mut item_fn: ItemFn = syn::parse(item)?;
 
         // Get request param and overwrite it with submillisecond::Request
-        let req_pat = item_fn
-            .sig
-            .inputs
-            .first()
-            .map(|input| match input {
-                FnArg::Receiver(_) => Err(syn::Error::new(input.span(), "routes cannot take self")),
-                FnArg::Typed(PatType { pat, .. }) => Ok(pat.as_ref().clone()),
-            })
-            .transpose()?;
+        let mut req_pat = None;
 
-        if item_fn.sig.inputs.len() > 1 {
-            return Err(syn::Error::new(
-                item_fn.sig.inputs.span(),
-                "routes cannot take more than one parameter",
-            ));
-        }
+        let extractors = item_fn.sig.inputs.iter()
+            .filter_map(|input| match input {
+                FnArg::Receiver(_) => Some(Err(syn::Error::new(input.span(), "routes cannot take self"))),
+                FnArg::Typed(PatType { pat, ty, .. }) => {
+                    let ty_string = ty.to_token_stream().to_string().replace(' ', "");
+                    if REQUEST_TYPES.iter().any(|request_type| {
+                        ty_string.starts_with(request_type)
+                    }) {
+                        if req_pat.is_some() {
+                            Some(Err(syn::Error::new(ty.span(), "request defined twice")))
+                        } else {
+                            req_pat = Some((pat.as_ref().clone(), ty.as_ref().clone()));
+                            None
+                        }
+                    } else {
+                        Some(Ok((pat.as_ref().clone(), ty.as_ref().clone())))
+                    }
+                }
+            })
+            .collect::<Result<_, _>>()?;
 
         let req_arg: FnArg =
-            syn::parse2(quote! { req: ::submillisecond::Request<String> }).unwrap();
+            syn::parse2(quote! { mut req: ::submillisecond::Request }).unwrap();
         item_fn.sig.inputs = Punctuated::from_iter([req_arg]);
 
         // Get return type and overwrite it with submillisecond::Response
@@ -62,6 +71,7 @@ impl Route {
             attrs,
             item_fn,
             req_pat,
+            extractors,
             return_ty,
         })
     }
@@ -70,15 +80,20 @@ impl Route {
         let Route {
             attrs: RouteAttrs { path },
             req_pat,
+            extractors,
             return_ty,
             ..
         } = &self;
 
         self.expand_with_body(|req, body| {
             let define_req_expanded = match req_pat {
-                Some(req_pat) => quote! { let #req_pat = #req; },
+                Some((req_pat, req_ty)) => quote! { let mut #req_pat: #req_ty = #req; },
                 None => quote! {},
             };
+
+            let define_extractors_expanded = extractors.iter().map(|(pat, ty)| quote! { 
+                let #pat = <#ty as ::submillisecond::extract::FromRequest>::from_request(&mut #req);
+            });
 
             let return_ty_expanded = match return_ty {
                 Some(return_ty) => quote! { #return_ty },
@@ -95,6 +110,7 @@ impl Route {
 
                 let response: #return_ty_expanded = {
                     #define_req_expanded
+                    #( #define_extractors_expanded )*
                     #body
                 };
 

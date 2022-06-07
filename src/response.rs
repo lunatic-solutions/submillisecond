@@ -1,6 +1,6 @@
 //! TODO response documentation
 
-use std::borrow::Cow;
+use std::{borrow::Cow, convert::Infallible};
 
 /// Type alias for [`http::Response`] whose body defaults to [`Vec<u8>`].
 pub type Response<T = Vec<u8>> = http::Response<T>;
@@ -71,6 +71,12 @@ where
             Ok(value) => value.into_response(),
             Err(err) => err.into_response(),
         }
+    }
+}
+
+impl IntoResponse for Infallible {
+    fn into_response(self) -> Response {
+        match self {}
     }
 }
 
