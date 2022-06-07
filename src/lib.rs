@@ -16,7 +16,7 @@ pub mod response;
 pub mod router;
 
 /// Type alias for [`http::Request`] whose body defaults to [`String`].
-pub type Request<T = String> = http::Request<T>;
+pub type Request<T = Vec<u8>> = http::Request<T>;
 
 pub struct Application {
     listener: TcpListener,

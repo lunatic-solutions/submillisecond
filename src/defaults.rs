@@ -1,7 +1,7 @@
-use http::{Request, Response};
+use crate::{Request, Response};
 
 /// Return an error 404 not found response.
-pub fn err_404(_: Request<String>) -> Response<Vec<u8>> {
+pub fn err_404(_: Request) -> Response {
     Response::builder()
         .status(404)
         .header("Content-Type", "HTML")

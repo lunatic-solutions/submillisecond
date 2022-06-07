@@ -60,7 +60,5 @@ pub fn parse_request(mut stream: TcpStream) -> Request {
     }
 
     // TODO: handle error if non-utf8 data received
-    request_builder
-        .body::<String>(String::from_utf8(body).unwrap())
-        .unwrap()
+    request_builder.body(body).unwrap()
 }

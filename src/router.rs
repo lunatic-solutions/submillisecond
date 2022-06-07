@@ -3,7 +3,7 @@ use std::mem;
 
 use crate::{defaults, Request, Response};
 
-pub type HandlerFn<Req = String, Res = Vec<u8>> = fn(Request<Req>) -> Response<Res>;
+pub type HandlerFn<Req = Vec<u8>, Res = Vec<u8>> = fn(Request<Req>) -> Response<Res>;
 
 #[derive(Clone)]
 pub struct Router {
@@ -49,7 +49,7 @@ impl Router {
             .push((Method::POST.to_string(), path.to_string(), handler));
     }
 
-    pub fn find_match(&self, request: &Request<String>) -> HandlerFn {
+    pub fn find_match(&self, request: &Request) -> HandlerFn {
         for (method, path, handler) in self.handlers.iter() {
             if request.method().to_string() == *method && request.uri().to_string() == *path {
                 return *handler;
