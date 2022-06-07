@@ -56,8 +56,7 @@ impl Route {
             },
         };
 
-        item_fn.sig.output =
-            syn::parse2(quote! { -> ::submillisecond::response::Response }).unwrap();
+        item_fn.sig.output = syn::parse2(quote! { -> ::submillisecond::Response }).unwrap();
 
         Ok(Route {
             attrs,
