@@ -1,24 +1,11 @@
-use std::{
-    borrow::Cow,
-    convert::Infallible,
-    fmt,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::{borrow::Cow, convert::Infallible, fmt};
 
-use bytes::{buf::Chain, Buf, Bytes, BytesMut};
 use http::{
     header::{self, HeaderName},
     Extensions, HeaderMap, HeaderValue, StatusCode,
 };
-use http_body::{
-    combinators::{MapData, MapErr},
-    Empty, Full, SizeHint,
-};
 
-use crate::BoxError;
-
-use super::{boxed, IntoResponseParts, Response, ResponseParts};
+use super::{IntoResponseParts, Response, ResponseParts};
 
 /// Converts a type into a [`Response`].
 ///
@@ -38,13 +25,19 @@ impl IntoResponse for StatusCode {
 
 impl IntoResponse for () {
     fn into_response(self) -> Response {
-        Empty::new().into_response()
+        Response::default()
     }
 }
 
 impl IntoResponse for Infallible {
     fn into_response(self) -> Response {
         match self {}
+    }
+}
+
+impl IntoResponse for Response {
+    fn into_response(self) -> Response {
+        self
     }
 }
 
@@ -58,74 +51,6 @@ where
             Ok(value) => value.into_response(),
             Err(err) => err.into_response(),
         }
-    }
-}
-
-impl<B> IntoResponse for Response<B>
-where
-    B: http_body::Body<Data = Bytes> + Send + 'static,
-    B::Error: Into<BoxError>,
-{
-    fn into_response(self) -> Response {
-        self.map(boxed)
-    }
-}
-
-impl IntoResponse for http::response::Parts {
-    fn into_response(self) -> Response {
-        Response::from_parts(self, boxed(Empty::new()))
-    }
-}
-
-impl IntoResponse for Full<Bytes> {
-    fn into_response(self) -> Response {
-        Response::new(boxed(self))
-    }
-}
-
-impl IntoResponse for Empty<Bytes> {
-    fn into_response(self) -> Response {
-        Response::new(boxed(self))
-    }
-}
-
-impl<E> IntoResponse for http_body::combinators::BoxBody<Bytes, E>
-where
-    E: Into<BoxError> + 'static,
-{
-    fn into_response(self) -> Response {
-        Response::new(boxed(self))
-    }
-}
-
-impl<E> IntoResponse for http_body::combinators::UnsyncBoxBody<Bytes, E>
-where
-    E: Into<BoxError> + 'static,
-{
-    fn into_response(self) -> Response {
-        Response::new(boxed(self))
-    }
-}
-
-impl<B, F> IntoResponse for MapData<B, F>
-where
-    B: http_body::Body + Send + 'static,
-    F: FnMut(B::Data) -> Bytes + Send + 'static,
-    B::Error: Into<BoxError>,
-{
-    fn into_response(self) -> Response {
-        Response::new(boxed(self))
-    }
-}
-
-impl<B, F, E> IntoResponse for MapErr<B, F>
-where
-    B: http_body::Body<Data = Bytes> + Send + 'static,
-    F: FnMut(B::Error) -> E + Send + 'static,
-    E: Into<BoxError>,
-{
-    fn into_response(self) -> Response {
-        Response::new(boxed(self))
     }
 }
 
@@ -143,102 +68,13 @@ impl IntoResponse for String {
 
 impl IntoResponse for Cow<'static, str> {
     fn into_response(self) -> Response {
-        let mut res = Full::from(self).into_response();
-        res.headers_mut().insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static(mime::TEXT_PLAIN_UTF_8.as_ref()),
-        );
-        res
-    }
-}
-
-impl IntoResponse for Bytes {
-    fn into_response(self) -> Response {
-        let mut res = Full::from(self).into_response();
-        res.headers_mut().insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static(mime::APPLICATION_OCTET_STREAM.as_ref()),
-        );
-        res
-    }
-}
-
-impl IntoResponse for BytesMut {
-    fn into_response(self) -> Response {
-        self.freeze().into_response()
-    }
-}
-
-impl<T, U> IntoResponse for Chain<T, U>
-where
-    T: Buf + Unpin + Send + 'static,
-    U: Buf + Unpin + Send + 'static,
-{
-    fn into_response(self) -> Response {
-        let (first, second) = self.into_inner();
-        let mut res = Response::new(boxed(BytesChainBody {
-            first: Some(first),
-            second: Some(second),
-        }));
-        res.headers_mut().insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static(mime::APPLICATION_OCTET_STREAM.as_ref()),
-        );
-        res
-    }
-}
-
-struct BytesChainBody<T, U> {
-    first: Option<T>,
-    second: Option<U>,
-}
-
-impl<T, U> http_body::Body for BytesChainBody<T, U>
-where
-    T: Buf + Unpin,
-    U: Buf + Unpin,
-{
-    type Data = Bytes;
-    type Error = Infallible;
-
-    fn poll_data(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
-        if let Some(mut buf) = self.first.take() {
-            let bytes = buf.copy_to_bytes(buf.remaining());
-            return Poll::Ready(Some(Ok(bytes)));
-        }
-
-        if let Some(mut buf) = self.second.take() {
-            let bytes = buf.copy_to_bytes(buf.remaining());
-            return Poll::Ready(Some(Ok(bytes)));
-        }
-
-        Poll::Ready(None)
-    }
-
-    fn poll_trailers(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
-        Poll::Ready(Ok(None))
-    }
-
-    fn is_end_stream(&self) -> bool {
-        self.first.is_none() && self.second.is_none()
-    }
-
-    fn size_hint(&self) -> SizeHint {
-        match (self.first.as_ref(), self.second.as_ref()) {
-            (Some(first), Some(second)) => {
-                let total_size = first.remaining() + second.remaining();
-                SizeHint::with_exact(total_size as u64)
-            }
-            (Some(buf), None) => SizeHint::with_exact(buf.remaining() as u64),
-            (None, Some(buf)) => SizeHint::with_exact(buf.remaining() as u64),
-            (None, None) => SizeHint::with_exact(0),
-        }
+        Response::builder()
+            .header(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static(mime::TEXT_PLAIN_UTF_8.as_ref()),
+            )
+            .body(self.as_bytes().to_vec())
+            .unwrap()
     }
 }
 
@@ -256,12 +92,13 @@ impl IntoResponse for Vec<u8> {
 
 impl IntoResponse for Cow<'static, [u8]> {
     fn into_response(self) -> Response {
-        let mut res = Full::from(self).into_response();
-        res.headers_mut().insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static(mime::APPLICATION_OCTET_STREAM.as_ref()),
-        );
-        res
+        Response::builder()
+            .header(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static(mime::APPLICATION_OCTET_STREAM.as_ref()),
+            )
+            .body(self.to_vec())
+            .unwrap()
     }
 }
 
