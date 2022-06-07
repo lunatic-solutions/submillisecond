@@ -1,13 +1,8 @@
-use submillisecond::{Application, Request, Response};
+use submillisecond::{route, Application};
 
-fn hello(_: Request<String>) -> Response<String> {
-    let body = String::from("Hello world!");
-    Response::builder()
-        .status(200)
-        .header("Content-Type", "text/html")
-        .header("Content-Length", body.len())
-        .body(body)
-        .unwrap()
+#[route("/hey")]
+fn hello() -> String {
+    "Hello world!".to_string()
 }
 
 fn main() {

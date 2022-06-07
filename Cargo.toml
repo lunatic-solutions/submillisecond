@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "submillisecond_macros"]
+
 [package]
 edition = "2021"
 name = "submillisecond"
@@ -13,6 +16,7 @@ httparse = "1.7.1"
 httpdate = "1.0"
 lunatic = "0.9.1"
 mime = "0.3.16"
-serde = {version = "1.0.132", features = ["derive"]}
+serde = { version = "1.0.132", features = ["derive"] }
 serde_json = "1.0"
+submillisecond_macros = { path = "submillisecond_macros" }
 askama = "0.11"

@@ -1,15 +1,21 @@
-pub use http::{Method, Request, Response};
+pub use http::Method;
 use lunatic::{
     net::{TcpListener, TcpStream},
     Mailbox, Process,
 };
+pub use response::Response;
 use router::{HandlerFn, Router};
 use std::io::Result as IoResult;
+pub use submillisecond_macros::*;
+
 pub mod core;
 pub mod defaults;
 pub mod json;
 pub mod response;
 pub mod router;
+
+/// Type alias for [`http::Request`] whose body defaults to [`String`].
+pub type Request<T = String> = http::Request<T>;
 
 pub struct Application {
     listener: TcpListener,
@@ -64,7 +70,7 @@ impl Application {
                         .header("content-length", response.body().len())
                         .header("content-type", "text/html")
                         .status(200)
-                        .body::<String>(response.body().to_string())
+                        .body(response.into_body())
                         .unwrap();
                     match core::write_response(stream, res) {
                         Ok(_) => println!("[http reader] SENT Response 200"),

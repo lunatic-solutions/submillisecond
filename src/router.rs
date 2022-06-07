@@ -1,9 +1,9 @@
-use http::{Method, Request, Response};
+use http::Method;
 use std::mem;
 
-use crate::defaults;
+use crate::{defaults, Request, Response};
 
-pub type HandlerFn<Req = String, Res = String> = fn(Request<Req>) -> Response<Res>;
+pub type HandlerFn<Req = String, Res = Vec<u8>> = fn(Request<Req>) -> Response<Res>;
 
 #[derive(Clone)]
 pub struct Router {
