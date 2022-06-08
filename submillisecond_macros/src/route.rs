@@ -75,7 +75,7 @@ impl Route {
             },
         };
 
-        item_fn.sig.output = syn::parse2(quote! { -> ::submillisecond::Response }).unwrap();
+        item_fn.sig.output = syn::parse2(quote! { -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> }).unwrap();
 
         Ok(Route {
             attrs,
@@ -101,8 +101,13 @@ impl Route {
                 None => quote! {},
             };
 
-            let define_extractors_expanded = extractors.iter().map(|(pat, ty)| quote! { 
-                let #pat = <#ty as ::submillisecond::extract::FromRequest>::from_request(&mut #req);
+            let define_extractors_expanded = extractors.iter().map(|(pat, ty)| quote! {
+                let #pat = match <#ty as ::submillisecond::extract::FromRequest>::from_request(&mut #req) {
+                    Ok(val) => val,
+                    Err(err) => return ::std::result::Result::Err(
+                        ::submillisecond::router::RouteError::ExtractorError(::submillisecond::response::IntoResponse::into_response(err))
+                    ),
+                };
             });
 
             let return_ty_expanded = match return_ty {
@@ -112,19 +117,20 @@ impl Route {
 
             quote! {
                 {
-                    println!("--------------------");
-                    println!("Expected Route: {}", #path);
-                    println!("Received Route: {}", #req.uri().path());
-                    println!("--------------------");
+                    let route = #req.extensions().get::<::submillisecond::router::Route>().unwrap();
+                    if !route.matches(#path) {
+                        return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(#req));
+                    }
                 }
 
-                let response: #return_ty_expanded = {
-                    #define_req_expanded
-                    #( #define_extractors_expanded )*
-                    #body
-                };
+                #define_req_expanded
+                #( #define_extractors_expanded )*
 
-                ::submillisecond::response::IntoResponse::into_response(response)
+                let response: #return_ty_expanded = (move || {
+                    #body
+                })();
+
+                ::std::result::Result::Ok(::submillisecond::response::IntoResponse::into_response(response))
             }
         })
     }

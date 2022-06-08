@@ -11,7 +11,7 @@ fn hello(req: Request, headers: HeaderMap) -> String {
 
 fn main() {
     Application::build()
-        .get("/hello", hello)
+        .route(hello)
         .listen(3000)
         .unwrap()
         .start_server();

@@ -4,7 +4,7 @@ use lunatic::{
     Mailbox, Process,
 };
 pub use response::Response;
-use router::{HandlerFn, Router};
+use router::{HandlerFn, Route, Router};
 use std::io::Result as IoResult;
 pub use submillisecond_macros::*;
 
@@ -28,13 +28,8 @@ pub struct ApplicationBuilder {
 }
 
 impl ApplicationBuilder {
-    pub fn get(mut self, path: &'static str, handler: HandlerFn) -> ApplicationBuilder {
-        self.router.get(path, handler);
-        self
-    }
-
-    pub fn post(mut self, path: &'static str, handler: HandlerFn) -> ApplicationBuilder {
-        self.router.post(path, handler);
+    pub fn route(mut self, handler: HandlerFn) -> ApplicationBuilder {
+        self.router.route(handler);
         self
     }
 
@@ -60,12 +55,14 @@ impl Application {
         while let Ok((stream, _)) = self.listener.accept() {
             Process::spawn_link(
                 (stream, self.router.as_raw()),
-                |(stream, raw): (TcpStream, Vec<(String, String, usize)>), _: Mailbox<()>| {
+                |(stream, raw): (TcpStream, Vec<usize>), _: Mailbox<()>| {
                     let router = Router::from_raw(raw);
-                    let request = core::parse_request(stream.clone());
-                    let matching_handler = router.find_match(&request);
+                    let mut request = core::parse_request(stream.clone());
+                    let path_and_query = request.uri().path_and_query().cloned().unwrap();
+                    let extensions = request.extensions_mut();
+                    extensions.insert(Route::new(path_and_query));
                     let http_version = request.version();
-                    let response = matching_handler(request);
+                    let response = router.handle_request(request);
                     let res = Response::builder()
                         .version(http_version)
                         .header("content-length", response.body().len())

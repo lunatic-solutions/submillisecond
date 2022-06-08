@@ -1,13 +1,15 @@
-use http::Method;
 use std::mem;
+
+use http::uri::PathAndQuery;
 
 use crate::{defaults, Request, Response};
 
-pub type HandlerFn<Req = Vec<u8>, Res = Vec<u8>> = fn(Request<Req>) -> Response<Res>;
+pub type HandlerFn<Req = Vec<u8>, Res = Vec<u8>> =
+    fn(Request<Req>) -> Result<Response<Res>, RouteError>;
 
 #[derive(Clone)]
 pub struct Router {
-    handlers: Vec<(String, String, HandlerFn)>,
+    handlers: Vec<HandlerFn>,
 }
 
 impl Router {
@@ -15,47 +17,37 @@ impl Router {
         Router { handlers: vec![] }
     }
 
-    pub fn as_raw(&self) -> Vec<(String, String, usize)> {
+    pub fn as_raw(&self) -> Vec<usize> {
         self.handlers
             .iter()
-            .map(|(method, path, handler)| {
-                (method.clone(), path.clone(), *handler as *const () as usize)
-            })
+            .map(|handler| *handler as *const () as usize)
             .collect()
     }
 
-    pub fn from_raw(raw: Vec<(String, String, usize)>) -> Router {
+    pub fn from_raw(raw: Vec<usize>) -> Router {
         let handlers = raw
             .iter()
-            .map(|(method, path, handler)| {
-                (method.clone(), path.clone(), {
-                    unsafe {
-                        let pointer = *handler as *const ();
-                        mem::transmute::<*const (), HandlerFn>(pointer)
-                    }
-                })
+            .map(|handler| unsafe {
+                let pointer = *handler as *const ();
+                mem::transmute::<*const (), HandlerFn>(pointer)
             })
             .collect::<Vec<_>>();
         Self { handlers }
     }
 
-    pub fn get(&mut self, path: &'static str, handler: HandlerFn) {
-        self.handlers
-            .push((Method::GET.to_string(), path.to_string(), handler));
+    pub fn route(&mut self, handler: HandlerFn) {
+        self.handlers.push(handler);
     }
 
-    pub fn post(&mut self, path: &'static str, handler: HandlerFn) {
-        self.handlers
-            .push((Method::POST.to_string(), path.to_string(), handler));
-    }
-
-    pub fn find_match(&self, request: &Request) -> HandlerFn {
-        for (method, path, handler) in self.handlers.iter() {
-            if request.method().to_string() == *method && request.uri().to_string() == *path {
-                return *handler;
+    pub fn handle_request(&self, mut req: Request) -> Response {
+        for handler in &self.handlers {
+            match handler(req) {
+                Ok(resp) => return resp,
+                Err(RouteError::ExtractorError(resp)) => return resp,
+                Err(RouteError::RouteNotMatch(request)) => req = request,
             }
         }
-        defaults::err_404
+        defaults::err_404(req)
     }
 }
 
@@ -63,4 +55,23 @@ impl Default for Router {
     fn default() -> Self {
         Router::new()
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd)]
+pub struct Route(PathAndQuery);
+
+impl Route {
+    pub(crate) fn new(path_and_query: PathAndQuery) -> Self {
+        Route(path_and_query)
+    }
+
+    pub fn matches(&self, route: &str) -> bool {
+        self.0.path() == route
+    }
+}
+
+#[derive(Debug)]
+pub enum RouteError {
+    ExtractorError(Response),
+    RouteNotMatch(Request),
 }
