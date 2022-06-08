@@ -125,6 +125,11 @@ impl Route {
             let method_expanded = match method {
                 RouteMethod::GET => quote! { ::http::Method::GET },
                 RouteMethod::POST => quote! { ::http::Method::POST },
+                RouteMethod::PUT => quote! { ::http::Method::PUT },
+                RouteMethod::DELETE => quote! { ::http::Method::DELETE },
+                RouteMethod::HEAD => quote! { ::http::Method::HEAD },
+                RouteMethod::OPTIONS => quote! { ::http::Method::OPTIONS },
+                RouteMethod::PATCH => quote! { ::http::Method::PATCH },
             };
 
             quote! {
@@ -193,6 +198,11 @@ impl Route {
 pub enum RouteMethod {
     GET,
     POST,
+    PUT,
+    DELETE,
+    HEAD,
+    OPTIONS,
+    PATCH,
 }
 
 #[derive(Debug)]
