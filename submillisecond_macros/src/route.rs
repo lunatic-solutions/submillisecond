@@ -1,5 +1,6 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
+use submillisecond_core::router::tree::{Node, NodeType};
 use syn::{
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
@@ -14,12 +15,12 @@ const REQUEST_TYPES: [&str; 3] = [
 ];
 
 pub struct Route {
-    attrs: RouteAttrs,
     extractors: Vec<(Pat, Type)>,
     item_fn: ItemFn,
     method: RouteMethod,
     req_pat: Option<(Pat, Type)>,
     return_ty: Option<Type>,
+    router_node: Node,
 }
 
 impl Route {
@@ -28,8 +29,13 @@ impl Route {
         attr: TokenStream,
         item: TokenStream,
     ) -> syn::Result<Self> {
-        let attrs = syn::parse(attr)?;
+        let attrs: RouteAttrs = syn::parse(attr)?;
         let mut item_fn: ItemFn = syn::parse(item)?;
+
+        let mut router_node = Node::default();
+        if let Err(err) = router_node.insert(attrs.path.value()) {
+            return Err(syn::Error::new(attrs.path.span(), err.to_string()));
+        }
 
         // Get request param and overwrite it with submillisecond::Request
         let mut req_pat = None;
@@ -83,22 +89,22 @@ impl Route {
         item_fn.sig.output = syn::parse2(quote! { -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> }).unwrap();
 
         Ok(Route {
-            attrs,
             extractors,
             item_fn,
             method,
             req_pat,
             return_ty,
+            router_node,
         })
     }
 
     pub fn expand(self) -> TokenStream {
         let Route {
-            attrs: RouteAttrs { path },
             extractors,
             method,
             req_pat,
             return_ty,
+            router_node,
             ..
         } = &self;
 
@@ -122,6 +128,8 @@ impl Route {
                 None => quote! { _ },
             };
 
+            let router_node_expanded = expand_node(router_node);
+
             let method_expanded = match method {
                 RouteMethod::GET => quote! { ::http::Method::GET },
                 RouteMethod::POST => quote! { ::http::Method::POST },
@@ -134,13 +142,26 @@ impl Route {
 
             quote! {
                 {
+                    const ROUTER_NODE: ::submillisecond_core::router::tree::ConstNode = #router_node_expanded;
+
                     if #method_expanded != #req.method() {
                         return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(#req));
                     }
 
                     let route = #req.extensions().get::<::submillisecond::router::Route>().unwrap();
-                    if !route.matches(#path) {
-                        return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(#req));
+                    match ROUTER_NODE.at(route.path().as_bytes()) {
+                        Ok(params) => {
+                            let extensions = #req.extensions_mut();
+                            match extensions.get_mut::<::submillisecond_core::router::params::Params>() {
+                                Some(mut ext_params) => {
+                                    ext_params.merge(params);
+                                },
+                                None => {
+                                    extensions.insert(params);
+                                }
+                            }
+                        },
+                        Err(err) => return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(#req)),
                     }
                 }
 
@@ -221,5 +242,48 @@ impl Parse for RouteAttrs {
         })?;
 
         Ok(RouteAttrs { path })
+    }
+}
+
+fn expand_node(
+    Node {
+        priority,
+        wild_child,
+        indices,
+        node_type,
+        prefix,
+        children,
+    }: &Node,
+) -> proc_macro2::TokenStream {
+    let indices_expanded = indices.iter().map(|indicie| {
+        quote! {
+            #indicie
+        }
+    });
+
+    let node_type_expanded = match node_type {
+        NodeType::Root => quote! { ::submillisecond_core::router::tree::NodeType::Root },
+        NodeType::Param => quote! { ::submillisecond_core::router::tree::NodeType::Param },
+        NodeType::CatchAll => quote! { ::submillisecond_core::router::tree::NodeType::CatchAll },
+        NodeType::Static => quote! { ::submillisecond_core::router::tree::NodeType::Static },
+    };
+
+    let prefix_expanded = prefix.iter().map(|prefix| {
+        quote! {
+            #prefix
+        }
+    });
+
+    let children_expanded = children.iter().map(expand_node);
+
+    quote! {
+        ::submillisecond_core::router::tree::ConstNode {
+            priority: #priority,
+            wild_child: #wild_child,
+            indices: &[#( #indices_expanded, )*],
+            node_type: #node_type_expanded,
+            prefix: &[#( #prefix_expanded, )*],
+            children: &[#( #children_expanded, )*],
+        }
     }
 }

@@ -302,8 +302,13 @@ dependencies = [
  "mime",
  "serde",
  "serde_json",
+ "submillisecond_core",
  "submillisecond_macros",
 ]
+
+[[package]]
+name = "submillisecond_core"
+version = "0.1.0"
 
 [[package]]
 name = "submillisecond_macros"
@@ -311,6 +316,7 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
+ "submillisecond_core",
  "syn",
 ]
 

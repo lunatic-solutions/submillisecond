@@ -1,12 +1,15 @@
-use http::HeaderMap;
 use submillisecond::{get, Application, Request};
+use submillisecond_core::router::params::Params;
 
-#[get("/hey")]
-fn hello(req: Request, headers: HeaderMap) -> String {
-    println!("{:#?}", headers);
-    println!("{:#?}", req.uri());
+#[get("/users/:id")]
+fn hello(req: Request) -> String {
+    let params: &Params = req.extensions().get().unwrap();
+    for param in params.iter() {
+        dbg!(param);
+    }
 
-    "Hello world!".to_string()
+    let id = params.get("id").unwrap();
+    format!("Welcome, {id}")
 }
 
 fn main() {
