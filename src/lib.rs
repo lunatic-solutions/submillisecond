@@ -1,6 +1,5 @@
 use std::io::Result as IoResult;
 
-pub use http::Method;
 use lunatic::{
     net::{TcpListener, TcpStream},
     Mailbox, Process,
