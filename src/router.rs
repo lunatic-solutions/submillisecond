@@ -79,23 +79,3 @@ pub enum RouteError {
     ExtractorError(Response),
     RouteNotMatch(Request),
 }
-
-#[doc(hidden)]
-#[allow(non_camel_case_types)]
-pub struct __inernal__RouterNode {
-    pub priority: u32,
-    pub wild_child: bool,
-    pub indices: Vec<u8>,
-    pub node_type: __inernal__RouterNodeType,
-    pub prefix: Vec<u8>,
-    pub children: Vec<Self>,
-}
-
-#[doc(hidden)]
-#[allow(non_camel_case_types)]
-pub enum __inernal__RouterNodeType {
-    Root,
-    Param,
-    CatchAll,
-    Static,
-}
