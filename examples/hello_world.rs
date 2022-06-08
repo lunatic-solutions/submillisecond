@@ -1,7 +1,7 @@
 use http::HeaderMap;
-use submillisecond::{route, Application, Request};
+use submillisecond::{get, Application, Request};
 
-#[route("/hey")]
+#[get("/hey")]
 fn hello(req: Request, headers: HeaderMap) -> String {
     println!("{:#?}", headers);
     println!("{:#?}", req.uri());

@@ -15,14 +15,19 @@ const REQUEST_TYPES: [&str; 3] = [
 
 pub struct Route {
     attrs: RouteAttrs,
-    item_fn: ItemFn,
-    req_pat: Option<(Pat, Type)>,
     extractors: Vec<(Pat, Type)>,
+    item_fn: ItemFn,
+    method: RouteMethod,
+    req_pat: Option<(Pat, Type)>,
     return_ty: Option<Type>,
 }
 
 impl Route {
-    pub fn parse_with_attributes(attr: TokenStream, item: TokenStream) -> syn::Result<Self> {
+    pub fn parse_with_attributes(
+        method: RouteMethod,
+        attr: TokenStream,
+        item: TokenStream,
+    ) -> syn::Result<Self> {
         let attrs = syn::parse(attr)?;
         let mut item_fn: ItemFn = syn::parse(item)?;
 
@@ -79,9 +84,10 @@ impl Route {
 
         Ok(Route {
             attrs,
-            item_fn,
-            req_pat,
             extractors,
+            item_fn,
+            method,
+            req_pat,
             return_ty,
         })
     }
@@ -89,8 +95,9 @@ impl Route {
     pub fn expand(self) -> TokenStream {
         let Route {
             attrs: RouteAttrs { path },
-            req_pat,
             extractors,
+            method,
+            req_pat,
             return_ty,
             ..
         } = &self;
@@ -115,8 +122,17 @@ impl Route {
                 None => quote! { _ },
             };
 
+            let method_expanded = match method {
+                RouteMethod::GET => quote! { ::http::Method::GET },
+                RouteMethod::POST => quote! { ::http::Method::POST },
+            };
+
             quote! {
                 {
+                    if #method_expanded != #req.method() {
+                        return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(#req));
+                    }
+
                     let route = #req.extensions().get::<::submillisecond::router::Route>().unwrap();
                     if !route.matches(#path) {
                         return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(#req));
@@ -171,6 +187,12 @@ impl Route {
         }
         .into()
     }
+}
+
+#[allow(clippy::upper_case_acronyms)]
+pub enum RouteMethod {
+    GET,
+    POST,
 }
 
 #[derive(Debug)]
