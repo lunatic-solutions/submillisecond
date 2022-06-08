@@ -1,19 +1,27 @@
+use std::io::Result as IoResult;
+
 pub use http::Method;
 use lunatic::{
     net::{TcpListener, TcpStream},
     Mailbox, Process,
 };
-pub use response::Response;
-use router::{HandlerFn, Route, Router};
-use std::io::Result as IoResult;
 pub use submillisecond_macros::*;
+
+pub use crate::error::{BoxError, Error};
+pub use crate::response::Response;
+use crate::router::{HandlerFn, Route, Router};
+
+#[macro_use]
+pub(crate) mod macros;
 
 pub mod core;
 pub mod defaults;
+mod error;
 pub mod extract;
 pub mod json;
 pub mod response;
 pub mod router;
+pub mod template;
 
 /// Type alias for [`http::Request`] whose body defaults to [`String`].
 pub type Request<T = Vec<u8>> = http::Request<T>;
