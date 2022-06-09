@@ -4,7 +4,7 @@ use headers::Host;
 use http::HeaderMap;
 use submillisecond::{
     extract::{path::Path, query::Query, typed_header::TypedHeader},
-    get, Application,
+    get, post, Application, Request,
 };
 
 #[get("/path/:id")]
@@ -42,12 +42,19 @@ fn typed_header(TypedHeader(host): TypedHeader<Host>) -> String {
     host.to_string()
 }
 
+#[post("/string")]
+fn string(req: Request, body: String) -> String {
+    assert!(req.body().is_empty()); // Taking body with `String` extractor should leave the request body empty
+    body
+}
+
 fn main() {
     Application::build()
         .route(path)
         .route(query)
         .route(header_map)
         .route(typed_header)
+        .route(string)
         .listen(3000)
         .unwrap()
         .start_server();
