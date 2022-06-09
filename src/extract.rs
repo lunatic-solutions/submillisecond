@@ -1,4 +1,5 @@
 pub mod path;
+pub mod query;
 mod rejection;
 
 use std::convert::Infallible;

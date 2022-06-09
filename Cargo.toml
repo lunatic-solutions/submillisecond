@@ -15,5 +15,6 @@ mime = "0.3.16"
 percent-encoding = "2.1"
 serde = { version = "1.0.132", features = ["derive"] }
 serde_json = "1.0"
+serde_urlencoded = "0.7"
 submillisecond_core = { path = "submillisecond_core" }
 submillisecond_macros = { path = "submillisecond_macros" }
