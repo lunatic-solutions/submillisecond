@@ -1,7 +1,3 @@
-use std::fmt;
-
-use http::StatusCode;
-
 use crate::{response::IntoResponse, BoxError, Error, Response};
 
 use super::path::FailedToDeserializePathParams;
@@ -75,49 +71,6 @@ composite_rejection! {
     }
 }
 
-/// Rejection type used if you try and extract the request body more than
-/// once.
-#[derive(Debug, Default)]
-#[non_exhaustive]
-pub struct BodyAlreadyExtracted;
-
-impl BodyAlreadyExtracted {
-    const BODY: &'static str = "Cannot have two request body extractors for a single handler";
-}
-
-impl IntoResponse for BodyAlreadyExtracted {
-    fn into_response(self) -> Response {
-        (StatusCode::INTERNAL_SERVER_ERROR, Self::BODY).into_response()
-    }
-}
-
-impl fmt::Display for BodyAlreadyExtracted {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Self::BODY)
-    }
-}
-
-impl std::error::Error for BodyAlreadyExtracted {}
-
-define_rejection! {
-    #[status = PAYLOAD_TOO_LARGE]
-    #[body = "Failed to buffer the request body"]
-    /// Encountered some other error when buffering the body.
-    ///
-    /// This can  _only_ happen when you're using [`tower_http::limit::RequestBodyLimitLayer`] or
-    /// otherwise wrapping request bodies in [`http_body::Limited`].
-    ///
-    /// [`tower_http::limit::RequestBodyLimitLayer`]: https://docs.rs/tower-http/0.3/tower_http/limit/struct.RequestBodyLimitLayer.html
-    pub struct LengthLimitError(Error);
-}
-
-define_rejection! {
-    #[status = BAD_REQUEST]
-    #[body = "Failed to buffer the request body"]
-    /// Encountered an unknown error when buffering the body.
-    pub struct UnknownBodyError(Error);
-}
-
 define_rejection! {
     #[status = BAD_REQUEST]
     #[body = "Request body didn't contain valid UTF-8"]
@@ -131,8 +84,6 @@ composite_rejection! {
     ///
     /// Contains one variant for each way the [`String`] extractor can fail.
     pub enum StringRejection {
-        BodyAlreadyExtracted,
-        // FailedToBufferBody,
         InvalidUtf8,
     }
 }

@@ -48,6 +48,12 @@ fn string(req: Request, body: String) -> String {
     body
 }
 
+#[post("/vec")]
+fn vec(req: Request, body: Vec<u8>) -> Vec<u8> {
+    assert!(req.body().is_empty()); // Taking body with `Vec<u8>` extractor should leave the request body empty
+    body
+}
+
 fn main() {
     Application::build()
         .route(path)
@@ -55,6 +61,7 @@ fn main() {
         .route(header_map)
         .route(typed_header)
         .route(string)
+        .route(vec)
         .listen(3000)
         .unwrap()
         .start_server();

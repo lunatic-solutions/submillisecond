@@ -4,6 +4,7 @@ pub mod query;
 pub mod rejection;
 pub mod string;
 pub mod typed_header;
+pub mod vec;
 
 use crate::{response::IntoResponse, Request};
 
