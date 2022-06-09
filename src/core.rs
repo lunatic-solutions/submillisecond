@@ -47,16 +47,18 @@ pub fn parse_request(mut stream: TcpStream) -> Request {
             break;
         }
         if h.name.to_lowercase() == "content-length" {
-            if let Ok(v) = h.value.try_into() {
-                content_length = usize::from_be_bytes(v);
-            }
+            content_length = h
+                .value
+                .iter()
+                .map(|x| (x - b'0') as usize)
+                .fold(0_usize, |acc, b| acc * 10 + b);
         }
         request_builder = request_builder.header(h.name, h.value);
     }
     // get body
     let mut body: Vec<u8> = Vec::with_capacity(content_length);
     if let httparse::Status::Complete(idx) = offset {
-        body = buf[idx..].to_owned();
+        body = buf[idx..usize::min(idx + content_length, buf.len())].to_owned();
     }
 
     // TODO: handle error if non-utf8 data received
