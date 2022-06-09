@@ -2,10 +2,7 @@ use std::{convert::Infallible, mem};
 
 use crate::Request;
 
-use super::{
-    rejection::{InvalidUtf8, StringRejection},
-    FromRequest,
-};
+use super::FromRequest;
 
 impl FromRequest for Vec<u8> {
     type Rejection = Infallible;

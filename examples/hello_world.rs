@@ -2,9 +2,12 @@ use std::collections::HashMap;
 
 use headers::Host;
 use http::HeaderMap;
+use serde::Deserialize;
 use submillisecond::{
     extract::{path::Path, query::Query, typed_header::TypedHeader},
-    get, post, Application, Request,
+    get,
+    json::Json,
+    post, Application, Request,
 };
 
 #[get("/path/:id")]
@@ -50,8 +53,20 @@ fn string(req: Request, body: String) -> String {
 
 #[post("/vec")]
 fn vec(req: Request, body: Vec<u8>) -> Vec<u8> {
+    println!("{}", body.len());
     assert!(req.body().is_empty()); // Taking body with `Vec<u8>` extractor should leave the request body empty
     body
+}
+
+#[derive(Deserialize, Debug)]
+struct Login {
+    email: String,
+    password: String,
+}
+
+#[post("/json")]
+fn json(Json(login): Json<Login>) -> String {
+    format!("Email: {}\nPassword: {}", login.email, login.password)
 }
 
 fn main() {
@@ -62,6 +77,7 @@ fn main() {
         .route(typed_header)
         .route(string)
         .route(vec)
+        .route(json)
         .listen(3000)
         .unwrap()
         .start_server();

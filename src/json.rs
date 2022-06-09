@@ -1,7 +1,10 @@
-use http::{header, HeaderValue, Request, StatusCode};
-use serde::{de, ser, Serialize};
+use http::{header, HeaderValue, StatusCode};
+use serde::{ser, Serialize};
 
-use crate::response::{IntoResponse, Response};
+use crate::{
+    response::{IntoResponse, Response},
+    Request,
+};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Json<T>(pub T);
@@ -33,7 +36,7 @@ where
     }
 }
 
-pub fn from_json<T>(req: Request<T>) -> serde_json::Result<Request<Vec<u8>>>
+pub fn from_json<T>(req: Request) -> serde_json::Result<Request>
 where
     T: ser::Serialize,
 {
@@ -42,11 +45,33 @@ where
     Ok(Request::from_parts(parts, body))
 }
 
-pub fn to_json<T>(res: http::Response<Vec<u8>>) -> serde_json::Result<http::Response<T>>
-where
-    for<'de> T: de::Deserialize<'de>,
-{
+pub fn to_json(res: Response) -> serde_json::Result<Response> {
     let (parts, body) = res.into_parts();
     let body = serde_json::from_slice(&body)?;
     Ok(http::Response::from_parts(parts, body))
+}
+
+pub(crate) fn json_content_type(req: &Request) -> bool {
+    let content_type = if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
+        content_type
+    } else {
+        return false;
+    };
+
+    let content_type = if let Ok(content_type) = content_type.to_str() {
+        content_type
+    } else {
+        return false;
+    };
+
+    let mime = if let Ok(mime) = content_type.parse::<mime::Mime>() {
+        mime
+    } else {
+        return false;
+    };
+
+    let is_json_content_type = mime.type_() == "application"
+        && (mime.subtype() == "json" || mime.suffix().map_or(false, |name| name == "json"));
+
+    is_json_content_type
 }
