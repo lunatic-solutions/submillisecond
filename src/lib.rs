@@ -1,23 +1,30 @@
 use std::io::Result as IoResult;
 
-pub use http::{Method, Request, Response};
+pub use http::Method;
 use lunatic::{
     net::{TcpListener, TcpStream},
     Mailbox, Process,
 };
-use router::{HandlerFn, Router};
+pub use submillisecond_macros::*;
 
 pub use crate::error::{BoxError, Error};
+pub use crate::response::Response;
+use crate::router::{HandlerFn, Route, Router};
+
+#[macro_use]
+pub(crate) mod macros;
 
 pub mod core;
 pub mod defaults;
 mod error;
+pub mod extract;
 pub mod json;
-#[macro_use]
-pub(crate) mod macros;
 pub mod response;
 pub mod router;
 pub mod template;
+
+/// Type alias for [`http::Request`] whose body defaults to [`String`].
+pub type Request<T = Vec<u8>> = http::Request<T>;
 
 pub struct Application {
     listener: TcpListener,
@@ -29,13 +36,8 @@ pub struct ApplicationBuilder {
 }
 
 impl ApplicationBuilder {
-    pub fn get(mut self, path: &'static str, handler: HandlerFn) -> ApplicationBuilder {
-        self.router.get(path, handler);
-        self
-    }
-
-    pub fn post(mut self, path: &'static str, handler: HandlerFn) -> ApplicationBuilder {
-        self.router.post(path, handler);
+    pub fn route(mut self, handler: HandlerFn) -> ApplicationBuilder {
+        self.router.route(handler);
         self
     }
 
@@ -61,18 +63,20 @@ impl Application {
         while let Ok((stream, _)) = self.listener.accept() {
             Process::spawn_link(
                 (stream, self.router.as_raw()),
-                |(stream, raw): (TcpStream, Vec<(String, String, usize)>), _: Mailbox<()>| {
+                |(stream, raw): (TcpStream, Vec<usize>), _: Mailbox<()>| {
                     let router = Router::from_raw(raw);
-                    let request = core::parse_request(stream.clone());
-                    let matching_handler = router.find_match(&request);
+                    let mut request = core::parse_request(stream.clone());
+                    let path_and_query = request.uri().path_and_query().cloned().unwrap();
+                    let extensions = request.extensions_mut();
+                    extensions.insert(Route::new(path_and_query));
                     let http_version = request.version();
-                    let response = matching_handler(request);
+                    let response = router.handle_request(request);
                     let res = Response::builder()
                         .version(http_version)
                         .header("content-length", response.body().len())
                         .header("content-type", "text/html")
                         .status(200)
-                        .body::<String>(response.body().to_string())
+                        .body(response.into_body())
                         .unwrap();
                     match core::write_response(stream, res) {
                         Ok(_) => println!("[http reader] SENT Response 200"),

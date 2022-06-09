@@ -1,9 +1,10 @@
-use http::{Request, Response};
 use httparse;
 use lunatic::net::TcpStream;
 use std::io::{Read, Result as IoResult, Write};
 
-pub fn write_response(mut stream: TcpStream, response: Response<String>) -> IoResult<()> {
+use crate::{Request, Response};
+
+pub fn write_response(mut stream: TcpStream, response: Response) -> IoResult<()> {
     // writing status line
     write!(
         &mut stream,
@@ -20,11 +21,11 @@ pub fn write_response(mut stream: TcpStream, response: Response<String>) -> IoRe
     }
     // separator between header and data
     write!(&mut stream, "\r\n")?;
-    stream.write_all(response.body().as_bytes())?;
+    stream.write_all(response.body())?;
     Ok(())
 }
 
-pub fn parse_request(mut stream: TcpStream) -> Request<String> {
+pub fn parse_request(mut stream: TcpStream) -> Request {
     let mut headers = [httparse::EMPTY_HEADER; 16];
     let mut buf = [0; 200];
     if let Err(e) = stream.read(&mut buf) {
@@ -59,7 +60,5 @@ pub fn parse_request(mut stream: TcpStream) -> Request<String> {
     }
 
     // TODO: handle error if non-utf8 data received
-    request_builder
-        .body::<String>(String::from_utf8(body).unwrap())
-        .unwrap()
+    request_builder.body(body).unwrap()
 }

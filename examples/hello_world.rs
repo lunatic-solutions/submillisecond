@@ -1,18 +1,20 @@
-use submillisecond::{Application, Request, Response};
+use submillisecond::{get, Application, Request};
+use submillisecond_core::router::params::Params;
 
-fn hello(_: Request<String>) -> Response<String> {
-    let body = String::from("Hello world!");
-    Response::builder()
-        .status(200)
-        .header("Content-Type", "text/html")
-        .header("Content-Length", body.len())
-        .body(body)
-        .unwrap()
+#[get("/users/:id")]
+fn hello(req: Request) -> String {
+    let params: &Params = req.extensions().get().unwrap();
+    for param in params.iter() {
+        dbg!(param);
+    }
+
+    let id = params.get("id").unwrap();
+    format!("Welcome, {id}")
 }
 
 fn main() {
     Application::build()
-        .get("/hello", hello)
+        .route(hello)
         .listen(3000)
         .unwrap()
         .start_server();
