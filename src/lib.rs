@@ -1,5 +1,6 @@
 use std::io::Result as IoResult;
 
+use http::{header, HeaderValue};
 use lunatic::{
     net::{TcpListener, TcpStream},
     Mailbox, Process,
@@ -69,15 +70,13 @@ impl Application {
                     let extensions = request.extensions_mut();
                     extensions.insert(Route::new(path_and_query));
                     let http_version = request.version();
-                    let response = router.handle_request(request);
-                    let res = Response::builder()
-                        .version(http_version)
-                        .header("content-length", response.body().len())
-                        .header("content-type", "text/html")
-                        .status(200)
-                        .body(response.into_body())
-                        .unwrap();
-                    match core::write_response(stream, res) {
+                    let mut response = router.handle_request(request);
+                    let content_length = response.body().len();
+                    *response.version_mut() = http_version;
+                    response
+                        .headers_mut()
+                        .append(header::CONTENT_LENGTH, HeaderValue::from(content_length));
+                    match core::write_response(stream, response) {
                         Ok(_) => println!("[http reader] SENT Response 200"),
                         Err(e) => eprintln!("[http reader] Failed to send response {:?}", e),
                     }

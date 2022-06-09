@@ -300,6 +300,7 @@ dependencies = [
  "httparse",
  "lunatic",
  "mime",
+ "percent-encoding",
  "serde",
  "serde_json",
  "submillisecond_core",

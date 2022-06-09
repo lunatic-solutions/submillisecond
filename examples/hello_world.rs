@@ -1,14 +1,7 @@
-use submillisecond::{get, Application, Request};
-use submillisecond_core::router::params::Params;
+use submillisecond::{extract::path::Path, get, Application};
 
 #[get("/users/:id")]
-fn hello(req: Request) -> String {
-    let params: &Params = req.extensions().get().unwrap();
-    for param in params.iter() {
-        dbg!(param);
-    }
-
-    let id = params.get("id").unwrap();
+fn hello(Path(id): Path<String>) -> String {
     format!("Welcome, {id}")
 }
 
