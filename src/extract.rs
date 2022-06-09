@@ -1,10 +1,7 @@
+pub mod header_map;
 pub mod path;
 pub mod query;
-mod rejection;
-
-use std::convert::Infallible;
-
-use http::HeaderMap;
+pub mod rejection;
 
 use crate::{response::IntoResponse, Request};
 
@@ -15,12 +12,4 @@ pub trait FromRequest: Sized {
 
     /// Perform the extraction.
     fn from_request(req: &mut Request) -> Result<Self, Self::Rejection>;
-}
-
-impl FromRequest for HeaderMap {
-    type Rejection = Infallible;
-
-    fn from_request(req: &mut Request) -> Result<Self, Self::Rejection> {
-        Ok(req.headers().clone())
-    }
 }
