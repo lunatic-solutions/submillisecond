@@ -8,6 +8,7 @@ version = "0.1.0"
 
 [dependencies]
 askama = "0.11"
+headers = "0.3"
 http = "0.2.7"
 httparse = "1.7.1"
 lunatic = "0.9.1"

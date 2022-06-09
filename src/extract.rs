@@ -2,6 +2,7 @@ pub mod header_map;
 pub mod path;
 pub mod query;
 pub mod rejection;
+pub mod typed_header;
 
 use crate::{response::IntoResponse, Request};
 

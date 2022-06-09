@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
+use headers::Host;
 use http::HeaderMap;
 use submillisecond::{
-    extract::{path::Path, query::Query},
+    extract::{path::Path, query::Query, typed_header::TypedHeader},
     get, Application,
 };
 
@@ -36,11 +37,17 @@ fn header_map(headers: HeaderMap) -> String {
         .join("\n")
 }
 
+#[get("/typed_header")]
+fn typed_header(TypedHeader(host): TypedHeader<Host>) -> String {
+    host.to_string()
+}
+
 fn main() {
     Application::build()
         .route(path)
         .route(query)
         .route(header_map)
+        .route(typed_header)
         .listen(3000)
         .unwrap()
         .start_server();
