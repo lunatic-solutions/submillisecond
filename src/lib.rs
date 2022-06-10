@@ -79,7 +79,7 @@ impl Application {
                         .body(response.into_body())
                         .unwrap();
                     match core::write_response(stream, res) {
-                        Ok(_) => println!("[http reader] SENT Response 200"),
+                        Ok(_) => {}
                         Err(e) => eprintln!("[http reader] Failed to send response {:?}", e),
                     }
                 },
