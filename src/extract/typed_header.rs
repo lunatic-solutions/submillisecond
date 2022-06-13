@@ -8,6 +8,8 @@ use crate::{
     Request, Response,
 };
 
+use super::rejection::{TypedHeaderRejection, TypedHeaderRejectionReason};
+
 #[derive(Debug, Clone, Copy)]
 pub struct TypedHeader<T>(pub T);
 
@@ -60,62 +62,5 @@ where
         let mut res = ().into_response();
         res.headers_mut().typed_insert(self.0);
         res
-    }
-}
-
-/// Rejection used for [`TypedHeader`](super::TypedHeader).
-#[derive(Debug)]
-pub struct TypedHeaderRejection {
-    name: &'static http::header::HeaderName,
-    reason: TypedHeaderRejectionReason,
-}
-
-impl TypedHeaderRejection {
-    /// Name of the header that caused the rejection
-    pub fn name(&self) -> &http::header::HeaderName {
-        self.name
-    }
-
-    /// Reason why the header extraction has failed
-    pub fn reason(&self) -> &TypedHeaderRejectionReason {
-        &self.reason
-    }
-}
-
-/// Additional information regarding a [`TypedHeaderRejection`]
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum TypedHeaderRejectionReason {
-    /// The header was missing from the HTTP request
-    Missing,
-    /// An error occured when parsing the header from the HTTP request
-    Error(headers::Error),
-}
-
-impl IntoResponse for TypedHeaderRejection {
-    fn into_response(self) -> Response {
-        (http::StatusCode::BAD_REQUEST, self.to_string()).into_response()
-    }
-}
-
-impl std::fmt::Display for TypedHeaderRejection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.reason {
-            TypedHeaderRejectionReason::Missing => {
-                write!(f, "Header of type `{}` was missing", self.name)
-            }
-            TypedHeaderRejectionReason::Error(err) => {
-                write!(f, "{} ({})", err, self.name)
-            }
-        }
-    }
-}
-
-impl std::error::Error for TypedHeaderRejection {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match &self.reason {
-            TypedHeaderRejectionReason::Error(err) => Some(err),
-            TypedHeaderRejectionReason::Missing => None,
-        }
     }
 }

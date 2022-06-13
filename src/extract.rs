@@ -1,11 +1,19 @@
-pub mod header_map;
-pub mod json;
+//! Types and traits for extracting data from requests.
+//!
+//! Many of the types and implementations were taken from [Axum](https://crates.io/crates/axum).
+
+pub use path::Path;
+pub use query::Query;
+pub use typed_header::TypedHeader;
+
+mod header_map;
+mod json;
 pub mod path;
-pub mod query;
+mod query;
 pub mod rejection;
-pub mod string;
-pub mod typed_header;
-pub mod vec;
+mod string;
+mod typed_header;
+mod vec;
 
 use crate::{response::IntoResponse, Request};
 

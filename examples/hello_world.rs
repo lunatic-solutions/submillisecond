@@ -4,7 +4,7 @@ use headers::Host;
 use http::HeaderMap;
 use serde::Deserialize;
 use submillisecond::{
-    extract::{path::Path, query::Query, typed_header::TypedHeader},
+    extract::{Path, Query, TypedHeader},
     get,
     json::Json,
     post, Application, Request,
