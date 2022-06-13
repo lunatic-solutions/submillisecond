@@ -1,4 +1,4 @@
-use http::StatusCode;
+use http::{header, StatusCode};
 use httparse::{self, Status};
 use lunatic::net::TcpStream;
 use std::{
@@ -68,9 +68,23 @@ pub fn parse_request(stream: TcpStream) -> Result<Request, ParseRequestError> {
                     request.header(header.name, header.value)
                 });
 
-                return request
-                    .body(raw_request[offset..].to_owned())
-                    .map_err(ParseRequestError::BadRequest);
+                let body = match request
+                    .headers_ref()
+                    .and_then(|headers| headers.get(&header::CONTENT_LENGTH))
+                {
+                    Some(content_length) => {
+                        let length = content_length
+                            .as_bytes()
+                            .iter()
+                            .map(|x| (*x as char).to_digit(10))
+                            .fold(Some(0), |acc, b| Some(acc? * 10 + (b? as usize)))
+                            .ok_or(ParseRequestError::InvalidContentLengthHeader)?;
+                        raw_request[offset..offset + length].to_owned()
+                    }
+                    None => raw_request[offset..].to_owned(),
+                };
+
+                return request.body(body).map_err(ParseRequestError::BadRequest);
             }
             Status::Partial => {
                 if raw_request.len() > REQUEST_MAX_SIZE {
