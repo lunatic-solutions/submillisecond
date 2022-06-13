@@ -5,6 +5,7 @@ use lunatic::{
     net::{TcpListener, TcpStream},
     Mailbox, Process,
 };
+use response::IntoResponse;
 pub use submillisecond_macros::*;
 
 pub use crate::error::{BoxError, Error};
@@ -65,7 +66,15 @@ impl Application {
                 (stream, self.router.as_raw()),
                 |(stream, raw): (TcpStream, Vec<usize>), _: Mailbox<()>| {
                     let router = Router::from_raw(raw);
-                    let mut request = core::parse_request(stream.clone());
+                    let mut request = match core::parse_request(stream.clone()) {
+                        Ok(request) => request,
+                        Err(err) => {
+                            if let Err(err) = core::write_response(stream, err.into_response()) {
+                                eprintln!("[http reader] Failed to send response {:?}", err);
+                            }
+                            return;
+                        }
+                    };
                     let path_and_query = request.uri().path_and_query().cloned().unwrap();
                     let extensions = request.extensions_mut();
                     extensions.insert(Route::new(path_and_query));
@@ -76,9 +85,8 @@ impl Application {
                     response
                         .headers_mut()
                         .append(header::CONTENT_LENGTH, HeaderValue::from(content_length));
-                    match core::write_response(stream, response) {
-                        Ok(_) => println!("[http reader] SENT Response 200"),
-                        Err(e) => eprintln!("[http reader] Failed to send response {:?}", e),
+                    if let Err(err) = core::write_response(stream, response) {
+                        eprintln!("[http reader] Failed to send response {:?}", err);
                     }
                 },
             );
