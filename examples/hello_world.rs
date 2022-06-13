@@ -1,6 +1,11 @@
 use submillisecond::{get, Application, Request};
 use submillisecond_core::router::params::Params;
 
+#[get("/")]
+fn root() -> &'static str {
+    "OK"
+}
+
 #[get("/users/:id")]
 fn hello(req: Request) -> String {
     let params: &Params = req.extensions().get().unwrap();
@@ -14,6 +19,7 @@ fn hello(req: Request) -> String {
 
 fn main() {
     Application::build()
+        .route(root)
         .route(hello)
         .listen(3000)
         .unwrap()
