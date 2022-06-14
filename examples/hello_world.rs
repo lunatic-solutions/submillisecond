@@ -7,8 +7,15 @@ use submillisecond::{
     extract::{Path, Query, TypedHeader},
     get,
     json::Json,
-    post, Application, Request,
+    post, router,
+    router::HandlerFn,
+    Application, Request,
 };
+
+#[get("/")]
+fn index() -> String {
+    format!("Hello :)")
+}
 
 #[get("/path/:id")]
 fn path(Path(id): Path<String>) -> String {
@@ -69,15 +76,19 @@ fn json(Json(login): Json<Login>) -> String {
     format!("Email: {}\nPassword: {}", login.email, login.password)
 }
 
+const ROUTER: HandlerFn = router![index, path, query];
+
 fn main() {
     Application::build()
-        .route(path)
-        .route(query)
-        .route(header_map)
-        .route(typed_header)
-        .route(string)
-        .route(vec)
-        .route(json)
+        .route(ROUTER)
+        // .route(index)
+        // .route(path)
+        // .route(query)
+        // .route(header_map)
+        // .route(typed_header)
+        // .route(string)
+        // .route(vec)
+        // .route(json)
         .listen(3000)
         .unwrap()
         .start_server();
