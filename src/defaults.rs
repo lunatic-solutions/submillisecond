@@ -4,7 +4,7 @@ use crate::{Request, Response};
 pub fn err_404(_: Request) -> Response {
     Response::builder()
         .status(404)
-        .header("Content-Type", "HTML")
+        .header("Content-Type", "text/html; charset=UTF-8")
         .body(b"<h1>404: Not found</h1>".to_vec())
         .unwrap()
 }
