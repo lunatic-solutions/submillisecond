@@ -144,7 +144,7 @@ impl Params {
     }
 }
 
-/// An iterator over the keys and values of a route's [parameters](crate::Params).
+/// An iterator over the keys and values of a route's [parameters](Params).
 pub struct ParamsIter<'ps> {
     kind: ParamsIterKind<'ps>,
 }

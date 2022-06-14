@@ -8,11 +8,14 @@ version = "0.1.0"
 
 [dependencies]
 askama = "0.11"
+headers = "0.3"
 http = "0.2.7"
 httparse = "1.7.1"
 lunatic = "0.9.1"
 mime = "0.3.16"
+percent-encoding = "2.1"
 serde = { version = "1.0.132", features = ["derive"] }
 serde_json = "1.0"
+serde_urlencoded = "0.7"
 submillisecond_core = { path = "submillisecond_core" }
 submillisecond_macros = { path = "submillisecond_macros" }
