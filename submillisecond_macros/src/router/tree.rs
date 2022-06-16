@@ -76,9 +76,35 @@ impl RouterTree {
                     ItemHandler::SubRouter(_) => todo!(),
                 };
 
+                let (middleware_before, middleware_after) = if let Some(m) = middleware {
+                    let items = m.tree.items();
+                    let invoke_middleware = items
+                        .iter()
+                        .map(|item| {
+                            quote! {
+                                <#item as ::submillisecond::Middleware>::before(&req)
+                            }
+                        })
+                        .collect::<Vec<TokenStream>>();
+                    let before_calls = quote! {
+                        let middleware_calls = ( #( #invoke_middleware ),* );
+                    };
+                    let after_calls = (0..items.len())
+                        .map(|idx| {
+                            quote! {
+                                middleware_calls.#idx.after(&res);
+                            }
+                        })
+                        .collect::<Vec<TokenStream>>();
+                    (before_calls, quote! {#( #after_calls )*})
+                } else {
+                    (quote! {}, quote! {})
+                };
+
                 quote! {
-                    #path if #method_expanded #guards_expanded => ::std::result::Result::Ok(
-                        ::submillisecond::response::IntoResponse::into_response(
+                    #path if #method_expanded #guards_expanded => {
+                        #middleware_before
+                        let res = ::submillisecond::response::IntoResponse::into_response(
                             ::submillisecond::handler::Handler::handle(
                                 #handler_ident
                                     as ::submillisecond::handler::FnPtr<
@@ -88,8 +114,10 @@ impl RouterTree {
                                     >,
                                 req,
                             ),
-                        ),
-                    )
+                        );
+                        #middleware_after
+                        ::std::result::Result::Ok(res);
+                    }
                 }
             },
         );

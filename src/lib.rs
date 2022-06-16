@@ -94,3 +94,8 @@ impl Application {
         }
     }
 }
+
+pub trait Middleware {
+    fn before(req: Request) -> Self;
+    fn after(self, res: Response) -> ();
+}

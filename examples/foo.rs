@@ -4,7 +4,7 @@
 //     ($tt: tt*) => {};
 // }
 
-use submillisecond::router;
+use submillisecond::{router, Middleware};
 
 fn foo_handler() -> ::std::string::String {
     "fi".to_string()
@@ -84,11 +84,27 @@ fn foo_handler() -> ::std::string::String {
 //     }
 // }
 
+struct LoggingMiddleware<'a> {
+    request_id: &'a str,
+}
+
+impl<'a> Middleware for LoggingMiddleware<'a> {
+    fn before(req: submillisecond::Request) -> Self {
+        let request_id = req.headers().get("x-request-id").unwrap().to_str().unwrap();
+        println!("[EXIT] finished request {}", request_id);
+        LoggingMiddleware { request_id }
+    }
+
+    fn after(self, res: submillisecond::Response) -> () {
+        println!("[EXIT] finished request {}", self.request_id);
+    }
+}
+
 fn main() {
     // routar();
     let router = router! {
-        GET "/foo" if true => foo_handler
+        GET "/foo" if true use LoggingMiddleware => foo_handler
         GET "/bar" if true => foo_handler
-        POST "/foo" => foo_handler
+        // POST "/foo" => foo_handler
     };
 }
