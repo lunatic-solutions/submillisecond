@@ -62,7 +62,7 @@ impl RouterTree {
                         }
                     })
                     .map(
-                        |method| quote! { method.map(|method| method == #method).unwrap_or(false) },
+                        |method| quote! { method.as_ref().map(|method| method == #method).unwrap_or(false) },
                     )
                     .unwrap_or_else(|| quote! { true });
 
@@ -77,26 +77,28 @@ impl RouterTree {
                 };
 
                 quote! {
-                    #path if #method_expanded #guards_expanded => ::std::result::Result::Ok(
-                        ::submillisecond::response::IntoResponse::into_response(
-                            ::submillisecond::handler::Handler::handle(
-                                #handler_ident
-                                    as ::submillisecond::handler::FnPtr<
-                                        _,
-                                        _,
-                                        { ::submillisecond::handler::arity(&#handler_ident) },
-                                    >,
-                                req,
+                    #path if #method_expanded #guards_expanded => {
+                        return ::std::result::Result::Ok(
+                            ::submillisecond::response::IntoResponse::into_response(
+                                ::submillisecond::handler::Handler::handle(
+                                    #handler_ident
+                                        as ::submillisecond::handler::FnPtr<
+                                            _,
+                                            _,
+                                            { ::submillisecond::handler::arity(&#handler_ident) },
+                                        >,
+                                    req,
+                                ),
                             ),
-                        ),
-                    )
+                        );
+                    }
                 }
             },
         );
 
         quote! {
             ((|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
-                const ROUTER: ::submillisecond_core::router::Router<'static, &'static str> = ::submillisecond_core::router::Router::from_node(
+                const ROUTER: ::submillisecond_core::router::Router<'static, (::std::option::Option<::http::Method>, &'static str)> = ::submillisecond_core::router::Router::from_node(
                     #node_expanded,
                 );
 
@@ -109,7 +111,7 @@ impl RouterTree {
                 match route_match {
                     ::std::result::Result::Ok(::submillisecond_core::router::Match {
                         params,
-                        value: (method, route),
+                        values,
                     }) => {
                         if !params.is_empty() {
                             match req
@@ -123,12 +125,16 @@ impl RouterTree {
                             }
                         }
 
-                        match *route {
-                            #( #arms_expanded, )*
-                            _ => ::std::result::Result::Err(
-                                ::submillisecond::router::RouteError::RouteNotMatch(req),
-                            ),
+                        for (method, route) in values {
+                            match *route {
+                                #( #arms_expanded, )*
+                                _ => {},
+                            }
                         }
+
+                        ::std::result::Result::Err(
+                            ::submillisecond::router::RouteError::RouteNotMatch(req),
+                        )
                     }
                     ::std::result::Result::Err(_) => {
                         ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(req))
@@ -212,27 +218,25 @@ fn expand_node(
 
     let children_expanded = children.iter().map(expand_node);
 
-    let value_expanded = unsafe { value.as_ref().map(|value| &*value.get()) }
-        .map(|(method, route)| {
-            let method_expanded = method.as_ref().map(|method| match method {
-                Method::Get(get) => quote! { ::std::result::Option::Some(::http::Method::#get) },
-                Method::Post(post) => quote! { ::std::result::Option::Some(::http::Method::#post) },
-                Method::Put(put) => quote! { ::std::result::Option::Some(::http::Method::#put) },
-                Method::Delete(delete) => {
-                    quote! { ::std::result::Option::Some(::http::Method::#delete) }
-                }
-                Method::Head(head) => quote! { ::std::result::Option::Some(::http::Method::#head) },
-                Method::Options(options) => {
-                    quote! { ::std::result::Option::Some(::http::Method::#options) }
-                }
-                Method::Patch(patch) => {
-                    quote! { ::std::result::Option::Some(::http::Method::#patch) }
-                }
-            });
+    let value_expanded = value.iter().map(|(method, route)| {
+        let method_expanded = method.as_ref().map(|method| match method {
+            Method::Get(get) => quote! { ::std::option::Option::Some(::http::Method::#get) },
+            Method::Post(post) => quote! { ::std::option::Option::Some(::http::Method::#post) },
+            Method::Put(put) => quote! { ::std::option::Option::Some(::http::Method::#put) },
+            Method::Delete(delete) => {
+                quote! { ::std::option::Option::Some(::http::Method::#delete) }
+            }
+            Method::Head(head) => quote! { ::std::option::Option::Some(::http::Method::#head) },
+            Method::Options(options) => {
+                quote! { ::std::option::Option::Some(::http::Method::#options) }
+            }
+            Method::Patch(patch) => {
+                quote! { ::std::option::Option::Some(::http::Method::#patch) }
+            }
+        });
 
-            quote! { Some((#method_expanded, #route)) }
-        })
-        .unwrap_or_else(|| quote! { None });
+        quote! { (#method_expanded, #route) }
+    });
 
     quote! {
         ::submillisecond_core::router::tree::ConstNode {
@@ -240,7 +244,7 @@ fn expand_node(
             wild_child: #wild_child,
             indices: &[#( #indices_expanded, )*],
             node_type: #node_type_expanded,
-            value: #value_expanded,
+            value: &[#( #value_expanded ),*],
             prefix: &[#( #prefix_expanded, )*],
             children: &[#( #children_expanded, )*],
         }

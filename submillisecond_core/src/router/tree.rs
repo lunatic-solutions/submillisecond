@@ -1,4 +1,3 @@
-use std::cell::UnsafeCell;
 use std::cmp::min;
 use std::{mem, str};
 
@@ -27,7 +26,7 @@ pub struct Node<T> {
     pub indices: Vec<u8>,
     pub node_type: NodeType,
     // see `at_inner` for why an unsafe cell is needed.
-    pub value: Option<UnsafeCell<T>>,
+    pub value: Vec<T>,
     pub prefix: Vec<u8>,
     pub children: Vec<Self>,
 }
@@ -38,7 +37,7 @@ pub struct ConstNode<'a, T> {
     pub wild_child: bool,
     pub indices: &'a [u8],
     pub node_type: NodeType,
-    pub value: Option<T>,
+    pub value: &'a [T],
     pub prefix: &'a [u8],
     pub children: &'a [Self],
 }
@@ -62,10 +61,7 @@ where
             indices: self.indices.clone(),
             children: self.children.clone(),
             // SAFETY: we only expose &mut T through &mut self
-            value: self
-                .value
-                .as_ref()
-                .map(|val| UnsafeCell::new(unsafe { &*val.get() }.clone())),
+            value: self.value.clone(),
             priority: self.priority,
         }
     }
@@ -83,7 +79,7 @@ where
             indices: self.indices,
             children: self.children,
             // SAFETY: we only expose &mut T through &mut self
-            value: self.value.clone(),
+            value: self.value,
             priority: self.priority,
         }
     }
@@ -97,7 +93,7 @@ impl<T> Default for Node<T> {
             node_type: NodeType::Static,
             indices: Vec::new(),
             children: Vec::new(),
-            value: None,
+            value: Vec::new(),
             priority: 0,
         }
     }
@@ -111,13 +107,13 @@ impl<T> Default for ConstNode<'_, T> {
             node_type: NodeType::Static,
             indices: &[],
             children: &[],
-            value: None,
+            value: &[],
             priority: 0,
         }
     }
 }
 
-impl<T> Node<T> {
+impl<T: Clone> Node<T> {
     pub fn insert(&mut self, route: impl Into<String>, val: T) -> Result<(), InsertError> {
         let route = route.into().into_bytes();
         let mut prefix = route.as_ref();
@@ -152,7 +148,7 @@ impl<T> Node<T> {
                     prefix: current.prefix[i..].to_owned(),
                     wild_child: current.wild_child,
                     indices: current.indices.clone(),
-                    value: current.value.take(),
+                    value: current.value.clone(),
                     priority: current.priority - 1,
                     ..Self::default()
                 };
@@ -220,11 +216,7 @@ impl<T> Node<T> {
             }
 
             // otherwise add value to current node
-            if current.value.is_some() {
-                return Err(InsertError::conflict(&route, prefix, current));
-            }
-
-            current.value = Some(UnsafeCell::new(val));
+            current.value.push(val);
 
             return Ok(());
         }
@@ -282,7 +274,7 @@ impl<T> Node<T> {
                 (Some(..), false) => return Err(InsertError::TooManyParams),
                 // no wildcard, simply use the current node
                 (None, _) => {
-                    current.value = Some(UnsafeCell::new(val));
+                    current.value.push(val);
                     current.prefix = prefix.to_owned();
                     return Ok(());
                 }
@@ -327,7 +319,7 @@ impl<T> Node<T> {
                 }
 
                 // otherwise we're done. Insert the value in the new leaf
-                current.value = Some(UnsafeCell::new(val));
+                current.value.push(val);
                 return Ok(());
             }
 
@@ -359,7 +351,7 @@ impl<T> Node<T> {
             let child = Self {
                 prefix: prefix.to_owned(),
                 node_type: NodeType::CatchAll,
-                value: Some(UnsafeCell::new(val)),
+                value: vec![val],
                 priority: 1,
                 ..Self::default()
             };
@@ -402,7 +394,7 @@ impl<T> ConstNode<'_, T> {
     // It's a bit sad that we have to introduce unsafe here,
     // but rust doesn't really have a way to abstract over mutability,
     // so it avoids having to duplicate logic between `at` and `at_mut`.
-    pub fn at<'n, 'p>(&'n self, path: &'p [u8]) -> Result<(&'n T, Params), MatchError> {
+    pub fn at<'n, 'p>(&'n self, path: &'p [u8]) -> Result<(&'n [T], Params), MatchError> {
         let full_path = path;
 
         let mut current = self;
@@ -440,7 +432,7 @@ impl<T> ConstNode<'_, T> {
                     }
 
                     if !current.wild_child {
-                        if path == b"/" && current.value.is_some() {
+                        if path == b"/" && !current.value.is_empty() {
                             return Err(MatchError::ExtraTrailingSlash);
                         }
 
@@ -488,14 +480,14 @@ impl<T> ConstNode<'_, T> {
                                 }
                             }
 
-                            if let Some(ref value) = current.value {
-                                return Ok((value, params));
+                            if !current.value.is_empty() {
+                                return Ok((current.value, params));
                             }
 
                             if let [only_child] = current.children {
                                 current = only_child;
 
-                                if (current.prefix == b"/" && current.value.is_some())
+                                if (current.prefix == b"/" && !current.value.is_empty())
                                     || (current.prefix.is_empty() && current.indices == b"/")
                                 {
                                     return Err(MatchError::MissingTrailingSlash);
@@ -514,9 +506,10 @@ impl<T> ConstNode<'_, T> {
                                 String::from_utf8(path.to_vec()).unwrap(),
                             );
 
-                            return match current.value {
-                                Some(ref value) => Ok((value, params)),
-                                None => Err(MatchError::NotFound),
+                            return if !current.value.is_empty() {
+                                Ok((current.value, params))
+                            } else {
+                                Err(MatchError::NotFound)
                             };
                         }
                         _ => unreachable!(),
@@ -526,8 +519,8 @@ impl<T> ConstNode<'_, T> {
 
             if path == current.prefix {
                 // we should have reached the node containing the value
-                if let Some(ref value) = current.value {
-                    return Ok((value, params));
+                if !current.value.is_empty() {
+                    return Ok((current.value, params));
                 }
 
                 // otherwise try backtracking
@@ -549,7 +542,7 @@ impl<T> ConstNode<'_, T> {
                     if let Some(i) = current.indices.iter().position(|&c| c == b'/') {
                         current = &current.children[i];
 
-                        if current.prefix.len() == 1 && current.value.is_some() {
+                        if current.prefix.len() == 1 && !current.value.is_empty() {
                             return Err(MatchError::MissingTrailingSlash);
                         }
                     }
@@ -562,7 +555,7 @@ impl<T> ConstNode<'_, T> {
                 return Err(MatchError::ExtraTrailingSlash);
             }
 
-            if current.prefix.split_last() == Some((&b'/', path)) && current.value.is_some() {
+            if current.prefix.split_last() == Some((&b'/', path)) && !current.value.is_empty() {
                 return Err(MatchError::MissingTrailingSlash);
             }
 
@@ -689,7 +682,7 @@ impl<T> ConstNode<'_, T> {
 
                     // nothing found. we can recommend to redirect to the same URL
                     // without a trailing slash if a leaf exists for that path
-                    return path == [b'/'] && self.value.is_some();
+                    return path == [b'/'] && !self.value.is_empty();
                 }
 
                 return self.children[0].fix_path_match_helper(path, insensitive_path, buf);
@@ -697,7 +690,7 @@ impl<T> ConstNode<'_, T> {
 
             // we should have reached the node containing the value.
             // check if this node has a value registered.
-            if self.value.is_some() {
+            if !self.value.is_empty() {
                 return true;
             }
 
@@ -705,9 +698,9 @@ impl<T> ConstNode<'_, T> {
             // try to fix the path by adding a trailing slash
             for i in 0..self.indices.len() {
                 if self.indices[i] == b'/' {
-                    if (self.children[i].prefix.len() == 1 && self.children[i].value.is_some())
+                    if (self.children[i].prefix.len() == 1 && !self.children[i].value.is_empty())
                         || (self.children[i].node_type == NodeType::CatchAll
-                            && self.children[i].children[0].value.is_some())
+                            && !self.children[i].children[0].value.is_empty())
                     {
                         insensitive_path.push(b'/');
                         return true;
@@ -727,7 +720,7 @@ impl<T> ConstNode<'_, T> {
         if lower_path.len() + 1 == self.prefix.len()
             && self.prefix[lower_path.len()] == b'/'
             && lower_path[1..].eq_ignore_ascii_case(&self.prefix[1..lower_path.len()])
-            && self.value.is_some()
+            && !self.value.is_empty()
         {
             insensitive_path.extend_from_slice(self.prefix);
             return true;
@@ -766,11 +759,11 @@ impl<T> ConstNode<'_, T> {
                     return false;
                 }
 
-                if self.value.is_some() {
+                if !self.value.is_empty() {
                     return true;
                 } else if self.children.len() == 1
                     && self.children[0].prefix == [b'/']
-                    && self.children[0].value.is_some()
+                    && !self.children[0].value.is_empty()
                 {
                     // no value found. check if a value for this path + a
                     // trailing slash exists
@@ -849,7 +842,7 @@ fn find_wildcard(path: &[u8]) -> (Option<(&[u8], usize)>, bool) {
 impl<T: std::fmt::Debug> std::fmt::Debug for Node<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut x = f.debug_struct("Node");
-        x.field("value", &unsafe { self.value.as_ref().map(|x| &*x.get()) });
+        x.field("value", &self.value);
         x.field("prefix", &std::str::from_utf8(&self.prefix).unwrap());
         x.field("node_type", &self.node_type);
         x.field("children", &self.children);

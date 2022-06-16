@@ -49,9 +49,9 @@ impl<'a, T> Router<'a, T> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn at<'m, 'p>(&'m self, path: &'p str) -> Result<Match<&'m T>, MatchError> {
+    pub fn at<'m, 'p>(&'m self, path: &'p str) -> Result<Match<&'m [T]>, MatchError> {
         match self.root.at(path.as_bytes()) {
-            Ok((value, params)) => Ok(Match { value, params }),
+            Ok((values, params)) => Ok(Match { values, params }),
             Err(e) => Err(e),
         }
     }
@@ -88,7 +88,7 @@ impl<'a, T> Router<'a, T> {
 #[derive(Debug)]
 pub struct Match<V> {
     /// The value stored under the matched node.
-    pub value: V,
+    pub values: V,
     /// The route parameters. See [parameters](crate#parameters) for more details.
     pub params: Params,
 }
