@@ -1,11 +1,18 @@
 mod list;
 mod tree;
 
-use proc_macro::TokenStream;
-use syn::parse::{Parse, ParseStream};
+use proc_macro2::TokenStream;
+use syn::{
+    parse::{Parse, ParseStream},
+    LitStr,
+};
 
-use self::{list::RouterList, tree::RouterTree};
+use self::{
+    list::RouterList,
+    tree::{method::Method, RouterTree},
+};
 
+#[derive(Debug)]
 pub enum Router {
     List(RouterList), // [a, b, c]
     Tree(RouterTree), // { "/" => ... }
@@ -26,7 +33,7 @@ impl Parse for Router {
             return Ok(Router::List(RouterList::default()));
         }
 
-        if input.cursor().literal().is_some() {
+        if input.peek(LitStr) || Method::peek(input) {
             return Ok(Router::Tree(input.parse()?));
         }
 

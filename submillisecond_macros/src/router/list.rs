@@ -1,4 +1,4 @@
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
     parse::{Parse, ParseStream},
@@ -34,7 +34,6 @@ impl RouterList {
                 ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(req))
             }) as ::submillisecond::router::HandlerFn)
         }
-        .into()
     }
 }
 

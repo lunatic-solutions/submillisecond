@@ -19,6 +19,7 @@ pub mod core;
 pub mod defaults;
 mod error;
 pub mod extract;
+pub mod handler;
 pub mod json;
 pub mod response;
 pub mod router;
