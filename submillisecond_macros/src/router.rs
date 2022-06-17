@@ -19,7 +19,7 @@ pub enum Router {
 }
 
 impl Router {
-    pub fn expand(self) -> TokenStream {
+    pub fn expand(&self) -> TokenStream {
         match self {
             Router::List(router_list) => router_list.expand(),
             Router::Tree(router_tree) => router_tree.expand(),

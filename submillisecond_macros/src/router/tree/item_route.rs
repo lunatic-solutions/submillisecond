@@ -1,5 +1,7 @@
 use syn::{
+    braced, bracketed,
     parse::{Parse, ParseStream},
+    spanned::Spanned,
     token, Expr, LitStr, Path, Token,
 };
 
@@ -24,7 +26,7 @@ pub struct ItemRoute {
 
 impl Parse for ItemRoute {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(ItemRoute {
+        let item_route = ItemRoute {
             method: if Method::peek(input) {
                 Some(input.parse()?)
             } else {
@@ -43,7 +45,18 @@ impl Parse for ItemRoute {
             },
             fat_arrow_token: input.parse()?,
             handler: input.parse()?,
-        })
+        };
+
+        if let Some(method) = item_route.method {
+            if matches!(item_route.handler, ItemHandler::SubRouter(_)) {
+                return Err(syn::Error::new(
+                    method.span(),
+                    "method prefix cannot be used with sub router",
+                ));
+            }
+        }
+
+        Ok(item_route)
     }
 }
 
@@ -70,8 +83,16 @@ pub enum ItemHandler {
 
 impl Parse for ItemHandler {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if input.peek(token::Brace) || input.peek(token::Bracket) {
-            return Ok(ItemHandler::SubRouter(input.parse()?));
+        if input.peek(token::Brace) {
+            let content;
+            braced!(content in input);
+            return Ok(ItemHandler::SubRouter(Router::Tree(content.parse()?)));
+        }
+
+        if input.peek(token::Bracket) {
+            let content;
+            bracketed!(content in input);
+            return Ok(ItemHandler::SubRouter(Router::List(content.parse()?)));
         }
 
         Ok(ItemHandler::Fn(input.parse()?))

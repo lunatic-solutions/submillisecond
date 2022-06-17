@@ -8,6 +8,7 @@ pub use typed_header::TypedHeader;
 
 mod header_map;
 mod json;
+mod params;
 pub mod path;
 mod query;
 pub mod rejection;

@@ -1,4 +1,7 @@
-use syn::parse::{Parse, ParseStream};
+use syn::{
+    parse::{Parse, ParseStream},
+    spanned::Spanned,
+};
 
 syn::custom_keyword!(GET);
 syn::custom_keyword!(POST);
@@ -58,5 +61,19 @@ impl Parse for Method {
         Err(input.error(
             "expected http method `GET`, `POST`, `PUT`, `DELETE`, `HEAD`, `OPTIONS`, or `PATCH`",
         ))
+    }
+}
+
+impl Spanned for Method {
+    fn span(&self) -> proc_macro2::Span {
+        match self {
+            Method::Get(get) => get.span(),
+            Method::Post(post) => post.span(),
+            Method::Put(put) => put.span(),
+            Method::Delete(delete) => delete.span(),
+            Method::Head(head) => head.span(),
+            Method::Options(options) => options.span(),
+            Method::Patch(patch) => patch.span(),
+        }
     }
 }

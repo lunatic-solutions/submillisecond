@@ -502,7 +502,7 @@ impl<T> ConstNode<'_, T> {
                         }
                         NodeType::CatchAll => {
                             params.push(
-                                String::from_utf8(current.prefix[2..].to_vec()).unwrap(),
+                                String::from_utf8(current.prefix[1..].to_vec()).unwrap(),
                                 String::from_utf8(path.to_vec()).unwrap(),
                             );
 

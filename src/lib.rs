@@ -64,9 +64,9 @@ impl Application {
                         }
                     };
 
-                    let path_and_query = request.uri().path_and_query().cloned().unwrap();
+                    let path = request.uri().path().to_string();
                     let extensions = request.extensions_mut();
-                    extensions.insert(Route::new(path_and_query));
+                    extensions.insert(Route(path));
                     let http_version = request.version();
 
                     let mut response = handler(request).unwrap_or_else(|err| err.into_response());

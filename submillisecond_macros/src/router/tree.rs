@@ -28,7 +28,12 @@ impl RouterTree {
 
         let mut router_node = Node::default();
         for route in &self.routes {
-            if let Err(err) = router_node.insert(route.path.value(), (route.method, &route.path)) {
+            let mut path = route.path.value();
+            if route.method.is_none() {
+                path.push_str("/*__slug");
+            }
+            println!("{path:#?}");
+            if let Err(err) = router_node.insert(path, (route.method, &route.path)) {
                 return syn::Error::new(route.path.span(), err.to_string()).into_compile_error();
             }
         }
@@ -37,13 +42,13 @@ impl RouterTree {
 
         let arms_expanded = self.routes.iter().map(
             |ItemRoute {
-                 method,
-                 path,
-                 guard,
-                 middleware,
-                 handler,
-                 ..
-             }| {
+                method,
+                path,
+                guard,
+                middleware,
+                handler,
+                ..
+            }| {
                 let method_expanded = method
                     .as_ref()
                     .map(|method| match method {
@@ -71,27 +76,36 @@ impl RouterTree {
                     .map(|guard| &*guard.guard)
                     .map(|guard| quote! { && { #guard } });
 
-                let handler_ident = match handler {
-                    ItemHandler::Fn(f) => f.to_token_stream(),
-                    ItemHandler::SubRouter(_) => todo!(),
-                };
+                match handler {
+                    ItemHandler::Fn(handler_ident) => {
+                        quote! {
+                            #path if #method_expanded #guards_expanded => {
+                                return ::std::result::Result::Ok(
+                                    ::submillisecond::response::IntoResponse::into_response(
+                                        ::submillisecond::handler::Handler::handle(
+                                            #handler_ident
+                                                as ::submillisecond::handler::FnPtr<
+                                                    _,
+                                                    _,
+                                                    { ::submillisecond::handler::arity(&#handler_ident) },
+                                                >,
+                                            req,
+                                        ),
+                                    ),
+                                );
+                            }
+                        }
+                    },
+                    ItemHandler::SubRouter(sub_router) => {
+                        let sub_router_expanded = sub_router.expand();
 
-                quote! {
-                    #path if #method_expanded #guards_expanded => {
-                        return ::std::result::Result::Ok(
-                            ::submillisecond::response::IntoResponse::into_response(
-                                ::submillisecond::handler::Handler::handle(
-                                    #handler_ident
-                                        as ::submillisecond::handler::FnPtr<
-                                            _,
-                                            _,
-                                            { ::submillisecond::handler::arity(&#handler_ident) },
-                                        >,
-                                    req,
-                                ),
-                            ),
-                        );
-                    }
+                        quote! {
+                            #path if #method_expanded #guards_expanded => {
+                                const SUB_ROUTER: ::submillisecond::handler::HandlerFn = #sub_router_expanded;
+                                return SUB_ROUTER(req);
+                            }
+                        }
+                    },
                 }
             },
         );
@@ -102,11 +116,11 @@ impl RouterTree {
                     #node_expanded,
                 );
 
-                let path = req
+                let path = &req
                     .extensions()
                     .get::<::submillisecond::router::Route>()
                     .unwrap()
-                    .path();
+                    .0;
                 let route_match = ROUTER.at(path);
                 match route_match {
                     ::std::result::Result::Ok(::submillisecond_core::router::Match {
@@ -114,6 +128,18 @@ impl RouterTree {
                         values,
                     }) => {
                         if !params.is_empty() {
+                            if let Some(slug) = params.get("__slug") {
+                                let mut path = ::std::string::String::with_capacity(slug.len() + 1);
+                                path.push('/');
+                                path.push_str(slug);
+
+                                let route = req
+                                    .extensions_mut()
+                                    .get_mut::<::submillisecond::router::Route>()
+                                    .unwrap();
+                                *route = ::submillisecond::router::Route(path);
+                            }
+
                             match req
                                 .extensions_mut()
                                 .get_mut::<::submillisecond_core::router::params::Params>()
@@ -219,21 +245,24 @@ fn expand_node(
     let children_expanded = children.iter().map(expand_node);
 
     let value_expanded = value.iter().map(|(method, route)| {
-        let method_expanded = method.as_ref().map(|method| match method {
-            Method::Get(get) => quote! { ::std::option::Option::Some(::http::Method::#get) },
-            Method::Post(post) => quote! { ::std::option::Option::Some(::http::Method::#post) },
-            Method::Put(put) => quote! { ::std::option::Option::Some(::http::Method::#put) },
-            Method::Delete(delete) => {
-                quote! { ::std::option::Option::Some(::http::Method::#delete) }
-            }
-            Method::Head(head) => quote! { ::std::option::Option::Some(::http::Method::#head) },
-            Method::Options(options) => {
-                quote! { ::std::option::Option::Some(::http::Method::#options) }
-            }
-            Method::Patch(patch) => {
-                quote! { ::std::option::Option::Some(::http::Method::#patch) }
-            }
-        });
+        let method_expanded = method
+            .as_ref()
+            .map(|method| match method {
+                Method::Get(get) => quote! { ::std::option::Option::Some(::http::Method::#get) },
+                Method::Post(post) => quote! { ::std::option::Option::Some(::http::Method::#post) },
+                Method::Put(put) => quote! { ::std::option::Option::Some(::http::Method::#put) },
+                Method::Delete(delete) => {
+                    quote! { ::std::option::Option::Some(::http::Method::#delete) }
+                }
+                Method::Head(head) => quote! { ::std::option::Option::Some(::http::Method::#head) },
+                Method::Options(options) => {
+                    quote! { ::std::option::Option::Some(::http::Method::#options) }
+                }
+                Method::Patch(patch) => {
+                    quote! { ::std::option::Option::Some(::http::Method::#patch) }
+                }
+            })
+            .unwrap_or_else(|| quote! { ::std::option::Option::None });
 
         quote! { (#method_expanded, #route) }
     });
