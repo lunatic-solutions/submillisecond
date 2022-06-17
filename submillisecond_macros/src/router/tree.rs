@@ -28,18 +28,18 @@ impl RouterTree {
         let middleware_before = {
             let invoke_middleware = middleware.iter().map(|item| {
                 quote! {
-                    <#item as ::submillisecond::Middleware>::before(&mut req)
+                    <#item as ::submillisecond::Middleware>::before(&mut __req)
                 }
             });
 
             quote! {
-                 let middleware_calls = ( #( #invoke_middleware, )* );
+                 let __middleware_calls = ( #( #invoke_middleware, )* );
             }
         };
         let middleware_after = (0..middleware.len()).map(|idx| {
             let idx = Index::from(idx);
             quote! {
-                middleware_calls.#idx.after(resp);
+                __middleware_calls.#idx.after(__resp);
             }
         });
 
@@ -83,7 +83,7 @@ impl RouterTree {
                         }
                     })
                     .map(
-                        |method| quote! { method.as_ref().map(|method| method == #method).unwrap_or(false) },
+                        |method| quote! { __method.as_ref().map(|method| method == #method).unwrap_or(false) },
                     )
                     .unwrap_or_else(|| quote! { true });
 
@@ -98,19 +98,19 @@ impl RouterTree {
                         .iter()
                         .map(|item| {
                             quote! {
-                                <#item as ::submillisecond::Middleware>::before(&mut req)
+                                <#item as ::submillisecond::Middleware>::before(&mut __req)
                             }
                         });
 
                     let before_calls = quote! {
-                        let middleware_calls = ( #( #invoke_middleware, )* );
+                        let __middleware_calls = ( #( #invoke_middleware, )* );
                     };
 
                     let after_calls = (0..items.len())
                         .map(|idx| {
                             let idx = Index::from(idx);
                             quote! {
-                                middleware_calls.#idx.after(&mut resp);
+                                ::submillisecond::Middleware::after(__middleware_calls.#idx, &mut __resp);
                             }
                         });
 
@@ -125,7 +125,7 @@ impl RouterTree {
                             #path if #method_expanded #guards_expanded => {
                                 #middleware_before
 
-                                let mut resp = ::submillisecond::response::IntoResponse::into_response(
+                                let mut __resp = ::submillisecond::response::IntoResponse::into_response(
                                     ::submillisecond::handler::Handler::handle(
                                         #handler_ident
                                             as ::submillisecond::handler::FnPtr<
@@ -133,13 +133,13 @@ impl RouterTree {
                                                 _,
                                                 { ::submillisecond::handler::arity(&#handler_ident) },
                                             >,
-                                        req,
+                                        __req,
                                     ),
                                 );
 
                                 #middleware_after
 
-                                return ::std::result::Result::Ok(resp);
+                                return ::std::result::Result::Ok(__resp);
                             }
                         }
                     },
@@ -149,7 +149,7 @@ impl RouterTree {
                         quote! {
                             #path if #method_expanded #guards_expanded => {
                                 const SUB_ROUTER: ::submillisecond::handler::HandlerFn = #sub_router_expanded;
-                                return SUB_ROUTER(req);
+                                return SUB_ROUTER(__req);
                             }
                         }
                     },
@@ -158,72 +158,72 @@ impl RouterTree {
         );
 
         quote! {
-            (|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
-                const ROUTER: ::submillisecond_core::router::Router<'static, (::std::option::Option<::http::Method>, &'static str)> = ::submillisecond_core::router::Router::from_node(
+            (|mut __req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
+                const __ROUTER: ::submillisecond_core::router::Router<'static, (::std::option::Option<::http::Method>, &'static str)> = ::submillisecond_core::router::Router::from_node(
                     #node_expanded,
                 );
 
-                let path = &req
+                let __path = &__req
                     .extensions()
                     .get::<::submillisecond::router::Route>()
                     .unwrap()
                     .0;
-                let route_match = ROUTER.at(path);
+                let __route_match = __ROUTER.at(__path);
 
                 #middleware_before
 
-                let mut resp = match route_match {
+                let mut __resp = match __route_match {
                     ::std::result::Result::Ok(::submillisecond_core::router::Match {
-                        params,
-                        values,
+                        params: __params,
+                        values: __values,
                     }) => {
-                        if !params.is_empty() {
-                            if let Some(slug) = params.get("__slug") {
+                        if !__params.is_empty() {
+                            if let Some(slug) = __params.get("__slug") {
                                 let mut path = ::std::string::String::with_capacity(slug.len() + 1);
                                 path.push('/');
                                 path.push_str(slug);
 
-                                let route = req
+                                let route = __req
                                     .extensions_mut()
                                     .get_mut::<::submillisecond::router::Route>()
                                     .unwrap();
                                 *route = ::submillisecond::router::Route(path);
                             }
 
-                            match req
+                            match __req
                                 .extensions_mut()
                                 .get_mut::<::submillisecond_core::router::params::Params>()
                             {
-                                ::std::option::Option::Some(params_ext) => params_ext.merge(params),
+                                ::std::option::Option::Some(params_ext) => params_ext.merge(__params),
                                 ::std::option::Option::None => {
-                                    req.extensions_mut().insert(params);
+                                    __req.extensions_mut().insert(__params);
                                 }
                             }
                         }
 
                         (move || {
-                            for (method, route) in values {
-                                match *route {
+                            for (__method, __route) in __values {
+                                match *__route {
                                     #( #arms_expanded, )*
                                     _ => {},
                                 }
                             }
 
                             ::std::result::Result::Err(
-                                ::submillisecond::router::RouteError::RouteNotMatch(req),
+                                ::submillisecond::router::RouteError::RouteNotMatch(__req),
                             )
                         })()
                     }
                     ::std::result::Result::Err(_) => {
-                        ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(req))
+                        ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req))
                     }
                 };
 
-                if let Ok(ref mut resp) = &mut resp {
+                if let Ok(ref mut __resp) = &mut __resp {
                     #( #middleware_after )*
                 }
 
-                resp
+                __resp
             }) as ::submillisecond::handler::HandlerFn
         }
     }
