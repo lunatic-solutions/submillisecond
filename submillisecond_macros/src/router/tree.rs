@@ -3,11 +3,11 @@ mod item_use_middleware;
 pub mod method;
 
 use proc_macro2::TokenStream;
-use quote::{quote};
+use quote::quote;
 use submillisecond_core::router::tree::{Node, NodeType};
 use syn::{
     parse::{Parse, ParseStream},
-    LitStr, Token, Index,
+    Index, LitStr, Token,
 };
 
 use self::{
@@ -26,26 +26,22 @@ impl RouterTree {
     pub fn expand(&self) -> TokenStream {
         let middleware = self.middleware();
         let middleware_before = {
-            let invoke_middleware = middleware
-                .iter()
-                .map(|item| {
-                    quote! {
-                        <#item as ::submillisecond::Middleware>::before(&mut req)
-                    }
-                });
-
-
-            quote! {
-                let middleware_calls = ( #( #invoke_middleware, )* );
-           }
-        };
-        let middleware_after = (0..middleware.len())
-            .map(|idx| {
-                let idx = Index::from(idx);
+            let invoke_middleware = middleware.iter().map(|item| {
                 quote! {
-                    middleware_calls.#idx.after(resp);
+                    <#item as ::submillisecond::Middleware>::before(&mut req)
                 }
             });
+
+            quote! {
+                 let middleware_calls = ( #( #invoke_middleware, )* );
+            }
+        };
+        let middleware_after = (0..middleware.len()).map(|idx| {
+            let idx = Index::from(idx);
+            quote! {
+                middleware_calls.#idx.after(resp);
+            }
+        });
 
         let mut router_node = Node::default();
         for route in &self.routes {
@@ -109,7 +105,7 @@ impl RouterTree {
                     let before_calls = quote! {
                         let middleware_calls = ( #( #invoke_middleware, )* );
                     };
-                    
+
                     let after_calls = (0..items.len())
                         .map(|idx| {
                             let idx = Index::from(idx);
@@ -212,11 +208,11 @@ impl RouterTree {
                                     _ => {},
                                 }
                             }
-    
+
                             ::std::result::Result::Err(
                                 ::submillisecond::router::RouteError::RouteNotMatch(req),
                             )
-                        })()                        
+                        })()
                     }
                     ::std::result::Result::Err(_) => {
                         ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(req))
