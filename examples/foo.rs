@@ -35,8 +35,10 @@ fn bar_handler() -> &'static str {
 
 fn main() -> io::Result<()> {
     Application::new(router! {
+        use LoggingMiddleware;
+
         "/foo" if true => {
-            GET "/bar" use LoggingMiddleware => foo_handler
+            GET "/bar" => foo_handler
         }
         GET "/bar" if true => bar_handler
         POST "/foo" => foo_handler

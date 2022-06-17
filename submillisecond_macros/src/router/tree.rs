@@ -3,7 +3,7 @@ mod item_use_middleware;
 pub mod method;
 
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{quote};
 use submillisecond_core::router::tree::{Node, NodeType};
 use syn::{
     parse::{Parse, ParseStream},
@@ -24,7 +24,28 @@ pub struct RouterTree {
 
 impl RouterTree {
     pub fn expand(&self) -> TokenStream {
-        // let middleware_expanded = self.middleware().into_iter().map(|middleware| {});
+        let middleware = self.middleware();
+        let middleware_before = {
+            let invoke_middleware = middleware
+                .iter()
+                .map(|item| {
+                    quote! {
+                        <#item as ::submillisecond::Middleware>::before(&mut req)
+                    }
+                });
+
+
+            quote! {
+                let middleware_calls = ( #( #invoke_middleware, )* );
+           }
+        };
+        let middleware_after = (0..middleware.len())
+            .map(|idx| {
+                let idx = Index::from(idx);
+                quote! {
+                    middleware_calls.#idx.after(resp);
+                }
+            });
 
         let mut router_node = Node::default();
         for route in &self.routes {
@@ -93,7 +114,7 @@ impl RouterTree {
                         .map(|idx| {
                             let idx = Index::from(idx);
                             quote! {
-                                middleware_calls.#idx.after(&mut res);
+                                middleware_calls.#idx.after(&mut resp);
                             }
                         });
 
@@ -108,7 +129,7 @@ impl RouterTree {
                             #path if #method_expanded #guards_expanded => {
                                 #middleware_before
 
-                                let mut res = ::submillisecond::response::IntoResponse::into_response(
+                                let mut resp = ::submillisecond::response::IntoResponse::into_response(
                                     ::submillisecond::handler::Handler::handle(
                                         #handler_ident
                                             as ::submillisecond::handler::FnPtr<
@@ -122,7 +143,7 @@ impl RouterTree {
 
                                 #middleware_after
 
-                                return ::std::result::Result::Ok(res);
+                                return ::std::result::Result::Ok(resp);
                             }
                         }
                     },
@@ -152,7 +173,10 @@ impl RouterTree {
                     .unwrap()
                     .0;
                 let route_match = ROUTER.at(path);
-                match route_match {
+
+                #middleware_before
+
+                let mut resp = match route_match {
                     ::std::result::Result::Ok(::submillisecond_core::router::Match {
                         params,
                         values,
@@ -181,21 +205,29 @@ impl RouterTree {
                             }
                         }
 
-                        for (method, route) in values {
-                            match *route {
-                                #( #arms_expanded, )*
-                                _ => {},
+                        (move || {
+                            for (method, route) in values {
+                                match *route {
+                                    #( #arms_expanded, )*
+                                    _ => {},
+                                }
                             }
-                        }
-
-                        ::std::result::Result::Err(
-                            ::submillisecond::router::RouteError::RouteNotMatch(req),
-                        )
+    
+                            ::std::result::Result::Err(
+                                ::submillisecond::router::RouteError::RouteNotMatch(req),
+                            )
+                        })()                        
                     }
                     ::std::result::Result::Err(_) => {
                         ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(req))
                     }
+                };
+
+                if let Ok(ref mut resp) = &mut resp {
+                    #( #middleware_after )*
                 }
+
+                resp
             }) as ::submillisecond::handler::HandlerFn
         }
     }

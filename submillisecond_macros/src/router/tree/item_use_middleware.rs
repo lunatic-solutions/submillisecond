@@ -13,7 +13,6 @@ pub struct ItemUseMiddleware {
     pub use_token: Token![use],
     pub leading_colon: Option<Token![::]>,
     pub tree: UseMiddlewareTree,
-    // pub semi_token: Token![;],
 }
 
 impl Parse for ItemUseMiddleware {
@@ -22,7 +21,6 @@ impl Parse for ItemUseMiddleware {
             use_token: input.parse()?,
             leading_colon: input.parse()?,
             tree: input.parse()?,
-            // semi_token: input.parse()?,
         })
     }
 }
@@ -46,7 +44,7 @@ impl UseMiddlewareTree {
                 vec![quote! { #ident }]
             }
             UseMiddlewareTree::Group(UseMiddlewareGroup { items, .. }) => {
-                items.iter().flat_map(|item| item.items()).collect()
+                items.iter().flat_map(UseMiddlewareTree::items).collect()
             }
         }
     }

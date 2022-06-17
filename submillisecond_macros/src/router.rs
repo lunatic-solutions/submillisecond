@@ -4,7 +4,7 @@ mod tree;
 use proc_macro2::TokenStream;
 use syn::{
     parse::{Parse, ParseStream},
-    LitStr,
+    LitStr, Token,
 };
 
 use self::{
@@ -33,7 +33,7 @@ impl Parse for Router {
             return Ok(Router::List(RouterList::default()));
         }
 
-        if input.peek(LitStr) || Method::peek(input) {
+        if input.peek(LitStr) || Method::peek(input) || input.peek(Token![use]) {
             return Ok(Router::Tree(input.parse()?));
         }
 
