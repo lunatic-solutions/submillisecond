@@ -1,4 +1,7 @@
-use crate::{extract::FromRequest, response::IntoResponse, Request, Response};
+use crate::{extract::FromRequest, response::IntoResponse, router::RouteError, Request, Response};
+
+pub type HandlerFn<Req = Vec<u8>, Res = Vec<u8>> =
+    fn(Request<Req>) -> Result<Response<Res>, RouteError>;
 
 pub trait Handler {
     type Response: IntoResponse;

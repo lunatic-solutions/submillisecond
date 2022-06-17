@@ -140,7 +140,7 @@ impl RouterTree {
                         ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(req))
                     }
                 }
-            }) as ::submillisecond::router::HandlerFn)
+            }) as ::submillisecond::handler::HandlerFn)
         }
     }
 
