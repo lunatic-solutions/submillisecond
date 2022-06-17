@@ -87,3 +87,8 @@ impl Application {
         Ok(())
     }
 }
+
+pub trait Middleware {
+    fn before(req: &mut Request) -> Self;
+    fn after(self, res: &mut Response);
+}

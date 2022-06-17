@@ -7,7 +7,7 @@ use quote::{quote, ToTokens};
 use submillisecond_core::router::tree::{Node, NodeType};
 use syn::{
     parse::{Parse, ParseStream},
-    LitStr, Token,
+    LitStr, Token, Index,
 };
 
 use self::{
@@ -32,7 +32,6 @@ impl RouterTree {
             if route.method.is_none() {
                 path.push_str("/*__slug");
             }
-            println!("{path:#?}");
             if let Err(err) = router_node.insert(path, (route.method, &route.path)) {
                 return syn::Error::new(route.path.span(), err.to_string()).into_compile_error();
             }
@@ -76,23 +75,54 @@ impl RouterTree {
                     .map(|guard| &*guard.guard)
                     .map(|guard| quote! { && { #guard } });
 
+                let (middleware_before, middleware_after) = if let Some(m) = middleware {
+                    let items = m.tree.items();
+                    let invoke_middleware = items
+                        .iter()
+                        .map(|item| {
+                            quote! {
+                                <#item as ::submillisecond::Middleware>::before(&mut req)
+                            }
+                        });
+
+                    let before_calls = quote! {
+                        let middleware_calls = ( #( #invoke_middleware, )* );
+                    };
+                    
+                    let after_calls = (0..items.len())
+                        .map(|idx| {
+                            let idx = Index::from(idx);
+                            quote! {
+                                middleware_calls.#idx.after(&mut res);
+                            }
+                        });
+
+                    (before_calls, quote! {#( #after_calls )*})
+                } else {
+                    (quote! {}, quote! {})
+                };
+
                 match handler {
                     ItemHandler::Fn(handler_ident) => {
                         quote! {
                             #path if #method_expanded #guards_expanded => {
-                                return ::std::result::Result::Ok(
-                                    ::submillisecond::response::IntoResponse::into_response(
-                                        ::submillisecond::handler::Handler::handle(
-                                            #handler_ident
-                                                as ::submillisecond::handler::FnPtr<
-                                                    _,
-                                                    _,
-                                                    { ::submillisecond::handler::arity(&#handler_ident) },
-                                                >,
-                                            req,
-                                        ),
+                                #middleware_before
+
+                                let mut res = ::submillisecond::response::IntoResponse::into_response(
+                                    ::submillisecond::handler::Handler::handle(
+                                        #handler_ident
+                                            as ::submillisecond::handler::FnPtr<
+                                                _,
+                                                _,
+                                                { ::submillisecond::handler::arity(&#handler_ident) },
+                                            >,
+                                        req,
                                     ),
                                 );
+
+                                #middleware_after
+
+                                return ::std::result::Result::Ok(res);
                             }
                         }
                     },
