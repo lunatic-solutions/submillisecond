@@ -17,7 +17,7 @@ impl RouterList {
         let handlers_len = self.handlers.len();
 
         quote! {
-            ((|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
+            (|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
                 const HANDLERS: [::submillisecond::handler::HandlerFn; #handlers_len] = [
                     #( #handlers ),*
                 ];
@@ -32,7 +32,7 @@ impl RouterList {
                 }
 
                 ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(req))
-            }) as ::submillisecond::handler::HandlerFn)
+            }) as ::submillisecond::handler::HandlerFn
         }
     }
 }

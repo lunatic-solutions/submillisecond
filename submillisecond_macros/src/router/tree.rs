@@ -97,7 +97,7 @@ impl RouterTree {
         );
 
         quote! {
-            ((|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
+            (|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
                 const ROUTER: ::submillisecond_core::router::Router<'static, (::std::option::Option<::http::Method>, &'static str)> = ::submillisecond_core::router::Router::from_node(
                     #node_expanded,
                 );
@@ -140,7 +140,7 @@ impl RouterTree {
                         ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(req))
                     }
                 }
-            }) as ::submillisecond::handler::HandlerFn)
+            }) as ::submillisecond::handler::HandlerFn
         }
     }
 
