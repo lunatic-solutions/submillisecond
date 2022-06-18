@@ -116,3 +116,28 @@ impl IntoResponse for ParseRequestError {
         }
     }
 }
+
+pub struct UriReader {
+    uri: String,
+    cursor: usize,
+}
+
+impl UriReader {
+    pub fn new(uri: String) -> UriReader {
+        UriReader { uri, cursor: 0 }
+    }
+
+    pub fn peek(&self, len: usize) -> &str {
+        &self.uri[self.cursor..(self.cursor + len)]
+    }
+
+    pub fn read(&mut self, len: usize) -> &str {
+        let s = &self.uri[self.cursor..(self.cursor + len)];
+        self.cursor += len;
+        s
+    }
+
+    pub fn read_param(&self) -> &str {
+        &self.uri[self.cursor..]
+    }
+}

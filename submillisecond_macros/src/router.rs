@@ -11,6 +11,7 @@ use self::{
     list::RouterList,
     tree::{method::Method, RouterTree},
 };
+pub use tree::MethodTries;
 
 #[derive(Debug)]
 pub enum Router {
@@ -19,10 +20,10 @@ pub enum Router {
 }
 
 impl Router {
-    pub fn expand(&self) -> TokenStream {
+    pub fn expand(&self, router: &mut MethodTries, prefix: Option<&LitStr>) -> TokenStream {
         match self {
             Router::List(router_list) => router_list.expand(),
-            Router::Tree(router_tree) => router_tree.expand(),
+            Router::Tree(router_tree) => router_tree.expand(router, prefix),
         }
     }
 }

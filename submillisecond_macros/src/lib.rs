@@ -3,13 +3,16 @@ mod router;
 
 use proc_macro::TokenStream;
 // use route::{Route, RouteMethod};
-use router::Router;
+use router::{MethodTries, Router};
 use syn::parse_macro_input;
 
 #[proc_macro]
 pub fn router(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as Router);
-    input.expand().into()
+    let mut trie_collection = MethodTries::new();
+    let expanded = input.expand(&mut trie_collection, None);
+    trie_collection.expand();
+    expanded.into()
 }
 
 // macro_rules! define_route_macro {
