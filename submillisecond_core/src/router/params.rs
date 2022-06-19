@@ -44,7 +44,7 @@ enum ParamsKind {
 }
 
 impl Params {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let kind = ParamsKind::None;
         Self { kind }
     }
@@ -101,7 +101,7 @@ impl Params {
     }
 
     /// Inserts a key value parameter pair into the list.
-    pub(crate) fn push(&mut self, key: String, value: String) {
+    pub fn push(&mut self, key: String, value: String) {
         #[cold]
         fn drain_to_vec<T: Default>(len: usize, elem: T, arr: &mut [T; SMALL]) -> Vec<T> {
             let mut vec = Vec::with_capacity(len + 1);

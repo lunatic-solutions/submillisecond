@@ -58,17 +58,16 @@ impl MethodTries {
     pub fn expand(self) -> TokenStream {
         let expanded_method_arms = self.expand_method_arms();
 
+        // TODO: maybe add some hooks to give devs ability to log requests that were sent but failed
+        // to parse (also useful for us in case we need to debug)
         let wrapped = quote! {
-            fn match_request(reader: String) {
-                let path = &req
-                    .extensions()
-                    .get::<::submillisecond::router::Route>()
-                    .unwrap()
-                    .0;
-                let mut request = match core::parse_request(stream.clone()) {
+            fn handle_request(stream: ::lunatic::net::TcpStream) -> () {
+                use submillisecond::response::IntoResponse;
+
+                let mut request = match ::submillisecond::core::parse_request(stream.clone()) {
                     Ok(request) => request,
                     Err(err) => {
-                        if let Err(err) = core::write_response(stream, err.into_response()) {
+                        if let Err(err) = ::submillisecond::core::write_response(stream, err.into_response()) {
                             eprintln!("[http reader] Failed to send response {:?}", err);
                         }
                         return;
@@ -76,51 +75,58 @@ impl MethodTries {
                 };
 
                 let path = request.uri().path().to_string();
-                let extensions = request.extensions_mut();
-                extensions.insert(Route(path));
+                let mut params = ::submillisecond_core::router::params::Params::new();
                 let http_version = request.version();
-                let reader = core::UriReader::new(path);
+                let reader = ::submillisecond::core::UriReader::new(path);
 
-                let mut response = match request.method() {
-                    #expanded_method_arms
+                // in order to return a Result in the match block we need to wrap the match in another block
+                let mut response: ::submillisecond::Response = {
+                    match *request.method() {
+                        #expanded_method_arms
+                    }
                 }.unwrap_or_else(|err| err.into_response());
                 let content_length = response.body().len();
                 *response.version_mut() = http_version;
                 response
                     .headers_mut()
-                    .append(header::CONTENT_LENGTH, HeaderValue::from(content_length));
+                    .append(::http::header::CONTENT_LENGTH, ::http::HeaderValue::from(content_length));
 
-                if let Err(err) = core::write_response(stream, response) {
+                if let Err(err) = ::submillisecond::core::write_response(stream, response) {
                     eprintln!("[http reader] Failed to send response {:?}", err);
                 }
             }
         };
+        // println!("GOT EXPANDED {}", wrapped.to_string());
         println!("GOT EXPANDED {}", RustFmt::default().format_tokens(wrapped.clone()).unwrap());
         wrapped
     }
 
     fn expand_method_arms(&self) -> TokenStream {
         let pairs = [
-            (quote! { ::http::Method::GET }, Self::expand_method_trie(vec![], self.get.children())),
-            (quote! { ::http::Method::POST }, Self::expand_method_trie(vec![], self.post.children())),
-            (quote! { ::http::Method::PUT }, Self::expand_method_trie(vec![], self.put.children())),
-            (quote! { ::http::Method::DELETE }, Self::expand_method_trie(vec![], self.delete.children())),
-            (quote! { ::http::Method::HEAD }, Self::expand_method_trie(vec![], self.head.children())),
-            (quote! { ::http::Method::OPTIONS }, Self::expand_method_trie(vec![], self.options.children())),
-            (quote! { ::http::Method::PATCH }, Self::expand_method_trie(vec![], self.patch.children()))];
+            (quote! { handle_get_request }, Self::expand_method_trie(vec![], self.get.children())),
+            (quote! { handle_post_request }, Self::expand_method_trie(vec![], self.post.children())),
+            (quote! { handle_put_request }, Self::expand_method_trie(vec![], self.put.children())),
+            (quote! { handle_delete_request }, Self::expand_method_trie(vec![], self.delete.children())),
+            (quote! { handle_head_request }, Self::expand_method_trie(vec![], self.head.children())),
+            (quote! { handle_options_request }, Self::expand_method_trie(vec![], self.options.children())),
+            (quote! { handle_patch_request }, Self::expand_method_trie(vec![], self.patch.children()))];
 
-        // build expanded per-method match
+        // build expanded per-method match, only implement if at least one route for method is defined, otherwise
+        // fall back to default impl
         let expanded = pairs.iter().filter(|(_, arms)| {!arms.is_empty()}).map(|(method, arms)| {
             quote! {
-                #method => {
+                fn #method(request: ::submillisecond::Request, params: ::submillisecond::router::params::Params) -> Result<::submillisecond::Response, ::submillisecond::router::RouteError> => {
+                    let path = request.uri().path().to_string();
+                    let reader = ::submillisecond::core::UriReader::new(path);
                     #( #arms )*
+                    return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(request));
                 }
             }
         });
 
         quote! {
             #( #expanded )*,
-            _ => RouteError::RouteNotMatch(request)
+            _ => ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(request))
         }
     }
 
@@ -133,6 +139,7 @@ impl MethodTries {
         children.map(|child| {
             let prefix = child.prefix().as_bytes().to_owned();
             let prefix_str = String::from_utf8(prefix.clone()).unwrap();
+            let id = [full_path.clone(), prefix.clone()].concat();
             let captures = RE.captures_iter(&prefix_str)
                                                     .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
                                                     .collect::<Vec<(String, String, String)>>();
@@ -144,6 +151,9 @@ impl MethodTries {
             );
             // split match by param
             if !captures.is_empty() {
+                //
+                // NEW PLAN: create list of IF conditions and expand the full list once a leaf node is encountered
+                //
                 let mut output = quote! {};
                 // iterate in reverse because we need to nest if statements
                 for (lit_prefix, param, lit_suffix) in captures.iter().rev() {
@@ -166,10 +176,12 @@ impl MethodTries {
                             }
                         } else {
                             // wrap output
+                            let recur = Self::expand_method_trie(id.clone(), child.children());
                             output = quote! {
                                 if reader.peek(#len) == #lit_suffix {
                                     reader.read(#len);
                                     #output
+                                    #( #recur )*
                                 }
                             }
                         }
@@ -177,8 +189,8 @@ impl MethodTries {
                     // now we insert parsing of param
                     output = quote! {
                         let param = reader.read_param();
-                        if let Ok(_) = param {
-                            params.insert(#param, param);
+                        if let Ok(p) = param {
+                            params.push(#param .to_string(), p.to_string());
                             #output
                         }
                     };
@@ -197,7 +209,6 @@ impl MethodTries {
                 return output;
             }
             // let captures = RE.cap
-            let id = [full_path.clone(), prefix.clone()].concat();
             let len = prefix.len();
             let path = String::from_utf8(prefix).unwrap();
             
@@ -307,7 +318,7 @@ impl RouterTree {
                         .iter()
                         .map(|item| {
                             quote! {
-                                <#item as ::submillisecond::Middleware>::before(&mut req)
+                                <#item as ::submillisecond::Middleware>::before(&mut request)
                             }
                         });
 
@@ -342,13 +353,13 @@ impl RouterTree {
                                                     _,
                                                     { ::submillisecond::handler::arity(&#handler_ident) },
                                                 >,
-                                            req,
+                                            request,
                                         ),
                                     );
     
                                     #middleware_after
     
-                                    ::std::result::Result::Ok(res)
+                                    return ::std::result::Result::Ok(res);
                             }));
                         }
                         quote! {
@@ -363,7 +374,7 @@ impl RouterTree {
                                                 _,
                                                 { ::submillisecond::handler::arity(&#handler_ident) },
                                             >,
-                                        req,
+                                        request,
                                     ),
                                 );
 
@@ -396,12 +407,12 @@ impl RouterTree {
         }
 
         quote! {
-            (|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
+            (|mut request: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
                 const ROUTER: ::submillisecond_core::router::Router<'static, (::std::option::Option<::http::Method>, &'static str)> = ::submillisecond_core::router::Router::from_node(
                     #node_expanded,
                 );
 
-                let path = &req
+                let path = &request
                     .extensions()
                     .get::<::submillisecond::router::Route>()
                     .unwrap()
@@ -419,20 +430,20 @@ impl RouterTree {
                                 path.push('/');
                                 path.push_str(slug);
 
-                                let route = req
+                                let route = request
                                     .extensions_mut()
                                     .get_mut::<::submillisecond::router::Route>()
                                     .unwrap();
                                 *route = ::submillisecond::router::Route(path);
                             }
 
-                            match req
+                            match request
                                 .extensions_mut()
                                 .get_mut::<::submillisecond_core::router::params::Params>()
                             {
                                 ::std::option::Option::Some(params_ext) => params_ext.merge(params),
                                 ::std::option::Option::None => {
-                                    req.extensions_mut().insert(params);
+                                    request.extensions_mut().insert(params);
                                 }
                             }
                         }
@@ -445,11 +456,11 @@ impl RouterTree {
                         }
 
                         ::std::result::Result::Err(
-                            ::submillisecond::router::RouteError::RouteNotMatch(req),
+                            ::submillisecond::router::RouteError::RouteNotMatch(request),
                         )
                     }
                     ::std::result::Result::Err(_) => {
-                        ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(req))
+                        ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(request))
                     }
                 }
             }) as ::submillisecond::handler::HandlerFn

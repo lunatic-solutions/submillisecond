@@ -1,12 +1,13 @@
 use http::{header, StatusCode};
 use httparse::{self, Status};
-use lunatic::net::TcpStream;
+use lunatic::net::{TcpStream, TcpListener};
+use submillisecond_core::router::params::Params;
 use std::{
     io::{BufReader, Read, Result as IoResult, Write},
     mem::MaybeUninit,
 };
 
-use crate::{response::IntoResponse, Request, Response};
+use crate::{response::IntoResponse, Request, Response, router::RouteError};
 
 const MAX_HEADERS: usize = 96;
 const REQUEST_BUFFER_SIZE: usize = 1024 * 8;
@@ -137,7 +138,81 @@ impl UriReader {
         s
     }
 
-    pub fn read_param(&self) -> &str {
-        &self.uri[self.cursor..]
+    pub fn read_param(&self) -> Result<&str, String> {
+        Ok(&self.uri[self.cursor..])
+    }
+}
+
+pub trait WebApp {
+    fn handle_get_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
+        Err(RouteError::RouteNotMatch(
+            request,
+        ))
+    }
+    fn handle_post_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
+        Err(RouteError::RouteNotMatch(
+            request,
+        ))
+    }
+    fn handle_put_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
+        Err(RouteError::RouteNotMatch(
+            request,
+        ))
+    }
+    fn handle_patch_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
+        Err(RouteError::RouteNotMatch(
+            request,
+        ))
+    }
+    fn handle_delete_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
+        Err(RouteError::RouteNotMatch(
+            request,
+        ))
+    }
+
+    fn handle_options_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
+        Err(RouteError::RouteNotMatch(
+            request,
+        ))
+    }
+
+    fn handle_head_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
+        Err(RouteError::RouteNotMatch(
+            request,
+        ))
+    }
+
+    fn handle_request(stream: TcpStream) -> () {
+    let request = match parse_request(stream.clone()) {
+        Ok(request) => request,
+        Err(err) => {
+            if let Err(err) = write_response(stream, err.into_response()) {
+                eprintln!("[http reader] Failed to send response {:?}", err);
+            }
+            return;
+        }
+    };
+    let mut params = ::submillisecond_core::router::params::Params::new();
+    let http_version = request.version();
+    
+    // invoke generated handlers
+    let mut response: Response = {
+        match *request.method() {
+            http::Method::GET => Self::handle_get_request(request, &mut params),
+            _ => Err(RouteError::RouteNotMatch(
+                request,
+            )),
+        }
+    }.unwrap_or_else(|err| err.into_response());
+
+    let content_length = response.body().len();
+    *response.version_mut() = http_version;
+    response.headers_mut().append(
+        ::http::header::CONTENT_LENGTH,
+        ::http::HeaderValue::from(content_length),
+    );
+    if let Err(err) = write_response(stream, response) {
+        eprintln!("[http reader] Failed to send response {:?}", err);
+    }
     }
 }

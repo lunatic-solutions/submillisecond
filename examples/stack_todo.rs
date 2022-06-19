@@ -11,7 +11,7 @@ use lunatic::{
     supervisor::Supervisor,
 };
 use serde::{Deserialize, Serialize};
-use submillisecond::{json::Json, router, Application, Middleware};
+use submillisecond::{json::Json, router, Application, Middleware, Response};
 use submillisecond_core::router::params::Params;
 use uuid::Uuid;
 
@@ -320,103 +320,6 @@ lazy_static! {
         r.insert("/hello", "/hello".to_string()).unwrap();
         r
     };
-}
-
-fn match_request(stream: ::lunatic::net::TcpStream) {
-    let mut request = match ::submillisecond::core::parse_request(stream.clone()) {
-        Ok(request) => request,
-        Err(err) => {
-            if let Err(err) = ::submillisecond::core::write_response(stream, err.into_response()) {
-                eprintln!("[http reader] Failed to send response {:?}", err);
-            }
-            return;
-        }
-    };
-    let path = request.uri().path().to_string();
-    let extensions = request.extensions_mut();
-    extensions.insert(Route(path));
-    let http_version = request.version();
-    let reader = core::UriReader::new(path);
-    let mut response: Result<Response> = {
-        match request.method() {
-            ::http::Method::GET => {
-                if reader.peek(2usize) == "/a" {
-                    reader.read(2usize);
-                    if reader.peek(4usize) == "live" {
-                        reader.read(4usize);
-                        let middleware_calls = (
-                            <LoggingMiddleware as ::submillisecond::Middleware>::before(&mut req),
-                        );
-                        let mut res = ::submillisecond::response::IntoResponse::into_response(
-                            ::submillisecond::handler::Handler::handle(
-                                liveness_check
-                                    as ::submillisecond::handler::FnPtr<
-                                        _,
-                                        _,
-                                        { ::submillisecond::handler::arity(&liveness_check) },
-                                    >,
-                                req,
-                            ),
-                        );
-                        middleware_calls.0.after(&mut res);
-                        return ::std::result::Result::Ok(res);
-                    }
-                    if reader.peek(9usize) == "pi/users/" {
-                        reader.read(9usize);
-                        let param = reader.read_param();
-                        if let Ok(_) = param {
-                            params.insert("user_id", param);
-                            if reader.peek(1usize) == "/" {
-                                reader.read(1usize);
-                            }
-                        }
-                    }
-                }
-            }
-            ::http::Method::POST => {
-                if reader.peek(11usize) == "/api/users/" {
-                    reader.read(11usize);
-                    let param = reader.read_param();
-                    if let Ok(_) = param {
-                        params.insert("user_id", param);
-                        let peeked = reader.peek(1usize);
-                        if peeked == "/" || peeked == "" {
-                            reader.read(1usize);
-                            let middleware_calls =
-                                (<LoggingMiddleware as ::submillisecond::Middleware>::before(
-                                    &mut req,
-                                ),);
-                            let mut res = ::submillisecond::response::IntoResponse::into_response(
-                                ::submillisecond::handler::Handler::handle(
-                                    push_todo
-                                        as ::submillisecond::handler::FnPtr<
-                                            _,
-                                            _,
-                                            { ::submillisecond::handler::arity(&push_todo) },
-                                        >,
-                                    req,
-                                ),
-                            );
-                            middleware_calls.0.after(&mut res);
-                            ::std::result::Result::Ok(res)
-                        }
-                    }
-                }
-            }
-            _ => ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(
-                request,
-            )),
-        }
-    }
-    .unwrap_or_else(|err| err.into_response());
-    let content_length = response.body().len();
-    *response.version_mut() = http_version;
-    response
-        .headers_mut()
-        .append(header::CONTENT_LENGTH, HeaderValue::from(content_length));
-    if let Err(err) = core::write_response(stream, response) {
-        eprintln!("[http reader] Failed to send response {:?}", err);
-    }
 }
 
 fn main() -> io::Result<()> {
