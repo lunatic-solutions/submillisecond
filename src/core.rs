@@ -1,9 +1,9 @@
 use http::{header, StatusCode};
 use httparse::{self, Status};
-use lunatic::net::{TcpStream, TcpListener};
+use lunatic::{net::{TcpStream, TcpListener, ToSocketAddrs}, Mailbox, Process};
 use submillisecond_core::router::params::Params;
 use std::{
-    io::{BufReader, Read, Result as IoResult, Write},
+    io::{BufReader, Read, Result as IoResult, Write, self},
     mem::MaybeUninit,
 };
 
@@ -129,17 +129,67 @@ impl UriReader {
     }
 
     pub fn peek(&self, len: usize) -> &str {
-        &self.uri[self.cursor..(self.cursor + len)]
+        let read_attempt = self.cursor + len;
+        if self.uri.len() >= read_attempt {
+            return &self.uri[self.cursor..read_attempt];
+        }
+        return &""
     }
 
     pub fn read(&mut self, len: usize) -> &str {
-        let s = &self.uri[self.cursor..(self.cursor + len)];
-        self.cursor += len;
-        s
+        let read_attempt = self.cursor + len;
+        if self.uri.len() >= read_attempt {
+            let s = &self.uri[self.cursor..read_attempt];
+            self.cursor += len;
+            return s;
+        }
+        return &""
     }
 
-    pub fn read_param(&self) -> Result<&str, String> {
-        Ok(&self.uri[self.cursor..])
+    pub fn is_empty(&self) -> bool {
+        self.uri.len() <= self.cursor
+    }
+
+    pub fn read_param(&mut self) -> Result<&str, String> {
+        let initial_cursor = self.cursor;
+        while !self.is_empty() {
+            // println!("PEEKING PARAM {}", self.peek(1));
+            if self.peek(1) != "/" {
+                self.read(1);
+            } else {
+                break;
+            }
+        }
+        // if nothing was found, return error
+        if initial_cursor == self.cursor {
+            return Err("Failed to read param".to_string());
+        }
+        // read the param
+        println!("JUST READ PARAM {} | after: {}", &self.uri[initial_cursor..(self.cursor - initial_cursor)], self.peek(1));
+        Ok(&self.uri[initial_cursor..self.cursor])
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::UriReader;
+
+    #[test]
+    fn peek_empty_string() {
+        let reader = UriReader::new("".to_string());
+        assert_eq!(reader.peek(5), "");
+    }
+
+    #[test]
+    fn peek_path() {
+        let mut reader = UriReader::new("/alive".to_string());
+        assert_eq!(reader.peek(3), "/al");
+        assert_eq!(reader.read(3), "/al");
+        assert_eq!(reader.peek(3), "ive");
+        assert_eq!(reader.read(3), "ive");
+        assert_eq!(reader.peek(3), "");
+        assert_eq!(reader.read(3), "");
     }
 }
 
@@ -182,7 +232,7 @@ pub trait WebApp {
         ))
     }
 
-    fn handle_request(stream: TcpStream) -> () {
+    fn handle_request(stream: TcpStream, _: Mailbox<()>) -> () {
     let request = match parse_request(stream.clone()) {
         Ok(request) => request,
         Err(err) => {
@@ -199,6 +249,13 @@ pub trait WebApp {
     let mut response: Response = {
         match *request.method() {
             http::Method::GET => Self::handle_get_request(request, &mut params),
+            http::Method::POST => Self::handle_post_request(request, &mut params),
+            http::Method::PUT => Self::handle_put_request(request, &mut params),
+            http::Method::PATCH => Self::handle_patch_request(request, &mut params),
+            http::Method::DELETE => Self::handle_delete_request(request, &mut params),
+            http::Method::OPTIONS => Self::handle_options_request(request, &mut params),
+            http::Method::HEAD => Self::handle_head_request(request, &mut params),
+            
             _ => Err(RouteError::RouteNotMatch(
                 request,
             )),
@@ -214,5 +271,30 @@ pub trait WebApp {
     if let Err(err) = write_response(stream, response) {
         eprintln!("[http reader] Failed to send response {:?}", err);
     }
+    }
+
+    fn serve<A: ToSocketAddrs>(addr: A) -> io::Result<()> {
+        let listener = TcpListener::bind(addr)?;
+
+        while let Ok((stream, _)) = listener.accept() {
+            Process::spawn_link(
+                stream,
+                Self::handle_request
+            );
+        }
+
+        Ok(())
+    }
+
+    fn merge_extensions(request: &mut Request, params: &mut Params) -> () {
+        let extensions = request.extensions_mut();
+        match extensions.get_mut::<::submillisecond_core::router::params::Params>() {
+            Some(ext_params) => {
+                ext_params.merge(params.clone());
+            },
+            None => {
+                extensions.insert(params.clone());
+            }
+        };
     }
 }

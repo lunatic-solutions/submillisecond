@@ -11,7 +11,7 @@ use lunatic::{
     supervisor::Supervisor,
 };
 use serde::{Deserialize, Serialize};
-use submillisecond::{json::Json, router, Application, Middleware, Response};
+use submillisecond::{json::Json, router, application, Application, Middleware, Response};
 use submillisecond_core::router::params::Params;
 use uuid::Uuid;
 
@@ -276,17 +276,18 @@ struct CreateUserResponseDto {
 }
 
 // routes logic
-fn create_user(params: Params, user: Json<CreateUserDto>) -> Json<CreateUserResponseDto> {
+fn create_user(user: Json<CreateUserDto>) -> Json<CreateUserResponseDto> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
     if let Some(uuid) = persistence.request(user.0) {
         return Json(CreateUserResponseDto { uuid });
     }
-    panic!("Cannot create user {params:#?}");
+    panic!("Cannot create user");
 }
 
 fn list_todos(params: Params) -> Json<Vec<Todo>> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
     let user_id = params.get("user_id").unwrap();
+    println!("GOT PARAMS {:?}", user_id);
     let todos = persistence.request(ListTodos(Uuid::from_str(user_id).unwrap()));
     submillisecond::json::Json(todos)
 }
@@ -322,21 +323,26 @@ lazy_static! {
     };
 }
 
+application! {
+    "/api/users" => {
+        POST "/" use LoggingMiddleware => create_user
+        "/:user_id" => {
+            GET "/todos" use LoggingMiddleware => list_todos
+            POST "/todos" use LoggingMiddleware => push_todo
+            GET "/todos/poll" use LoggingMiddleware => poll_todo
+        }
+    }
+    GET "/alive" use LoggingMiddleware => liveness_check
+}
+
+use submillisecond::core::WebApp;
 fn main() -> io::Result<()> {
     PersistenceSup::start_link("persistence".to_owned(), None);
 
     println!("MATCHING HELLO FROM ROUTER {:?}", MY_ROUTER.at("/hello"));
 
-    Application::new(router! {
-        "/api/users" => {
-            POST "/" use LoggingMiddleware => create_user
-            "/:user_id" => {
-                GET "/todos" use LoggingMiddleware => list_todos
-                POST "/todos" use LoggingMiddleware => push_todo
-                GET "/todos/poll" use LoggingMiddleware => poll_todo
-            }
-        }
-        GET "/alive" use LoggingMiddleware => liveness_check
-    })
-    .serve("0.0.0.0:3000")
+    MyApp::serve("0.0.0.0:3000")
+
+    // Application::new()
+    // .serve("0.0.0.0:3000")
 }

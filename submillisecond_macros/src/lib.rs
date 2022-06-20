@@ -15,6 +15,15 @@ pub fn router(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+#[proc_macro]
+pub fn application(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as Router);
+    let mut trie_collection = MethodTries::new();
+    let _ = input.expand(&mut trie_collection, None);
+    trie_collection.expand().into()
+    // expanded.into()
+}
+
 // macro_rules! define_route_macro {
 //     ($name: ident, $method: ident) => {
 //         #[proc_macro_attribute]

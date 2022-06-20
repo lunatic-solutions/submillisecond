@@ -2,6 +2,8 @@ mod item_route;
 mod item_use_middleware;
 pub mod method;
 
+use std::str::FromStr;
+
 use lazy_static::lazy_static;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
@@ -61,44 +63,15 @@ impl MethodTries {
         // TODO: maybe add some hooks to give devs ability to log requests that were sent but failed
         // to parse (also useful for us in case we need to debug)
         let wrapped = quote! {
-            fn handle_request(stream: ::lunatic::net::TcpStream) -> () {
-                use submillisecond::response::IntoResponse;
+            struct MyApp;
 
-                let mut request = match ::submillisecond::core::parse_request(stream.clone()) {
-                    Ok(request) => request,
-                    Err(err) => {
-                        if let Err(err) = ::submillisecond::core::write_response(stream, err.into_response()) {
-                            eprintln!("[http reader] Failed to send response {:?}", err);
-                        }
-                        return;
-                    }
-                };
-
-                let path = request.uri().path().to_string();
-                let mut params = ::submillisecond_core::router::params::Params::new();
-                let http_version = request.version();
-                let reader = ::submillisecond::core::UriReader::new(path);
-
-                // in order to return a Result in the match block we need to wrap the match in another block
-                let mut response: ::submillisecond::Response = {
-                    match *request.method() {
-                        #expanded_method_arms
-                    }
-                }.unwrap_or_else(|err| err.into_response());
-                let content_length = response.body().len();
-                *response.version_mut() = http_version;
-                response
-                    .headers_mut()
-                    .append(::http::header::CONTENT_LENGTH, ::http::HeaderValue::from(content_length));
-
-                if let Err(err) = ::submillisecond::core::write_response(stream, response) {
-                    eprintln!("[http reader] Failed to send response {:?}", err);
-                }
+            impl ::submillisecond::core::WebApp for MyApp {
+                #expanded_method_arms
             }
         };
         // println!("GOT EXPANDED {}", wrapped.to_string());
-        println!("GOT EXPANDED {}", RustFmt::default().format_tokens(wrapped.clone()).unwrap());
-        wrapped
+        // println!("GOT EXPANDED {}", RustFmt::default().format_tokens(wrapped.clone()).unwrap());
+        TokenStream::from_str(&RustFmt::default().format_tokens(wrapped.clone()).unwrap()).unwrap()
     }
 
     fn expand_method_arms(&self) -> TokenStream {
@@ -114,10 +87,11 @@ impl MethodTries {
         // build expanded per-method match, only implement if at least one route for method is defined, otherwise
         // fall back to default impl
         let expanded = pairs.iter().filter(|(_, arms)| {!arms.is_empty()}).map(|(method, arms)| {
+            println!("EXPANDING METHOD {:?}", method);
             quote! {
-                fn #method(request: ::submillisecond::Request, params: ::submillisecond::router::params::Params) -> Result<::submillisecond::Response, ::submillisecond::router::RouteError> => {
+                fn #method(mut request: ::submillisecond::Request, params: &mut ::submillisecond_core::router::params::Params) -> Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
                     let path = request.uri().path().to_string();
-                    let reader = ::submillisecond::core::UriReader::new(path);
+                    let mut reader = ::submillisecond::core::UriReader::new(path);
                     #( #arms )*
                     return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(request));
                 }
@@ -125,8 +99,7 @@ impl MethodTries {
         });
 
         quote! {
-            #( #expanded )*,
-            _ => ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(request))
+            #( #expanded )*
         }
     }
 
@@ -138,31 +111,32 @@ impl MethodTries {
         }
         children.map(|child| {
             let prefix = child.prefix().as_bytes().to_owned();
-            let prefix_str = String::from_utf8(prefix.clone()).unwrap();
+            let path = String::from_utf8(prefix.clone()).unwrap();
             let id = [full_path.clone(), prefix.clone()].concat();
-            let captures = RE.captures_iter(&prefix_str)
+            let captures = RE.captures_iter(&path)
                                                     .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
                                                     .collect::<Vec<(String, String, String)>>();
+                                                                
             // split longest common prefix at param and insert param matching 
             println!(
-                "GOT CHILD PARAMS {:?} {:?}",
-                prefix_str,
-                RE.captures(&prefix_str)
+                "=========================\nPROCESSING CHILD {:?} -> {:?} | is empty {} | {:?}\n=====================",
+                String::from_utf8(id.clone()),
+                path,
+                captures.is_empty(),
+                RE.captures(&path),
             );
             // split match by param
             if !captures.is_empty() {
-                //
-                // NEW PLAN: create list of IF conditions and expand the full list once a leaf node is encountered
-                //
                 let mut output = quote! {};
+
                 // iterate in reverse because we need to nest if statements
                 for (lit_prefix, param, lit_suffix) in captures.iter().rev() {
                     // first we try to handle the suffix since if there's a static match after a param
                     // we want to insert that static match as innermost part of our if statement
+                    println!("Get captured {} | {} | {}", lit_prefix.is_empty(), param, lit_suffix);
                     let len = lit_suffix.len();
                     if !lit_suffix.is_empty() {
-                        if child.is_leaf() {
-                            let (condition_ext, block) = child.value().unwrap();
+                        if let Some((condition_ext, block)) = child.value() {
                             // handle dangling slash
                             let handle_dangling_slash = if lit_suffix == "/" {
                                 quote! {|| peeked == ""}
@@ -171,17 +145,27 @@ impl MethodTries {
                                 let peeked = reader.peek(#len);
                                 if peeked == #lit_suffix #handle_dangling_slash #condition_ext {
                                     reader.read(#len);
+                                    Self::merge_extensions(&mut request, params);
                                     #block
                                 }
                             }
-                        } else {
+                        }
+                        if !child.is_leaf() {
                             // wrap output
                             let recur = Self::expand_method_trie(id.clone(), child.children());
-                            output = quote! {
-                                if reader.peek(#len) == #lit_suffix {
-                                    reader.read(#len);
+                            output = if lit_suffix == "/" {
+                                // skip the mandatory read because
+                                quote! {
                                     #output
                                     #( #recur )*
+                                }
+                            } else {
+                                quote! {
+                                    if reader.peek(#len) == #lit_suffix {
+                                        reader.read(#len);
+                                        #output
+                                        #( #recur )*
+                                    }
                                 }
                             }
                         }
@@ -209,27 +193,49 @@ impl MethodTries {
                 return output;
             }
             // let captures = RE.cap
-            let len = prefix.len();
-            let path = String::from_utf8(prefix).unwrap();
-            
-            if child.is_leaf() {
-                let (condition_ext, block) = child.value().unwrap();
-                let source = quote! {
-                    if reader.peek(#len) == #path #condition_ext {
-                        reader.read(#len);
-                        #block
-                    }
-                };
-                return source;
-            } else {
+            let len = path.len();
+            println!("Doing regular non-param matching {:?} | {} | is_leaf: {} | has_value {}", String::from_utf8(id.clone()), path, child.is_leaf(), child.value().is_some());
+            let mut source = quote! {};
+
+            // recursive expand if not leaf
+            if !child.is_leaf() {
                 let recur = Self::expand_method_trie(id, child.children());
-                return quote! {
+                source = quote! {
                     if reader.peek(#len) == #path {
                         reader.read(#len);
                         #( #recur )*
                     }
                 };
             }
+            
+            if let Some((condition_ext, block)) = child.value() {
+                if path.ends_with("/") {
+                    let (path, len) = (path[0..(path.len() - 1)].to_string(), path.len() - 1);
+                    source = quote! {
+                        if reader.peek(#len) == #path #condition_ext {
+                            reader.read(#len);
+                            if reader.peek(1) == "/" || reader.is_empty() {
+                                #block
+                            }
+                            if reader.peek(1) == "/" {
+                                reader.read(1);
+                            }
+                            #source
+                        }
+                    };
+                } else {
+                    source = quote! {
+                        if reader.peek(#len) == #path #condition_ext {
+                            reader.read(#len);
+                            if reader.is_empty() {
+                                #block
+                            }
+                            #source
+                        }
+                    };
+                };
+            }
+            source
             // Self::expand_method_trie(format!("    {}", indent), id, child.children());
             // println!("{}}}", indent);
         }).collect()
@@ -342,6 +348,7 @@ impl RouterTree {
                 match handler {
                     ItemHandler::Fn(handler_ident) => {
                         if let Some(method) = method {
+                            println!("INSERTING INTO TRIE {:?} | {:?} | handler: {:?}", method, new_path.value(), handler_ident);
                             trie.insert(*method, new_path.value(), (quote! {#guards_expanded}, quote! {
                                     #middleware_before
     
@@ -520,7 +527,6 @@ fn expand_node(
         children,
     }: &Node<(Option<Method>, LitStr)>,
 ) -> proc_macro2::TokenStream {
-    println!("Expanding router nodes {:?} | {:?}", String::from_utf8(prefix.to_vec()), value);
     let indices_expanded = indices.iter().map(|indicie| {
         quote! {
             #indicie
