@@ -11,7 +11,7 @@ use lunatic::{
     supervisor::Supervisor,
 };
 use serde::{Deserialize, Serialize};
-use submillisecond::{json::Json, router, application, Application, Middleware, Response};
+use submillisecond::{application, json::Json, Middleware};
 use submillisecond_core::router::params::Params;
 use uuid::Uuid;
 
@@ -233,6 +233,7 @@ impl ProcessRequest<ListTodos> for PersistenceProcess {
     fn handle(state: &mut Self::State, ListTodos(user_id): ListTodos) -> Self::Response {
         // self.todos_wal
         //     .append_confirmation(message_uuid, pubrel.clone(), SystemTime::now());
+        println!("GETTING USERS todos {:?}", state.users);
         if let Some(user) = state.users.get_mut(&user_id) {
             return user.todos.iter().map(|t| t.clone()).collect();
         }
@@ -243,14 +244,14 @@ impl ProcessRequest<ListTodos> for PersistenceProcess {
 // =====================================
 // DTOs
 // =====================================
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Todo {
     uuid: Uuid,
     title: String,
     description: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct User {
     uuid: Uuid,
     nickname: String,
@@ -301,13 +302,19 @@ fn poll_todo(params: Params) -> Json<Todo> {
     panic!("Cannot poll todo {params:#?}");
 }
 
-fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Todo> {
+fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
     let user_id = params.get("user_id").unwrap();
-    if let Some(todo) = persistence.request(PollTodo(Uuid::from_str(user_id).unwrap())) {
-        return submillisecond::json::Json(todo);
+    println!("RECEIVED BODY {:?} | {user_id}", body);
+    let todo = Todo {
+        uuid: Uuid::new_v4(),
+        title: body.0.title,
+        description: body.0.description,
+    };
+    if persistence.request(AddTodo(Uuid::from_str(user_id).unwrap(), todo.clone())) {
+        return submillisecond::json::Json(Some(todo));
     }
-    panic!("Cannot push todo {params:#?}");
+    return submillisecond::json::Json(None);
 }
 
 fn liveness_check() -> &'static str {
@@ -339,7 +346,7 @@ use submillisecond::core::WebApp;
 fn main() -> io::Result<()> {
     PersistenceSup::start_link("persistence".to_owned(), None);
 
-    println!("MATCHING HELLO FROM ROUTER {:?}", MY_ROUTER.at("/hello"));
+    // println!("MATCHING HELLO FROM ROUTER {:?}", MY_ROUTER.at("/hello"));
 
     MyApp::serve("0.0.0.0:3000")
 

@@ -1,6 +1,6 @@
 use std::io;
 
-use submillisecond::{router, Application, Middleware};
+use submillisecond::Middleware;
 use submillisecond_core::router::params::Params;
 
 struct LoggingMiddleware {

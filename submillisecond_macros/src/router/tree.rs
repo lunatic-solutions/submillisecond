@@ -6,9 +6,9 @@ use std::str::FromStr;
 
 use lazy_static::lazy_static;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::quote;
 use submillisecond_core::router::tree::{Node, NodeType};
-use radix_trie::{Trie, iter::Children, TrieCommon};
+use radix_trie::{Trie, iter::Children, TrieCommon, SubTrie};
 use syn::{
     parse::{Parse, ParseStream},
     LitStr, Token, Index,
@@ -83,11 +83,12 @@ impl MethodTries {
             (quote! { handle_head_request }, Self::expand_method_trie(vec![], self.head.children())),
             (quote! { handle_options_request }, Self::expand_method_trie(vec![], self.options.children())),
             (quote! { handle_patch_request }, Self::expand_method_trie(vec![], self.patch.children()))];
+        
+            Self::expand_method_trie(vec![], self.post.children());
 
         // build expanded per-method match, only implement if at least one route for method is defined, otherwise
         // fall back to default impl
         let expanded = pairs.iter().filter(|(_, arms)| {!arms.is_empty()}).map(|(method, arms)| {
-            println!("EXPANDING METHOD {:?}", method);
             quote! {
                 fn #method(mut request: ::submillisecond::Request, params: &mut ::submillisecond_core::router::params::Params) -> Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
                     let path = request.uri().path().to_string();
@@ -103,16 +104,156 @@ impl MethodTries {
         }
     }
 
+    fn expand_param_child(child: SubTrie<String, (TokenStream, TokenStream)>, captures: Vec<(String, String, String)>, full_path: Vec<u8>) -> TokenStream {
+        let mut output = quote! {};
+
+        // iterate in reverse because we need to nest if statements
+        for (lit_prefix, param, lit_suffix) in captures.iter().rev() {
+            // first we try to handle the suffix since if there's a static match after a param
+            // we want to insert that static match as innermost part of our if statement
+            println!("Get captured {} | {} | {}", lit_prefix.is_empty(), param, lit_suffix);
+            let len = lit_suffix.len();
+            if !lit_suffix.is_empty() {
+                // handle case when the child is both a non-leaf and has a value
+                if child.value().is_some() && !child.is_leaf() {
+                    println!();
+                    let (condition_ext, block) = child.value().unwrap();
+                    let recur = Self::expand_method_trie(full_path.clone(), child.children());
+                    output = if lit_suffix == "/" {
+                        // skip the mandatory read because
+                        quote! {
+                            #output
+                            if reader.is_dangling_slash() #condition_ext {
+                                #block
+                            }
+                            if reader.read(1) != "/" {
+                                return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(request));
+                            }
+                            #( #recur )*
+                        }
+                    } else {
+                        quote! {
+                            #output
+                            if reader.ends_with(#lit_suffix) #condition_ext {
+                                reader.read(#len);
+                                #block
+                            }
+                            if reader.peek(#len) == #lit_suffix #condition_ext {
+                                reader.read(#len);
+                                #( #recur )*
+                            }
+                        }
+                    }
+                } else if let Some((condition_ext, block)) = child.value() {
+                    output = if lit_suffix == "/" {
+                        // skip the mandatory read because we have a dangling slash
+                        quote! {
+                            #output
+                            if reader.is_dangling_slash() #condition_ext {
+                                #block
+                            }
+                        }
+                    } else {
+                        quote! {
+                            #output
+                            if reader.peek(#len) == #lit_suffix {
+                                reader.read(#len);
+                                #block
+                            }
+                        }
+                    }
+                } else if !child.is_leaf() {
+                    // wrap output
+                    let recur = Self::expand_method_trie(full_path.clone(), child.children());
+                    output = if lit_suffix == "/" {
+                        // skip the mandatory read because
+                        quote! {
+                            #output
+                            #( #recur )*
+                        }
+                    } else {
+                        quote! {
+                            if reader.peek(#len) == #lit_suffix {
+                                reader.read(#len);
+                                #output
+                                #( #recur )*
+                            }
+                        }
+                    }
+                }
+            }
+            // now we insert parsing of param
+            output = quote! {
+                let param = reader.read_param();
+                if let Ok(p) = param {
+                    params.push(#param .to_string(), p.to_string());
+                    #output
+                }
+            };
+            // now we wrap everything with matching the literal before
+            let len = lit_prefix.len();
+            if !lit_prefix.is_empty() {
+                // wrap output
+                output = quote! {
+                    if reader.peek(#len) == #lit_prefix {
+                        reader.read(#len);
+                        #output
+                    }
+                }
+            }
+        }
+        output
+    
+    }
+
+    fn expand_node_with_value(
+        path: String,
+        id_str: String,
+        source: TokenStream,
+        (condition_ext, block): &(TokenStream, TokenStream)) -> TokenStream {
+        let len = path.len();
+        if path.ends_with("/") {
+            let (path, len) = (path[0..(path.len() - 1)].to_string(), path.len() - 1);
+            return quote! {
+                if reader.peek(#len) == #path #condition_ext {
+                    reader.read(#len);
+                    if reader.is_dangling_slash() {
+                        #block
+                    }
+                    // since path continues there has to be a separator
+                    if reader.read(1) != "/" {
+                        return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(request));
+                    }
+                    #source
+                }
+            };
+        }
+
+        println!("INJECTING HANDLER {} | id {:?}", path, id_str);
+        quote! {
+            if reader.peek(#len) == #path #condition_ext {
+                reader.read(#len);
+                if reader.is_empty() {
+                    #block
+                }
+                #source
+            }
+        }
+            
+        
+    }
+
     fn expand_method_trie(full_path: Vec<u8>, children: Children<String, (TokenStream, TokenStream)>) -> Vec<TokenStream> {
         // children.for_each(|child| {
         // let is_only_child = children.collect::<SubTrie<String, String>>().len();
         lazy_static! {
-            static ref RE: Regex = Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>/|$)").unwrap();
+            static ref RE: Regex = Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>.*)").unwrap();
         }
         children.map(|child| {
             let prefix = child.prefix().as_bytes().to_owned();
             let path = String::from_utf8(prefix.clone()).unwrap();
             let id = [full_path.clone(), prefix.clone()].concat();
+            let id_str = String::from_utf8(id.clone()).unwrap();
             let captures = RE.captures_iter(&path)
                                                     .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
                                                     .collect::<Vec<(String, String, String)>>();
@@ -123,119 +264,33 @@ impl MethodTries {
                 String::from_utf8(id.clone()),
                 path,
                 captures.is_empty(),
-                RE.captures(&path),
+                captures,
             );
             // split match by param
             if !captures.is_empty() {
-                let mut output = quote! {};
-
-                // iterate in reverse because we need to nest if statements
-                for (lit_prefix, param, lit_suffix) in captures.iter().rev() {
-                    // first we try to handle the suffix since if there's a static match after a param
-                    // we want to insert that static match as innermost part of our if statement
-                    println!("Get captured {} | {} | {}", lit_prefix.is_empty(), param, lit_suffix);
-                    let len = lit_suffix.len();
-                    if !lit_suffix.is_empty() {
-                        if let Some((condition_ext, block)) = child.value() {
-                            // handle dangling slash
-                            let handle_dangling_slash = if lit_suffix == "/" {
-                                quote! {|| peeked == ""}
-                            } else { quote!{} };
-                            output = quote! {
-                                let peeked = reader.peek(#len);
-                                if peeked == #lit_suffix #handle_dangling_slash #condition_ext {
-                                    reader.read(#len);
-                                    Self::merge_extensions(&mut request, params);
-                                    #block
-                                }
-                            }
-                        }
-                        if !child.is_leaf() {
-                            // wrap output
-                            let recur = Self::expand_method_trie(id.clone(), child.children());
-                            output = if lit_suffix == "/" {
-                                // skip the mandatory read because
-                                quote! {
-                                    #output
-                                    #( #recur )*
-                                }
-                            } else {
-                                quote! {
-                                    if reader.peek(#len) == #lit_suffix {
-                                        reader.read(#len);
-                                        #output
-                                        #( #recur )*
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // now we insert parsing of param
-                    output = quote! {
-                        let param = reader.read_param();
-                        if let Ok(p) = param {
-                            params.push(#param .to_string(), p.to_string());
-                            #output
-                        }
-                    };
-                    // now we wrap everything with matching the literal before
-                    let len = lit_prefix.len();
-                    if !lit_prefix.is_empty() {
-                        // wrap output
-                        output = quote! {
-                            if reader.peek(#len) == #lit_prefix {
-                                reader.read(#len);
-                                #output
-                            }
-                        }
-                    }
-                }
-                return output;
+                return Self::expand_param_child(child, captures, id);
             }
-            // let captures = RE.cap
             let len = path.len();
-            println!("Doing regular non-param matching {:?} | {} | is_leaf: {} | has_value {}", String::from_utf8(id.clone()), path, child.is_leaf(), child.value().is_some());
-            let mut source = quote! {};
+            println!("Doing regular non-param matching {:?} | {} | is_leaf: {} | has_value {}", id_str, path, child.is_leaf(), child.value().is_some());
 
             // recursive expand if not leaf
             if !child.is_leaf() {
-                let recur = Self::expand_method_trie(id, child.children());
-                source = quote! {
+                let recur = Self::expand_method_trie(id.clone(), child.children());
+                if let Some(v) = child.value() {
+                    return Self::expand_node_with_value(path, id_str, quote! {
+                        #( #recur )*
+                    }, v);
+                }
+                return quote! {
                     if reader.peek(#len) == #path {
                         reader.read(#len);
                         #( #recur )*
                     }
                 };
+            } else if let Some(v) = child.value() {
+                return Self::expand_node_with_value(path, id_str, quote! {}, v);
             }
-            
-            if let Some((condition_ext, block)) = child.value() {
-                if path.ends_with("/") {
-                    let (path, len) = (path[0..(path.len() - 1)].to_string(), path.len() - 1);
-                    source = quote! {
-                        if reader.peek(#len) == #path #condition_ext {
-                            reader.read(#len);
-                            if reader.peek(1) == "/" || reader.is_empty() {
-                                #block
-                            }
-                            if reader.peek(1) == "/" {
-                                reader.read(1);
-                            }
-                            #source
-                        }
-                    };
-                } else {
-                    source = quote! {
-                        if reader.peek(#len) == #path #condition_ext {
-                            reader.read(#len);
-                            if reader.is_empty() {
-                                #block
-                            }
-                            #source
-                        }
-                    };
-                };
-            }
-            source
+            quote! {}
             // Self::expand_method_trie(format!("    {}", indent), id, child.children());
             // println!("{}}}", indent);
         }).collect()
@@ -348,8 +403,8 @@ impl RouterTree {
                 match handler {
                     ItemHandler::Fn(handler_ident) => {
                         if let Some(method) = method {
-                            println!("INSERTING INTO TRIE {:?} | {:?} | handler: {:?}", method, new_path.value(), handler_ident);
                             trie.insert(*method, new_path.value(), (quote! {#guards_expanded}, quote! {
+                                    Self::merge_extensions(&mut request, params);
                                     #middleware_before
     
                                     let mut res = ::submillisecond::response::IntoResponse::into_response(

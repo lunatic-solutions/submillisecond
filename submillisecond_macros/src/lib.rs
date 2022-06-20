@@ -21,7 +21,6 @@ pub fn application(input: TokenStream) -> TokenStream {
     let mut trie_collection = MethodTries::new();
     let _ = input.expand(&mut trie_collection, None);
     trie_collection.expand().into()
-    // expanded.into()
 }
 
 // macro_rules! define_route_macro {
