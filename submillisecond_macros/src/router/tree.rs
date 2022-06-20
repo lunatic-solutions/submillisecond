@@ -3,11 +3,11 @@ mod item_use_middleware;
 pub mod method;
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, quote_spanned};
 use submillisecond_core::router::tree::{Node, NodeType};
 use syn::{
     parse::{Parse, ParseStream},
-    Index, LitStr, Token,
+    Expr, Index, LitStr, Token,
 };
 
 use self::{
@@ -90,6 +90,7 @@ impl RouterTree {
                 let guards_expanded = guard
                     .as_ref()
                     .map(|guard| &*guard.guard)
+                    .map(expand_guard_struct)
                     .map(|guard| quote! { && { #guard } });
 
                 let (middleware_before, middleware_after) = if let Some(m) = middleware {
@@ -335,6 +336,27 @@ fn expand_node(
             prefix: &[#( #prefix_expanded, )*],
             children: &[#( #children_expanded, )*],
         }
+    }
+}
+
+fn expand_guard_struct(guard: &Expr) -> TokenStream {
+    match guard {
+        Expr::Binary(expr_binary) => {
+            let left = expand_guard_struct(&expr_binary.left);
+            let op = &expr_binary.op;
+            let right = expand_guard_struct(&expr_binary.right);
+
+            quote! {
+                #left #op #right
+            }
+        }
+        Expr::Paren(expr_paren) => {
+            let expr = expand_guard_struct(&expr_paren.expr);
+            quote_spanned!(expr_paren.paren_token.span=> (#expr))
+        }
+        expr => quote! {
+            ::submillisecond::guard::Guard::check(&#expr, &__req)
+        },
     }
 }
 
