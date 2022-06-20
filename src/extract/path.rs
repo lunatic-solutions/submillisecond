@@ -16,7 +16,7 @@ use crate::{
 
 use self::de::PercentDecodedStr;
 
-mod de;
+pub mod de;
 
 #[derive(Debug)]
 pub struct Path<T>(pub T);
