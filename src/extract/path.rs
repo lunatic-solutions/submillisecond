@@ -73,12 +73,12 @@ where
 // this wrapper type is used as the deserializer error to hide the `serde::de::Error` impl which
 // would otherwise be public if we used `ErrorKind` as the error directly
 #[derive(Debug)]
-pub(crate) struct PathDeserializationError {
+pub struct PathDeserializationError {
     pub(super) kind: ErrorKind,
 }
 
 impl PathDeserializationError {
-    pub(super) fn new(kind: ErrorKind) -> Self {
+    pub fn new(kind: ErrorKind) -> Self {
         Self { kind }
     }
 
@@ -247,7 +247,7 @@ impl fmt::Display for ErrorKind {
 /// Rejection type for [`Path`](super::Path) if the captured routes params couldn't be deserialized
 /// into the expected type.
 #[derive(Debug)]
-pub struct FailedToDeserializePathParams(PathDeserializationError);
+pub struct FailedToDeserializePathParams(pub PathDeserializationError);
 
 impl FailedToDeserializePathParams {
     /// Convert this error into the underlying error kind.

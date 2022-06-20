@@ -75,13 +75,13 @@ impl ops::Deref for PercentDecodedStr {
     }
 }
 
-pub(crate) struct PathDeserializer<'de> {
+pub struct PathDeserializer<'de> {
     url_params: &'de [(Arc<str>, PercentDecodedStr)],
 }
 
 impl<'de> PathDeserializer<'de> {
     #[inline]
-    pub(crate) fn new(url_params: &'de [(Arc<str>, PercentDecodedStr)]) -> Self {
+    pub fn new(url_params: &'de [(Arc<str>, PercentDecodedStr)]) -> Self {
         PathDeserializer { url_params }
     }
 }

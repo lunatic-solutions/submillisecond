@@ -6,7 +6,7 @@ use serde::Deserialize;
 use submillisecond::{
     extract::{Path, Query, TypedHeader},
     json::Json,
-    router, Application, Request,
+    router, Application, NamedParam, Request,
 };
 
 fn index() -> &'static str {
@@ -44,6 +44,14 @@ fn typed_header(TypedHeader(host): TypedHeader<Host>) -> String {
     host.to_string()
 }
 
+#[derive(NamedParam)]
+#[param(name = "age")]
+struct AgeParam(i32);
+
+fn named_param(AgeParam(age): AgeParam) -> String {
+    format!("You are {age} years old")
+}
+
 fn string(req: Request, body: String) -> String {
     assert!(req.body().is_empty()); // Taking body with `String` extractor should leave the request body empty
     body
@@ -72,6 +80,7 @@ fn main() -> io::Result<()> {
         GET "/query" => query
         GET "/header_map" => header_map
         GET "/typed_header" => typed_header
+        GET "/named_param/:age" => named_param
         POST "/string" => string
         POST "/vec" => vec
         POST "/json" => json
