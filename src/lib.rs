@@ -10,6 +10,7 @@ use lunatic::{
     Mailbox, Process,
 };
 use response::IntoResponse;
+use submillisecond_core::router::params::Params;
 pub use submillisecond_macros::*;
 
 pub use crate::error::{BoxError, Error};
@@ -23,6 +24,7 @@ pub mod core;
 pub mod defaults;
 mod error;
 pub mod extract;
+pub mod guard;
 pub mod handler;
 pub mod json;
 pub mod response;
@@ -40,6 +42,18 @@ pub struct Application {
 impl Application {
     pub fn new(router: HandlerFn) -> Self {
         Application { router }
+    }
+
+    pub fn merge_extensions(request: &mut Request, params: &mut Params) -> () {
+        let extensions = request.extensions_mut();
+        match extensions.get_mut::<::submillisecond_core::router::params::Params>() {
+            Some(ext_params) => {
+                ext_params.merge(params.clone());
+            }
+            None => {
+                extensions.insert(params.clone());
+            }
+        };
     }
 
     pub fn serve<A: ToSocketAddrs>(self, addr: A) -> io::Result<()> {

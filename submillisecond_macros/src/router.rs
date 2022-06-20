@@ -4,7 +4,7 @@ mod tree;
 use proc_macro2::TokenStream;
 use syn::{
     parse::{Parse, ParseStream},
-    LitStr,
+    LitStr, Token,
 };
 
 use self::{
@@ -19,14 +19,14 @@ pub enum Router {
     Tree(RouterTree), // { "/" => ... }
 }
 
-impl Router {
-    pub fn expand(&self, router: &mut MethodTries, prefix: Option<&LitStr>) -> TokenStream {
-        match self {
-            Router::List(router_list) => router_list.expand(),
-            Router::Tree(router_tree) => router_tree.expand(router, prefix),
-        }
-    }
-}
+// impl Router {
+//     pub fn expand(&self, router: &mut MethodTries, prefix: Option<&LitStr>) -> TokenStream {
+//         match self {
+//             Router::List(router_list) => router_list.expand(),
+//             Router::Tree(router_tree) => router_tree.expand(router, prefix),
+//         }
+//     }
+// }
 
 impl Parse for Router {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -34,7 +34,7 @@ impl Parse for Router {
             return Ok(Router::List(RouterList::default()));
         }
 
-        if input.peek(LitStr) || Method::peek(input) {
+        if input.peek(LitStr) || Method::peek(input) || input.peek(Token![use]) {
             return Ok(Router::Tree(input.parse()?));
         }
 

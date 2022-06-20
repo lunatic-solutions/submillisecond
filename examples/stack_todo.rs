@@ -11,7 +11,7 @@ use lunatic::{
     supervisor::Supervisor,
 };
 use serde::{Deserialize, Serialize};
-use submillisecond::{application, json::Json, Middleware};
+use submillisecond::{handler::HandlerFn, json::Json, router, Application, Middleware};
 use submillisecond_core::router::params::Params;
 use uuid::Uuid;
 
@@ -330,7 +330,7 @@ lazy_static! {
     };
 }
 
-application! {
+static ROUTER: HandlerFn = router! {
     "/api/users" => {
         POST "/" use LoggingMiddleware => create_user
         "/:user_id" => {
@@ -340,16 +340,10 @@ application! {
         }
     }
     GET "/alive" use LoggingMiddleware => liveness_check
-}
+};
 
-use submillisecond::core::WebApp;
 fn main() -> io::Result<()> {
     PersistenceSup::start_link("persistence".to_owned(), None);
 
-    // println!("MATCHING HELLO FROM ROUTER {:?}", MY_ROUTER.at("/hello"));
-
-    MyApp::serve("0.0.0.0:3000")
-
-    // Application::new()
-    // .serve("0.0.0.0:3000")
+    Application::new(ROUTER).serve("0.0.0.0:3000")
 }
