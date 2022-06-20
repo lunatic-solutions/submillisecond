@@ -6,7 +6,7 @@ use std::{
 
 use http::StatusCode;
 use serde::de::DeserializeOwned;
-use submillisecond_core::router::params::Params;
+use submillisecond_core::params::Params;
 
 use crate::{
     extract::{rejection::*, FromRequest},

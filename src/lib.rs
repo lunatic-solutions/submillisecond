@@ -10,7 +10,7 @@ use lunatic::{
     Mailbox, Process,
 };
 use response::IntoResponse;
-use submillisecond_core::router::params::Params;
+use submillisecond_core::params::Params;
 pub use submillisecond_macros::*;
 
 pub use crate::error::{BoxError, Error};
@@ -46,7 +46,7 @@ impl Application {
 
     pub fn merge_extensions(request: &mut Request, params: &mut Params) -> () {
         let extensions = request.extensions_mut();
-        match extensions.get_mut::<::submillisecond_core::router::params::Params>() {
+        match extensions.get_mut::<Params>() {
             Some(ext_params) => {
                 ext_params.merge(params.clone());
             }

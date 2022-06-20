@@ -2,12 +2,9 @@ mod item_route;
 mod item_use_middleware;
 pub mod method;
 
-use std::str::FromStr;
-
 use lazy_static::lazy_static;
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
-use submillisecond_core::router::tree::{Node, NodeType};
 use radix_trie::{Trie, iter::Children, TrieCommon, SubTrie};
 use syn::{
     parse::{Parse, ParseStream},
@@ -71,7 +68,7 @@ impl MethodTries {
         // to parse (also useful for us in case we need to debug)
         let wrapped = quote! {
             |mut __req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
-                let mut params = ::submillisecond_core::router::params::Params::new();
+                let mut params = ::submillisecond_core::params::Params::new();
                 #middleware_before
 
                 let mut __resp = match *__req.method() {

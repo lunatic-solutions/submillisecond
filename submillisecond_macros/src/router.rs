@@ -1,7 +1,6 @@
 mod list;
 mod tree;
 
-use proc_macro2::TokenStream;
 use syn::{
     parse::{Parse, ParseStream},
     LitStr, Token,

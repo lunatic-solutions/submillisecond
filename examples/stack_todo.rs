@@ -12,7 +12,7 @@ use lunatic::{
 };
 use serde::{Deserialize, Serialize};
 use submillisecond::{handler::HandlerFn, json::Json, router, Application, Middleware};
-use submillisecond_core::router::params::Params;
+use submillisecond_core::params::Params;
 use uuid::Uuid;
 
 // =====================================
@@ -319,15 +319,6 @@ fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
 
 fn liveness_check() -> &'static str {
     "{\"status\":\"UP\"}"
-}
-
-use lazy_static::lazy_static;
-lazy_static! {
-    static ref MY_ROUTER: matchit::Router<String> = {
-        let mut r = matchit::Router::new();
-        r.insert("/hello", "/hello".to_string()).unwrap();
-        r
-    };
 }
 
 static ROUTER: HandlerFn = router! {

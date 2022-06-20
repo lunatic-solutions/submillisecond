@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use submillisecond_core::router::params::Params;
+use submillisecond_core::params::Params;
 
 use super::FromRequest;
 

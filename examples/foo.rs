@@ -1,7 +1,7 @@
 use std::io;
 
 use submillisecond::Middleware;
-use submillisecond_core::router::params::Params;
+use submillisecond_core::params::Params;
 
 struct LoggingMiddleware {
     request_id: String,

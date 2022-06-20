@@ -24,6 +24,5 @@ submillisecond_macros = {path = "submillisecond_macros"}
 [dev-dependencies]
 base64 = "0.13.0"
 lazy_static = "1.4.0"
-matchit = "*"
 ron = "0.7"
 uuid = {version = "1.0.0", features = ["v4", "serde"]}

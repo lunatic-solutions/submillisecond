@@ -8,7 +8,7 @@ use std::{
     io::{self, BufReader, Read, Result as IoResult, Write},
     mem::MaybeUninit,
 };
-use submillisecond_core::router::params::Params;
+use submillisecond_core::params::Params;
 
 use crate::{response::IntoResponse, router::RouteError, Request, Response};
 
@@ -246,7 +246,7 @@ pub trait WebApp {
                 return;
             }
         };
-        let mut params = ::submillisecond_core::router::params::Params::new();
+        let mut params = ::submillisecond_core::params::Params::new();
         let http_version = request.version();
 
         // invoke generated handlers
@@ -289,7 +289,7 @@ pub trait WebApp {
 
     fn merge_extensions(request: &mut Request, params: &mut Params) -> () {
         let extensions = request.extensions_mut();
-        match extensions.get_mut::<::submillisecond_core::router::params::Params>() {
+        match extensions.get_mut::<::submillisecond_core::params::Params>() {
             Some(ext_params) => {
                 ext_params.merge(params.clone());
             }
