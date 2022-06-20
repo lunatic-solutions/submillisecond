@@ -17,8 +17,6 @@ pub enum InsertError {
     UnnamedParam,
     /// Catch-all parameters are only allowed at the end of a path.
     InvalidCatchAll,
-    /// Invalid tokens in the inserted path.
-    MalformedPath,
 }
 
 impl fmt::Display for InsertError {
@@ -37,7 +35,6 @@ impl fmt::Display for InsertError {
                 f,
                 "catch-all parameters are only allowed at the end of a route"
             ),
-            Self::MalformedPath => write!(f, "malformed path"),
         }
     }
 }
@@ -45,7 +42,7 @@ impl fmt::Display for InsertError {
 impl std::error::Error for InsertError {}
 
 impl InsertError {
-    pub(crate) fn conflict(route: &[u8], prefix: &[u8], current: &Node) -> Self {
+    pub(crate) fn conflict<T>(route: &[u8], prefix: &[u8], current: &Node<T>) -> Self {
         let mut route = route[..route.len() - prefix.len()].to_owned();
 
         if !route.ends_with(&current.prefix) {
@@ -97,6 +94,16 @@ pub enum MatchError {
     ExtraTrailingSlash,
     /// No matching route was found.
     NotFound,
+}
+
+impl MatchError {
+    pub(crate) fn unsure(full_path: &[u8]) -> Self {
+        if full_path[full_path.len() - 1] == b'/' {
+            MatchError::ExtraTrailingSlash
+        } else {
+            MatchError::MissingTrailingSlash
+        }
+    }
 }
 
 impl fmt::Display for MatchError {
