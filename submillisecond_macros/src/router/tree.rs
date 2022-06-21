@@ -47,7 +47,11 @@ impl RouterTree {
         for route in &self.routes {
             let mut path = route.path.value();
             if route.method.is_none() {
-                path.push_str("/*__slug");
+                if path == "/" {
+                    path.push_str("*__slug");
+                } else {
+                    path.push_str("/*__slug");
+                }
             }
             if let Err(err) = router_node.insert(path, (route.method, &route.path)) {
                 return syn::Error::new(route.path.span(), err.to_string()).into_compile_error();
@@ -68,18 +72,18 @@ impl RouterTree {
                 let method_expanded = method
                     .as_ref()
                     .map(|method| match method {
-                        Method::Get(get) => quote! { ::http::Method::#get },
-                        Method::Post(post) => quote! { ::http::Method::#post },
-                        Method::Put(put) => quote! { ::http::Method::#put },
+                        Method::Get(get) => quote! { ::submillisecond::http::Method::#get },
+                        Method::Post(post) => quote! { ::submillisecond::http::Method::#post },
+                        Method::Put(put) => quote! { ::submillisecond::http::Method::#put },
                         Method::Delete(delete) => {
-                            quote! { ::http::Method::#delete }
+                            quote! { ::submillisecond::http::Method::#delete }
                         }
-                        Method::Head(head) => quote! { ::http::Method::#head },
+                        Method::Head(head) => quote! { ::submillisecond::http::Method::#head },
                         Method::Options(options) => {
-                            quote! { ::http::Method::#options }
+                            quote! { ::submillisecond::http::Method::#options }
                         }
                         Method::Patch(patch) => {
-                            quote! { ::http::Method::#patch }
+                            quote! { ::submillisecond::http::Method::#patch }
                         }
                     })
                     .map(
@@ -121,18 +125,24 @@ impl RouterTree {
                 };
 
                 match handler {
-                    ItemHandler::Fn(handler_ident) => {
+                    ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
+                        let handler = match handler {
+                            ItemHandler::Fn(handler_fn) => quote! { #handler_fn },
+                            ItemHandler::Macro(item_macro) => quote! { ( #item_macro ) },
+                            ItemHandler::SubRouter(_) => unreachable!(),
+                        };
+
                         quote! {
                             #path if #method_expanded #guards_expanded => {
                                 #middleware_before
 
                                 let mut __resp = ::submillisecond::response::IntoResponse::into_response(
                                     ::submillisecond::handler::Handler::handle(
-                                        #handler_ident
+                                        #handler
                                             as ::submillisecond::handler::FnPtr<
                                                 _,
                                                 _,
-                                                { ::submillisecond::handler::arity(&#handler_ident) },
+                                                { ::submillisecond::handler::arity(&#handler) },
                                             >,
                                         __req,
                                     ),
@@ -160,7 +170,7 @@ impl RouterTree {
 
         quote! {
             (|mut __req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
-                const __ROUTER: ::submillisecond_core::router::Router<'static, (::std::option::Option<::http::Method>, &'static str)> = ::submillisecond_core::router::Router::from_node(
+                const __ROUTER: ::submillisecond_core::router::Router<'static, (::std::option::Option<::submillisecond::http::Method>, &'static str)> = ::submillisecond_core::router::Router::from_node(
                     #node_expanded,
                 );
 
@@ -184,11 +194,9 @@ impl RouterTree {
                                 path.push('/');
                                 path.push_str(slug);
 
-                                let route = __req
+                                __req
                                     .extensions_mut()
-                                    .get_mut::<::submillisecond::router::Route>()
-                                    .unwrap();
-                                *route = ::submillisecond::router::Route(path);
+                                    .insert(::submillisecond::router::Route(path));
                             }
 
                             match __req
@@ -307,18 +315,26 @@ fn expand_node(
         let method_expanded = method
             .as_ref()
             .map(|method| match method {
-                Method::Get(get) => quote! { ::std::option::Option::Some(::http::Method::#get) },
-                Method::Post(post) => quote! { ::std::option::Option::Some(::http::Method::#post) },
-                Method::Put(put) => quote! { ::std::option::Option::Some(::http::Method::#put) },
-                Method::Delete(delete) => {
-                    quote! { ::std::option::Option::Some(::http::Method::#delete) }
+                Method::Get(get) => {
+                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#get) }
                 }
-                Method::Head(head) => quote! { ::std::option::Option::Some(::http::Method::#head) },
+                Method::Post(post) => {
+                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#post) }
+                }
+                Method::Put(put) => {
+                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#put) }
+                }
+                Method::Delete(delete) => {
+                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#delete) }
+                }
+                Method::Head(head) => {
+                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#head) }
+                }
                 Method::Options(options) => {
-                    quote! { ::std::option::Option::Some(::http::Method::#options) }
+                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#options) }
                 }
                 Method::Patch(patch) => {
-                    quote! { ::std::option::Option::Some(::http::Method::#patch) }
+                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#patch) }
                 }
             })
             .unwrap_or_else(|| quote! { ::std::option::Option::None });

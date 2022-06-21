@@ -522,6 +522,7 @@ name = "submillisecond_macros"
 version = "0.1.0"
 dependencies = [
  "better-bae",
+ "mime_guess",
  "proc-macro2",
  "quote",
  "submillisecond_core",

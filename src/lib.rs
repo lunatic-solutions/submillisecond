@@ -4,6 +4,7 @@ use std::{
 };
 
 use handler::HandlerFn;
+pub use http;
 use http::{header, HeaderValue};
 use lunatic::{
     net::{TcpListener, TcpStream, ToSocketAddrs},
