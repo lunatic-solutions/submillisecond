@@ -7,6 +7,7 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
+mime_guess = "2.0"
 proc-macro2 = "1.0"
 quote = "1.0"
 submillisecond_core = { path = "../submillisecond_core" }

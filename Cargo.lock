@@ -467,6 +467,7 @@ version = "0.1.0"
 name = "submillisecond_macros"
 version = "0.1.0"
 dependencies = [
+ "mime_guess",
  "proc-macro2",
  "quote",
  "submillisecond_core",
