@@ -52,6 +52,16 @@ fn named_param(AgeParam(age): AgeParam) -> String {
     format!("You are {age} years old")
 }
 
+#[derive(NamedParam)]
+struct NamedParamStruct {
+    name: String,
+    age: i32,
+}
+
+fn named_param2(NamedParamStruct { name, age }: NamedParamStruct) -> String {
+    format!("Hi {name}, you are {age} years old")
+}
+
 fn string(req: Request, body: String) -> String {
     assert!(req.body().is_empty()); // Taking body with `String` extractor should leave the request body empty
     body
@@ -81,6 +91,7 @@ fn main() -> io::Result<()> {
         GET "/header_map" => header_map
         GET "/typed_header" => typed_header
         GET "/named_param/:age" => named_param
+        GET "/named_param2/:name/:age" => named_param2
         POST "/string" => string
         POST "/vec" => vec
         POST "/json" => json
