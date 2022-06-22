@@ -1,16 +1,12 @@
 use http::{header, StatusCode};
 use httparse::{self, Status};
-use lunatic::{
-    net::{TcpListener, TcpStream, ToSocketAddrs},
-    Mailbox, Process,
-};
+use lunatic::net::TcpStream;
 use std::{
-    io::{self, BufReader, Read, Result as IoResult, Write},
+    io::{BufReader, Read, Result as IoResult, Write},
     mem::MaybeUninit,
 };
-use submillisecond_core::params::Params;
 
-use crate::{response::IntoResponse, router::RouteError, Request, Response};
+use crate::{response::IntoResponse, Request, Response};
 
 const MAX_HEADERS: usize = 96;
 const REQUEST_BUFFER_SIZE: usize = 1024 * 8;
@@ -136,7 +132,7 @@ impl UriReader {
         if self.uri.len() >= read_attempt {
             return &self.uri[self.cursor..read_attempt];
         }
-        return &"";
+        ""
     }
 
     pub fn is_dangling_slash(&self) -> bool {
@@ -150,7 +146,7 @@ impl UriReader {
             self.cursor += len;
             return s;
         }
-        return &"";
+        ""
     }
 
     pub fn is_empty(&self) -> bool {
@@ -160,7 +156,6 @@ impl UriReader {
     pub fn read_param(&mut self) -> Result<&str, String> {
         let initial_cursor = self.cursor;
         while !self.is_empty() {
-            // println!("PEEKING PARAM {}", self.peek(1));
             if self.peek(1) != "/" {
                 self.read(1);
             } else {
@@ -172,11 +167,6 @@ impl UriReader {
             return Err("Failed to read param".to_string());
         }
         // read the param
-        println!(
-            "JUST READ PARAM {} | after: {}",
-            &self.uri[initial_cursor..self.cursor],
-            self.peek(1)
-        );
         Ok(&self.uri[initial_cursor..self.cursor])
     }
 
@@ -208,94 +198,5 @@ mod tests {
         assert_eq!(reader.read(3), "ive");
         assert_eq!(reader.peek(3), "");
         assert_eq!(reader.read(3), "");
-    }
-}
-
-pub trait WebApp {
-    fn handle_get_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
-        Err(RouteError::RouteNotMatch(request))
-    }
-    fn handle_post_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
-        Err(RouteError::RouteNotMatch(request))
-    }
-    fn handle_put_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
-        Err(RouteError::RouteNotMatch(request))
-    }
-    fn handle_patch_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
-        Err(RouteError::RouteNotMatch(request))
-    }
-    fn handle_delete_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
-        Err(RouteError::RouteNotMatch(request))
-    }
-
-    fn handle_options_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
-        Err(RouteError::RouteNotMatch(request))
-    }
-
-    fn handle_head_request(request: Request, _: &mut Params) -> Result<Response, RouteError> {
-        Err(RouteError::RouteNotMatch(request))
-    }
-
-    fn handle_request(stream: TcpStream, _: Mailbox<()>) -> () {
-        let request = match parse_request(stream.clone()) {
-            Ok(request) => request,
-            Err(err) => {
-                if let Err(err) = write_response(stream, err.into_response()) {
-                    eprintln!("[http reader] Failed to send response {:?}", err);
-                }
-                return;
-            }
-        };
-        let mut params = ::submillisecond_core::params::Params::new();
-        let http_version = request.version();
-
-        // invoke generated handlers
-        println!("HANDLER CALLING by method {}", request.method());
-        let mut response: Response = {
-            match *request.method() {
-                http::Method::GET => Self::handle_get_request(request, &mut params),
-                http::Method::POST => Self::handle_post_request(request, &mut params),
-                http::Method::PUT => Self::handle_put_request(request, &mut params),
-                http::Method::PATCH => Self::handle_patch_request(request, &mut params),
-                http::Method::DELETE => Self::handle_delete_request(request, &mut params),
-                http::Method::OPTIONS => Self::handle_options_request(request, &mut params),
-                http::Method::HEAD => Self::handle_head_request(request, &mut params),
-
-                _ => Err(RouteError::RouteNotMatch(request)),
-            }
-        }
-        .unwrap_or_else(|err| err.into_response());
-
-        let content_length = response.body().len();
-        *response.version_mut() = http_version;
-        response.headers_mut().append(
-            ::http::header::CONTENT_LENGTH,
-            ::http::HeaderValue::from(content_length),
-        );
-        if let Err(err) = write_response(stream, response) {
-            eprintln!("[http reader] Failed to send response {:?}", err);
-        }
-    }
-
-    fn serve<A: ToSocketAddrs>(addr: A) -> io::Result<()> {
-        let listener = TcpListener::bind(addr)?;
-
-        while let Ok((stream, _)) = listener.accept() {
-            Process::spawn_link(stream, Self::handle_request);
-        }
-
-        Ok(())
-    }
-
-    fn merge_extensions(request: &mut Request, params: &mut Params) -> () {
-        let extensions = request.extensions_mut();
-        match extensions.get_mut::<::submillisecond_core::params::Params>() {
-            Some(ext_params) => {
-                ext_params.merge(params.clone());
-            }
-            None => {
-                extensions.insert(params.clone());
-            }
-        };
     }
 }

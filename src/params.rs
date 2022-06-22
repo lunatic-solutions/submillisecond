@@ -43,6 +43,12 @@ enum ParamsKind {
     Large(Vec<Param>),
 }
 
+impl Default for Params {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Params {
     pub fn new() -> Self {
         let kind = ParamsKind::None;
@@ -55,18 +61,6 @@ impl Params {
             ParamsKind::None => 0,
             ParamsKind::Small(_, len) => *len,
             ParamsKind::Large(vec) => vec.len(),
-        }
-    }
-
-    pub(crate) fn truncate(&mut self, n: usize) {
-        match &mut self.kind {
-            ParamsKind::None => {}
-            ParamsKind::Small(_, len) => {
-                *len = n;
-            }
-            ParamsKind::Large(vec) => {
-                vec.truncate(n);
-            }
         }
     }
 

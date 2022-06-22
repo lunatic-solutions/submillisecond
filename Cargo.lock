@@ -395,8 +395,6 @@ dependencies = [
 [[package]]
 name = "radix_trie"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c069c179fcdc6a2fe24d8d18305cf085fdbd4f922c041943e203685d6a1c58fd"
 dependencies = [
  "endian-type",
  "nibble_vec",
@@ -545,14 +543,9 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "submillisecond_core",
  "submillisecond_macros",
  "uuid",
 ]
-
-[[package]]
-name = "submillisecond_core"
-version = "0.1.0"
 
 [[package]]
 name = "submillisecond_macros"
@@ -564,7 +557,6 @@ dependencies = [
  "radix_trie",
  "regex",
  "rust-format",
- "submillisecond_core",
  "syn",
 ]
 

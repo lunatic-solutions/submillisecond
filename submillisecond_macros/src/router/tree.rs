@@ -11,7 +11,6 @@ use syn::{
     Expr, Index, LitStr, Token,
 };
 use regex::Regex;
-use rust_format::{Formatter, RustFmt};
 
 use crate::router::Router;
 
@@ -61,14 +60,14 @@ impl MethodTries {
         self.collect_route_data(None, &router.routes);
         
         let middleware = router.middleware();
-        let (middleware_before, middleware_after) = Self::get_middleware_calls(&middleware);
+        let (middleware_before, middleware_after) = Self::get_middleware_calls(&middleware, false);
         let expanded_method_arms = self.expand_method_arms();
 
         // TODO: maybe add some hooks to give devs ability to log requests that were sent but failed
         // to parse (also useful for us in case we need to debug)
         let wrapped = quote! {
             |mut __req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
-                let mut params = ::submillisecond_core::params::Params::new();
+                let mut params = ::submillisecond::params::Params::new();
                 #middleware_before
 
                 let mut __resp = match *__req.method() {
@@ -84,13 +83,10 @@ impl MethodTries {
                 __resp
             }
         };
-        // println!("GOT EXPANDED {}", wrapped.to_string());
-        println!("GOT EXPANDED {:?}", RustFmt::default().format_tokens(wrapped.clone()));
-        // TokenStream::from_str(&RustFmt::default().format_tokens(wrapped.clone()).unwrap()).unwrap()
         wrapped
     }
 
-    fn expand_method_arms(&mut self) -> TokenStream {
+    fn expand_method_arms(&self) -> TokenStream {
         let pairs = [
             (quote! { ::http::Method::GET }, Self::expand_method_trie(vec![], self.get.children())),
             (quote! { ::http::Method::POST }, Self::expand_method_trie(vec![], self.post.children())),
@@ -134,7 +130,6 @@ impl MethodTries {
                 handler,
                 ..
             } in routes.iter() {
-                println!("\n\nIterating over routes {:?}\n\n", path);
                 let new_path = if let Some(p) = prefix {
                     let mut s = p.value();
                     s.push_str(&path.value());
@@ -154,7 +149,7 @@ impl MethodTries {
                 } else {
                     vec![]
                 };
-                let (middleware_before, middleware_after) = Self::get_middleware_calls(&mid);
+                let (middleware_before, middleware_after) = Self::get_middleware_calls(&mid, true);
 
                 match handler {
                     ItemHandler::Fn(handler_ident) => {
@@ -184,12 +179,12 @@ impl MethodTries {
                     ItemHandler::SubRouter(Router::Tree(tree)) => {
                         self.collect_route_data(Some(&new_path), &tree.routes);
                     },
-                    _ => {}
+                    other => println!("GOT SOMETHING ELSE {:?}", other)
                 }
             }
         }
 
-    fn get_middleware_calls(items: &[TokenStream]) -> (TokenStream, TokenStream) {
+    fn get_middleware_calls(items: &[TokenStream], use_ref: bool) -> (TokenStream, TokenStream) {
         if !items.is_empty() {
             let invoke_middleware = items
                 .iter()
@@ -203,11 +198,16 @@ impl MethodTries {
                 let __middleware_calls = ( #( #invoke_middleware, )* );
             };
 
+            let response_ref = if use_ref {
+                quote! {&mut __resp}
+            } else {
+                quote! {__resp}
+            };
             let after_calls = (0..items.len())
                 .map(|idx| {
                     let idx = Index::from(idx);
                     quote! {
-                        ::submillisecond::Middleware::after(__middleware_calls.#idx, &mut __resp);
+                        ::submillisecond::Middleware::after(__middleware_calls.#idx, #response_ref);
                     }
                 });
 
@@ -224,12 +224,10 @@ impl MethodTries {
         for (lit_prefix, param, lit_suffix) in captures.iter().rev() {
             // first we try to handle the suffix since if there's a static match after a param
             // we want to insert that static match as innermost part of our if statement
-            println!("Get captured {} | {} | {}", lit_prefix.is_empty(), param, lit_suffix);
             let len = lit_suffix.len();
             if !lit_suffix.is_empty() {
                 // handle case when the child is both a non-leaf and has a value
                 if child.value().is_some() && !child.is_leaf() {
-                    println!();
                     let (condition_ext, block) = child.value().unwrap();
                     let recur = Self::expand_method_trie(full_path.clone(), child.children());
                     output = if lit_suffix == "/" {
@@ -321,11 +319,10 @@ impl MethodTries {
 
     fn expand_node_with_value(
         path: String,
-        id_str: String,
         source: TokenStream,
         (condition_ext, block): &(TokenStream, TokenStream)) -> TokenStream {
         let len = path.len();
-        if path.ends_with("/") {
+        if path.ends_with('/') {
             let (path, len) = (path[0..(path.len() - 1)].to_string(), path.len() - 1);
             return quote! {
                 if reader.peek(#len) == #path #condition_ext {
@@ -342,7 +339,6 @@ impl MethodTries {
             };
         }
 
-        println!("INJECTING HANDLER {} | id {:?}", path, id_str);
         quote! {
             if reader.peek(#len) == #path #condition_ext {
                 reader.read(#len);
@@ -356,41 +352,49 @@ impl MethodTries {
         
     }
 
+    // fn unpack_nibbles(src: Nibble) -> Vec<u8> {
+    //     return src;
+    //     // if src.len() % 2 != 0 || src.is_empty() {
+    //     //     return src;
+    //     // }
+    //     let mut out = Vec::with_capacity(src.len() / 2);
+    //     println!("Unpacking nibbles {:?}", src);
+    //     for idx in (0..src.len()).step_by(2) {
+    //         println!("Doing index {:?} | hi {} | lo {}", idx, src[idx], src[idx+1]);
+    //         out.push(src);
+    //     }
+    //     out
+    // }
+
     fn expand_method_trie(full_path: Vec<u8>, children: Children<String, (TokenStream, TokenStream)>) -> Vec<TokenStream> {
-        // children.for_each(|child| {
-        // let is_only_child = children.collect::<SubTrie<String, String>>().len();
         lazy_static! {
             static ref RE: Regex = Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>.*)").unwrap();
         }
         children.map(|child| {
-            let prefix = child.prefix().as_bytes().to_owned();
-            let path = String::from_utf8(prefix.clone()).unwrap();
-            let id = [full_path.clone(), prefix.clone()].concat();
-            let id_str = String::from_utf8(id.clone()).unwrap();
+            // let prefix = child.prefix();
+            // for c in (0..child.prefix().len()).step_by(2) {
+            //     prefix.get(idx)
+            // }
+            println!("GOT CHILD PATH {:?} | nibble {:?}", child.prefix(), child.prefix().as_bytes());
+            let prefix = child.prefix();
+            let path = String::from_utf8(child.prefix().clone().into_bytes()).unwrap();
+            println!("PARSED PATH {:?}", path);
+            let id = [full_path.clone(), path.as_bytes().to_vec()].concat();
             let captures = RE.captures_iter(&path)
                                                     .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
                                                     .collect::<Vec<(String, String, String)>>();
                                                                 
             // split longest common prefix at param and insert param matching 
-            println!(
-                "=========================\nPROCESSING CHILD {:?} -> {:?} | is empty {} | {:?}\n=====================",
-                String::from_utf8(id.clone()),
-                path,
-                captures.is_empty(),
-                captures,
-            );
-            // split match by param
             if !captures.is_empty() {
                 return Self::expand_param_child(child, captures, id);
             }
             let len = path.len();
-            println!("Doing regular non-param matching {:?} | {} | is_leaf: {} | has_value {}", id_str, path, child.is_leaf(), child.value().is_some());
 
             // recursive expand if not leaf
             if !child.is_leaf() {
-                let recur = Self::expand_method_trie(id.clone(), child.children());
+                let recur = Self::expand_method_trie(id, child.children());
                 if let Some(v) = child.value() {
-                    return Self::expand_node_with_value(path, id_str, quote! {
+                    return Self::expand_node_with_value(path, quote! {
                         #( #recur )*
                     }, v);
                 }
@@ -401,11 +405,9 @@ impl MethodTries {
                     }
                 };
             } else if let Some(v) = child.value() {
-                return Self::expand_node_with_value(path, id_str, quote! {}, v);
+                return Self::expand_node_with_value(path, quote! {}, v);
             }
             quote! {}
-            // Self::expand_method_trie(format!("    {}", indent), id, child.children());
-            // println!("{}}}", indent);
         }).collect()
     }
 }

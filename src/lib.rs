@@ -9,8 +9,8 @@ use lunatic::{
     net::{TcpListener, TcpStream, ToSocketAddrs},
     Mailbox, Process,
 };
+use params::Params;
 use response::IntoResponse;
-use submillisecond_core::params::Params;
 pub use submillisecond_macros::*;
 
 pub use crate::error::{BoxError, Error};
@@ -27,6 +27,7 @@ pub mod extract;
 pub mod guard;
 pub mod handler;
 pub mod json;
+pub mod params;
 pub mod response;
 pub mod router;
 pub mod template;
@@ -44,7 +45,7 @@ impl Application {
         Application { router }
     }
 
-    pub fn merge_extensions(request: &mut Request, params: &mut Params) -> () {
+    pub fn merge_extensions(request: &mut Request, params: &mut Params) {
         let extensions = request.extensions_mut();
         match extensions.get_mut::<Params>() {
             Some(ext_params) => {

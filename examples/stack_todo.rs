@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, VecDeque},
     fs::{DirBuilder, File},
     io::{self, Write},
+    iter::FilterMap,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -11,8 +12,9 @@ use lunatic::{
     supervisor::Supervisor,
 };
 use serde::{Deserialize, Serialize};
-use submillisecond::{handler::HandlerFn, json::Json, router, Application, Middleware};
-use submillisecond_core::params::Params;
+use submillisecond::{
+    handler::HandlerFn, json::Json, params::Params, router, Application, Middleware,
+};
 use uuid::Uuid;
 
 // =====================================
@@ -318,11 +320,12 @@ fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
 }
 
 fn liveness_check() -> &'static str {
+    println!("Running liveness check");
     "{\"status\":\"UP\"}"
 }
 
-static ROUTER: HandlerFn = router! {
-    "/api/users" => {
+const ROUTER: HandlerFn = router! {
+    "/users" => {
         POST "/" use LoggingMiddleware => create_user
         "/:user_id" => {
             GET "/todos" use LoggingMiddleware => list_todos
@@ -331,10 +334,254 @@ static ROUTER: HandlerFn = router! {
         }
     }
     GET "/alive" use LoggingMiddleware => liveness_check
+    GET "/something_different/:shoppingcart_id" => liveness_check
 };
 
 fn main() -> io::Result<()> {
     PersistenceSup::start_link("persistence".to_owned(), None);
 
+    // let paths: Vec<String> = vec![
+    //     "/",
+    //     "/path/:id",
+    //     "/users",
+    //     "/users/:user_id",
+    //     "/users/:user_id/posts",
+    //     "/query",
+    //     "/header_map",
+    //     "/typed_header",
+    //     "/string",
+    //     "/vec",
+    //     "/json",
+    // ]
+    // .iter()
+    // .map(|s| s.to_string())
+    // .collect();
+
+    let trie: Trie<String, String> = Trie::default();
+    trie.insert("/users".to_string());
+    trie.insert("/users/:user_id".to_string());
+    trie.insert("/users/:user_id/posts".to_string());
+    trie.insert("/query".to_string());
+    trie.insert("/header_map".to_string());
+    trie.insert("/typed_header".to_string());
+    trie.insert("/string".to_string());
+    trie.insert("/vec".to_string());
+    trie.insert("/json".to_string());
+
+    draw_tree(trie);
+
     Application::new(ROUTER).serve("0.0.0.0:3000")
 }
+
+// GET:
+// "/users/ADMIN_USER/posts/SECRET_POST",
+// "/users/:user_id/posts/:post_id/do_some_stuff",
+// "/users/:id/posts/:post_id/do",
+// "/users/:user_id/posts/:post_id",
+// "/users/:user_id/posts",
+// "/users/:user_id",
+
+fn draw_tree<K, V>(trie: Trie<K, V>) {
+    for child in trie.top.iter() {
+        println!("{:?} => ", child.prefix);
+        draw_children("  ".to_string(), &child.children)
+    }
+}
+
+fn draw_children<K, V>(indent: String, children: &[TrieNode<K, V>]) {
+    // for child
+    let extended_indent = indent.clone();
+    extended_indent.push_str("  ");
+    for child in children {
+        println!("{}{:?} =>", indent, child.prefix);
+        draw_children(extended_indent, children)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Trie<K, V> {
+    top: Vec<TrieNode<K, V>>,
+}
+
+#[derive(Debug, Default)]
+pub struct TrieNode<K, V> {
+    prefix: String,
+    children: Vec<TrieNode<K, V>>,
+    key: K,
+    value: V,
+}
+
+impl Trie<String, String> {
+    pub fn insert(&mut self, s: String) {
+        let first = &s[0..1];
+        for child in self.top.iter() {
+            if &child.prefix == first {
+                child.insert(&s[1..]);
+                return;
+            }
+        }
+    }
+}
+
+impl TrieNode<String, String> {
+    pub fn insert(&mut self, s: &str) {
+        let first = &s[0..1];
+        for child in self.children.iter() {
+            if &child.prefix == first {
+                child.insert(&s[1..]);
+                return;
+            }
+        }
+        self.children.push(TrieNode {
+            prefix: first.to_string(),
+            children: vec![],
+            key: s.to_string(),
+            value: s.to_string(),
+        });
+    }
+
+    // fn child_iter(&self) -> ChildIter<K, V> {
+    //     fn id<K, V>(x: &Option<Child<K, V>>) -> Option<Box<TrieNode<K, V>>> {
+    //         *x.clone()
+    //     }
+
+    //     self.children.iter().filter_map(id)
+    // }
+}
+
+// impl<'a, K: 'a, V: 'a> TrieCommon<'a, K, V> for &'a Trie<K, V> {
+//     #[inline]
+//     fn len(self) -> usize {
+//         self.length
+//     }
+//     #[inline]
+//     fn children(self) -> TrieLevels<'a, K, V> {
+//         TrieLevels::new(self.node.key.clone(), &self.node)
+//     }
+// }
+
+// pub trait ContainsTrieNode<'a, K: 'a, V: 'a> {
+//     fn trie_node(self) -> &'a TrieNode<K, V>;
+// }
+
+// impl<'a, K: 'a, V: 'a> ContainsTrieNode<'a, K, V> for &'a Trie<K, V> {
+//     #[inline]
+//     fn trie_node(self) -> &'a TrieNode<K, V> {
+//         &self.node
+//     }
+// }
+// Common functionality available for tries and subtries.
+// pub trait TrieCommon<'a, K: 'a, V: 'a>: ContainsTrieNode<'a, K, V>
+// where
+//     Self: Sized,
+// {
+//     /// Get the key stored at this node, if any.
+//     #[inline]
+//     fn key(self) -> Option<&'a K> {
+//         self.trie_node().key()
+//     }
+
+//     /// Get the value stored at this node, if any.
+//     #[inline]
+//     fn value(self) -> Option<&'a V> {
+//         self.trie_node().value()
+//     }
+
+//     /// Number of key/value pairs stored in this trie.
+//     fn len(self) -> usize;
+
+//     /// Determine if the Trie contains 0 key-value pairs.
+//     #[inline]
+//     fn is_empty(self) -> bool {
+//         self.len() == 0
+//     }
+
+//     /// Determine if the trie is a leaf node (has no children).
+//     #[inline]
+//     fn is_leaf(self) -> bool {
+//         self.trie_node().child_count == 0
+//     }
+
+//     /// Return an iterator over the child subtries of this node.
+//     fn children(self) -> TrieLevels<'a, K, V>;
+
+//     /// Get the prefix of this node.
+//     #[inline]
+//     fn prefix(self) -> String {
+//         &self.trie_node().key
+//     }
+// }
+
+// pub struct TrieLevels<'a, K: 'a, V: 'a> {
+//     prefix: String,
+//     inner: ChildIter<'a, K, V>,
+// }
+
+// impl<'a, K, V> TrieLevels<'a, K, V> {
+//     pub fn new(prefix: String, node: &'a TrieNode<K, V>) -> TrieLevels<'a, K, V> {
+//         TrieLevels {
+//             prefix,
+//             inner: node.child_iter(),
+//         }
+//     }
+// }
+
+// type Child<K, V> = Box<TrieNode<K, V>>;
+// type RawChildIter<'a, K, V> = std::slice::Iter<'a, Option<Child<K, V>>>;
+// type ChildMapFn<'a, K, V> = fn(&'a Option<Child<K, V>>) -> Option<&'a Child<K, V>>;
+// type ChildIter<'a, K, V> = FilterMap<RawChildIter<'a, K, V>, ChildMapFn<'a, K, V>>;
+
+// pub struct SubTrie<'a, K, V> {
+//     prefix: String,
+//     node: &'a TrieNode<K, V>,
+// }
+
+// impl<'a, K, V> Iterator for TrieLevels<'a, K, V> {
+//     type Item = SubTrie<'a, K, V>;
+
+//     // fn next(&mut self) -> Option<Self::Item> {
+//     //     let mut compact_prefix = self.curr.prefix.clone();
+//     //     while self.curr.children.len() == 1 {
+//     //         self.curr = &self.curr.children[0];
+//     //         // self.curr_visited = 0;
+//     //         compact_prefix.push_str(&self.curr.prefix);
+//     //     }
+
+//     //     if !self.curr_visited {
+//     //         self.curr_visited = true;
+//     //         return Some(*self.curr);
+//     //     }
+//     //     self.curr_visited = false;
+//     //     Some(TrieNode)
+//     // }
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         self.inner.next().map(|node| SubTrie {
+//             prefix: self.prefix.clone(),
+//             node: node,
+//         })
+//     }
+// }
+
+// pub fn longest_common_prefix(strs: &Vec<String>) -> String {
+//     match strs.is_empty() {
+//         true => "".to_string(),
+//         _ => {
+//             let mut longest = "".to_string();
+//             for idx in 0..strs.len() {
+//                 let attempt = strs.iter().fold(strs[idx].clone(), |acc, x| {
+//                     acc.chars()
+//                         .zip(x.chars())
+//                         .take_while(|(x, y)| x == y)
+//                         .map(|(x, _)| x)
+//                         .collect()
+//                 });
+//                 println!("Checking attempt {:?}", attempt);
+//                 if attempt.len() > longest.len() {
+//                     longest = attempt;
+//                 }
+//             }
+//             longest
+//         }
+//     }
+// }

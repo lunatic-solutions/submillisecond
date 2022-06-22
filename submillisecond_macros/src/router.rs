@@ -18,15 +18,6 @@ pub enum Router {
     Tree(RouterTree), // { "/" => ... }
 }
 
-// impl Router {
-//     pub fn expand(&self, router: &mut MethodTries, prefix: Option<&LitStr>) -> TokenStream {
-//         match self {
-//             Router::List(router_list) => router_list.expand(),
-//             Router::Tree(router_tree) => router_tree.expand(router, prefix),
-//         }
-//     }
-// }
-
 impl Parse for Router {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         if input.is_empty() {

@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use submillisecond_core::params::Params;
+use crate::params::Params;
 
 use super::FromRequest;
 

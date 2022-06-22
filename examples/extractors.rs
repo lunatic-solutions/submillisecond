@@ -68,8 +68,7 @@ fn json(Json(login): Json<Login>) -> String {
 fn main() -> io::Result<()> {
     Application::new(router! {
         GET "/" => index
-        GET "/path/:id" => path
-        GET "/query" => query
+        GET "/querys" => query
         GET "/header_map" => header_map
         GET "/typed_header" => typed_header
         POST "/string" => string
