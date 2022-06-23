@@ -74,6 +74,7 @@ fn main() -> io::Result<()> {
         POST "/string" => string
         POST "/vec" => vec
         POST "/json" => json
+        GET "/path/:id" => path
     })
     .serve("0.0.0.0:3000")
 }

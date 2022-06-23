@@ -1,4 +1,5 @@
 mod router;
+mod trie;
 
 use proc_macro::TokenStream;
 use router::{MethodTries, Router};

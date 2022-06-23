@@ -10,7 +10,6 @@ proc-macro = true
 lazy_static = "1.4.0"
 proc-macro2 = "1.0"
 quote = "1.0"
-radix_trie = {path = "../../rust_radix_trie"}
 regex = "1.5.6"
 rust-format = {version = "0.3", features = ["token_stream"]}
 syn = {version = "1.0", features = ["derive", "extra-traits", "full"]}
