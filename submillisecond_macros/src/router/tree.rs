@@ -62,7 +62,7 @@ impl MethodTries {
     }
 
     pub fn expand(mut self, router: RouterTree) -> TokenStream {
-        self.collect_route_data(None, &router.routes, None);
+        self.collect_route_data(None, &router.routes, None, router.middleware());
         
         let middleware = router.middleware();
         let (middleware_before, middleware_after) = Self::get_middleware_calls(&middleware, false);
@@ -127,7 +127,7 @@ impl MethodTries {
         }
     }
 
-    fn collect_route_data(&mut self, prefix: Option<&LitStr>, routes: &[ItemRoute], ancestor_guards: Option<TokenStream>) {
+    fn collect_route_data(&mut self, prefix: Option<&LitStr>, routes: &[ItemRoute], ancestor_guards: Option<TokenStream>, _: Vec<TokenStream>) {
         for ItemRoute {
                 method,
                 path,
@@ -191,24 +191,39 @@ impl MethodTries {
                                 }
                             }));
                         } else {
+                            let middleware_after = if !middleware_after.is_empty() {
+                                quote!{
+                                    if let Ok(mut __resp) = __resp.as_mut() {
+                                        #middleware_after
+                                    }
+                                }
+                            } else {quote! {}};
                             self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, quote! {
                                 ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
                                 #middleware_before
 
                                 let mut __resp = #handler_ident(__req, __params, __reader);
 
-                                if let Ok(mut __resp) = __resp.as_mut() {
-                                    #middleware_after
-                                }
+                               #middleware_after
 
                                 return __resp;
                         }));
                         }
                     },
                     ItemHandler::SubRouter(Router::Tree(tree)) => {
-                        self.collect_route_data(Some(&new_path), &tree.routes, guards_expanded);
+                        self.collect_route_data(Some(&new_path), &tree.routes, guards_expanded, tree.middleware());
                     },
-                    other => eprintln!("Cannot handle received SubRouter with List {:?}", other)
+                    ItemHandler::SubRouter(Router::List(list)) => {
+                        self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, list.expand_inner(
+                            if !middleware_after.is_empty() {
+                                    quote!{
+                                    if let Ok(mut __resp) = __resp.as_mut() {
+                                        #middleware_after
+                                    }
+                                }
+                            } else {quote! {}}
+                        )));
+                    },
                 }
             }
         }

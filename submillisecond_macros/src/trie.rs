@@ -75,7 +75,7 @@ impl<T: Debug + Clone> TrieNode<T> {
                     }
                 }
                 // inserting the same key
-                if key_len == prefix.len() {
+                if last_match == prefix.len() {
                     return;
                 }
                 // in this case, key_len will ALWAYS be shorter than prefix.len()

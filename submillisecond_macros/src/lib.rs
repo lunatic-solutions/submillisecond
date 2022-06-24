@@ -9,6 +9,6 @@ use syn::parse_macro_input;
 pub fn router(input: TokenStream) -> TokenStream {
     match parse_macro_input!(input as Router) {
         Router::Tree(tree) => MethodTries::new().expand(tree).into(),
-        Router::List(_) => panic!("Cannot parse RouterList"),
+        Router::List(list) => list.expand().into(),
     }
 }

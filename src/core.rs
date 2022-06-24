@@ -117,6 +117,7 @@ impl IntoResponse for ParseRequestError {
     }
 }
 
+#[derive(Clone)]
 pub struct UriReader {
     uri: String,
     cursor: usize,
