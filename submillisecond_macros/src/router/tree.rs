@@ -19,7 +19,10 @@ use self::{
     method::Method,
 };
 
+#[derive(Default)]
 pub struct MethodTries {
+    // trie to collect subrouters
+    subrouters: Trie<(TokenStream, TokenStream)>,
     // tries to collect
     get: Trie<(TokenStream, TokenStream)>,
     post: Trie<(TokenStream, TokenStream)>,
@@ -32,15 +35,7 @@ pub struct MethodTries {
 
 impl MethodTries {
     pub fn new() -> MethodTries {
-        MethodTries {
-            get: Trie::new(),
-            post: Trie::new(),
-            put: Trie::new(),
-            delete: Trie::new(),
-            head: Trie::new(),
-            options: Trie::new(),
-            patch: Trie::new(),
-        }
+        MethodTries::default()
     }
 
     pub fn insert(&mut self, method: Method, key: String, value: (TokenStream, TokenStream)) {
@@ -55,6 +50,17 @@ impl MethodTries {
         };
     }
 
+    pub fn insert_subrouter(&mut self, key: String, value: (TokenStream, TokenStream)) {
+        self.subrouters.insert(key, value);
+    }
+
+    fn expand_subrouter(&mut self) -> TokenStream {
+        let expanded = Self::expand_method_trie(vec![], self.subrouters.children());
+        quote! {
+            #( #expanded )*
+        }
+    }
+
     pub fn expand(mut self, router: RouterTree) -> TokenStream {
         self.collect_route_data(None, &router.routes);
         
@@ -62,12 +68,15 @@ impl MethodTries {
         let (middleware_before, middleware_after) = Self::get_middleware_calls(&middleware, false);
         let expanded_method_arms = self.expand_method_arms();
 
+        let subrouter_expanded = self.expand_subrouter();
+
         // TODO: maybe add some hooks to give devs ability to log requests that were sent but failed
         // to parse (also useful for us in case we need to debug)
         let wrapped = quote! {
-            |mut __req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
-                let mut params = ::submillisecond::params::Params::new();
+            |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
                 #middleware_before
+
+                #subrouter_expanded
 
                 let mut __resp = match *__req.method() {
                     #expanded_method_arms
@@ -107,7 +116,6 @@ impl MethodTries {
             quote! {
                 #method => {
                     let __path = __req.uri().path().to_string();
-                    let mut reader = ::submillisecond::core::UriReader::new(__path);
                     #( #arms )*
                     return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
                 }
@@ -153,7 +161,8 @@ impl MethodTries {
                     ItemHandler::Fn(handler_ident) => {
                         if let Some(method) = method {
                             self.insert(*method, new_path.value(), (quote! {#guards_expanded}, quote! {
-                                    ::submillisecond::Application::merge_extensions(&mut __req, &mut params);
+                                if __reader.is_dangling_slash() {
+                                    ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
                                     #middleware_before
     
                                     let mut __resp = ::submillisecond::response::IntoResponse::into_response(
@@ -171,13 +180,27 @@ impl MethodTries {
                                     #middleware_after
     
                                     return ::std::result::Result::Ok(__resp);
+                                }
                             }));
+                        } else {
+                            self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, quote! {
+                                ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
+                                #middleware_before
+
+                                let mut __resp = #handler_ident(__req, __params, __reader);
+
+                                if let Ok(mut __resp) = __resp.as_mut() {
+                                    #middleware_after
+                                }
+
+                                return __resp;
+                        }));
                         }
                     },
                     ItemHandler::SubRouter(Router::Tree(tree)) => {
                         self.collect_route_data(Some(&new_path), &tree.routes);
                     },
-                    other => println!("GOT SOMETHING ELSE {:?}", other)
+                    other => eprintln!("Cannot handle received SubRouter with List {:?}", other)
                 }
             }
         }
@@ -223,12 +246,11 @@ impl MethodTries {
             // first we try to handle the suffix since if there's a static match after a param
             // we want to insert that static match as innermost part of our if statement
             let len = lit_suffix.len();
-            println!("INSERTING PARAM {:?} | {:?} | {:?}", lit_prefix, param, lit_suffix);
             match lit_suffix.as_str() {
                 "" => {
                     if let Some((condition_ext, block)) = child.value.as_ref() {
                         output = quote! {
-                            if reader.is_dangling_slash() #condition_ext {
+                            if __reader.is_dangling_slash() #condition_ext {
                                 #block
                             }
                         };
@@ -244,7 +266,7 @@ impl MethodTries {
                 "/" => {
                     if let Some((condition_ext, block)) = child.value.as_ref() {
                         output = quote! {
-                            if reader.is_dangling_slash() #condition_ext {
+                            if __reader.is_dangling_slash() #condition_ext {
                                 #block
                             }
                         };
@@ -254,8 +276,8 @@ impl MethodTries {
                         let recur = Self::expand_method_trie(full_path.clone(), child.children());
                         output = quote! {
                             #output
-                            if reader.peek(1) == "/" {
-                                reader.read(1);
+                            if __reader.peek(1) == "/" {
+                                __reader.read(1);
                                 #( #recur )*
                             }
                         };
@@ -265,8 +287,8 @@ impl MethodTries {
                     let body = if child.is_leaf() {
                         if let Some((condition_ext, block)) = child.value.as_ref() {
                                 quote! {
-                                    if reader.peek(#len) == #lit_suffix #condition_ext {
-                                        reader.read(#len);
+                                    if __reader.peek(#len) == #lit_suffix #condition_ext {
+                                        __reader.read(#len);
                                         #block
                                     }
                                 }
@@ -275,23 +297,30 @@ impl MethodTries {
                         }
                     } else {
                         let recur = Self::expand_method_trie(full_path.clone(), child.children());
-                        quote! { #( #recur )* }
+                        if let Some((condition_ext, block)) = child.value.as_ref() {
+                            quote! {
+                                if __reader.peek(#len) == #lit_suffix #condition_ext {
+                                    __reader.read(#len);
+                                    #block
+                                    #( #recur )*
+                                }
+                            }
+                        } else {
+                            quote! { #( #recur )* }
+                        }
                     };
                     output = quote! {
                         #output
-                        if reader.peek(#len) == #lit_suffix {
-                            reader.read(#len);
-                            #body
-                        }
+                        #body
                     };
                 }
             }
 
             // now we insert parsing of param
             output = quote! {
-                let param = reader.read_param();
+                let param = __reader.read_param();
                 if let Ok(p) = param {
-                    params.push(#param .to_string(), p.to_string());
+                    __params.push(#param .to_string(), p.to_string());
                     #output
                 }
             };
@@ -300,8 +329,8 @@ impl MethodTries {
             if !lit_prefix.is_empty() {
                 // wrap output
                 output = quote! {
-                    if reader.peek(#len) == #lit_prefix {
-                        reader.read(#len);
+                    if __reader.peek(#len) == #lit_prefix {
+                        __reader.read(#len);
                         #output
                     }
                 }
@@ -315,18 +344,17 @@ impl MethodTries {
         path: String,
         source: TokenStream,
         (condition_ext, block): &(TokenStream, TokenStream)) -> TokenStream {
-            println!("=============\nExpanding node with value {:?}", path);
         let len = path.len();
         if path.len() > 1 && path.ends_with('/') {
             let (path, len) = (path[0..(path.len() - 1)].to_string(), path.len() - 1);
             return quote! {
-                if reader.peek(#len) == #path #condition_ext {
-                    reader.read(#len);
-                    if reader.is_dangling_slash() {
+                if __reader.peek(#len) == #path #condition_ext {
+                    __reader.read(#len);
+                    //if __reader.is_dangling_slash() {
                         #block
-                    }
+                    //}
                     // since path continues there has to be a separator
-                    if reader.read(1) != "/" {
+                    if __reader.read(1) != "/" {
                         return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
                     }
                     #source
@@ -334,13 +362,12 @@ impl MethodTries {
             };
         }
 
-        println!("EXPANDING TO DEFAULT with path {:?}", path);
         quote! {
-            if reader.peek(#len) == #path #condition_ext {
-                reader.read(#len);
-                if reader.is_empty() {
+            if __reader.peek(#len) == #path #condition_ext {
+                __reader.read(#len);
+                //if __reader.is_empty() {
                     #block
-                }
+                //}
                 #source
             }
         }
@@ -352,17 +379,14 @@ impl MethodTries {
         lazy_static! {
             static ref RE: Regex = Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>.*)").unwrap();
         }
-        println!("STARTING EXPAND {:?}", full_path);
         children.map(|mut child| {
             let path = String::from_utf8(child.prefix.clone()).unwrap();
-            println!("PARSED PATH {:?} | is_leaf: {}", path, child.is_leaf());
             let id = [full_path.clone(), path.as_bytes().to_vec()].concat();
             let captures = RE.captures_iter(&path)
                                                     .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
                                                     .collect::<Vec<(String, String, String)>>();
                                                                 
             // split longest common prefix at param and insert param matching 
-            println!("Maybe captures for id {:?} | path {} | is_leaf {} | {:?}", String::from_utf8(id.clone()), path, child.is_leaf(), captures);
             if !captures.is_empty() {
                 return Self::expand_param_child(child, captures, id);
             }
@@ -377,8 +401,8 @@ impl MethodTries {
                     }, &v);
                 }
                 return quote! {
-                    if reader.peek(#len) == #path {
-                        reader.read(#len);
+                    if __reader.peek(#len) == #path {
+                        __reader.read(#len);
                         #( #recur )*
                     }
                 };

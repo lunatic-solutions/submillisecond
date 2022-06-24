@@ -5,13 +5,15 @@ pub struct Trie<T> {
     node: TrieNode<T>,
 }
 
-impl<T: Clone + Debug> Trie<T> {
-    pub fn new() -> Self {
+impl<T: Clone + Debug> Default for Trie<T> {
+    fn default() -> Self {
         Trie {
             node: TrieNode::Empty,
         }
     }
+}
 
+impl<T: Clone + Debug> Trie<T> {
     pub fn children(&mut self) -> Children<T> {
         Children::new(TrieNode::Node {
             value: None,
@@ -32,11 +34,6 @@ pub enum TrieNode<V> {
         prefix: Vec<u8>,
         children: Vec<Box<TrieNode<V>>>,
     },
-    Param {
-        value: Option<V>,
-        name: String,
-        children: Vec<Box<TrieNode<V>>>,
-    },
     Empty,
 }
 
@@ -50,7 +47,6 @@ impl<T: Debug + Clone> TrieNode<T> {
     }
 
     pub fn insert(&mut self, key: String, new_value: T) {
-        println!("[TREE] inserting {:?}", key);
         let key_vec = key.as_bytes();
         let key_len = key.len();
         match self {
@@ -118,19 +114,6 @@ impl<T: Debug + Clone> TrieNode<T> {
                         children: vec![new_child],
                     };
                 }
-
-                // Self::delegate_to_child(
-                //     String::from_utf8(suffix.to_vec()).unwrap(),
-                //     new_value,
-                //     &mut children,
-                // )
-            }
-            TrieNode::Param {
-                value,
-                name,
-                children,
-            } => {
-                Self::delegate_to_child(key, new_value, children);
             }
             TrieNode::Empty => {
                 let key_vec = key.as_bytes().to_vec();
@@ -140,7 +123,6 @@ impl<T: Debug + Clone> TrieNode<T> {
     }
 
     fn delegate_to_child(key: String, new_value: T, children: &mut Vec<Box<TrieNode<T>>>) {
-        println!("[TREE] Delegating to children {:?}", key);
         let next = key.as_bytes()[0];
         // if we find any existing match for the next one we pass it on
         if let Some(child) = children.iter_mut().find(|c| {
@@ -150,7 +132,6 @@ impl<T: Debug + Clone> TrieNode<T> {
             }
             false
         }) {
-            println!("[TREE] found match for next {:?} -> {:?}", key, child);
             child.as_mut().insert(key, new_value);
             return;
         } else if key.len() > 1 {
@@ -206,13 +187,7 @@ impl<T: Debug + Clone> Iterator for Children<T> {
     type Item = Node<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let TrieNode::Node {
-            ref value,
-            ref prefix,
-            ref children,
-        } = self.trie
-        {
-            println!("GETTING NEXT {:?} -> children: {}", prefix, children.len());
+        if let TrieNode::Node { ref children, .. } = self.trie {
             if self.idx_child < children.len() {
                 let current_child = children[self.idx_child].clone();
                 self.idx_child += 1;
@@ -240,13 +215,12 @@ mod tests {
 
     #[test]
     fn trie_basic() {
-        let mut trie = Trie::new();
+        let mut trie = Trie::default();
         trie.insert("/".to_string(), "/");
         trie.insert("/vec".to_string(), "/");
         trie.insert("/json".to_string(), "/");
 
         let prefixes: Vec<Vec<u8>> = trie.children().map(|c| c.prefix.clone()).collect();
-        println!("GOT PREFIXES");
         assert_eq!(prefixes, vec![vec![47]])
     }
 }

@@ -234,7 +234,6 @@ impl ProcessRequest<ListTodos> for PersistenceProcess {
     fn handle(state: &mut Self::State, ListTodos(user_id): ListTodos) -> Self::Response {
         // self.todos_wal
         //     .append_confirmation(message_uuid, pubrel.clone(), SystemTime::now());
-        println!("GETTING USERS todos {:?}", state.users);
         if let Some(user) = state.users.get_mut(&user_id) {
             return user.todos.iter().map(|t| t.clone()).collect();
         }
@@ -289,7 +288,6 @@ fn create_user(user: Json<CreateUserDto>) -> Json<CreateUserResponseDto> {
 fn list_todos(params: Params) -> Json<Vec<Todo>> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
     let user_id = params.get("user_id").unwrap();
-    println!("GOT PARAMS {:?}", user_id);
     let todos = persistence.request(ListTodos(Uuid::from_str(user_id).unwrap()));
     submillisecond::json::Json(todos)
 }
@@ -323,16 +321,23 @@ fn liveness_check() -> &'static str {
     "{\"status\":\"UP\"}"
 }
 
+// has the prefix /api/mgmt
+const MGMT_ROUTER: HandlerFn = router! {
+    GET "/alive" use LoggingMiddleware => liveness_check
+    GET "/health" use LoggingMiddleware => liveness_check
+    GET "/metrics" use LoggingMiddleware => liveness_check
+};
+
 const ROUTER: HandlerFn = router! {
-    "/users" => {
+    "/api/users" => {
         POST "/" use LoggingMiddleware => create_user
         "/:user_id" => {
             GET "/todos" use LoggingMiddleware => list_todos
             POST "/todos" use LoggingMiddleware => push_todo
-            GET "/todos/poll" use LoggingMiddleware => poll_todo
+            POST "/todos/poll" use LoggingMiddleware => poll_todo
         }
     }
-    GET "/alive" use LoggingMiddleware => liveness_check
+    "/api/mgmt" use LoggingMiddleware => MGMT_ROUTER
     GET "/something_different/:shoppingcart_id" => liveness_check
 };
 

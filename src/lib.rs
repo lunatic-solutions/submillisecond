@@ -81,10 +81,13 @@ impl Application {
 
                     let path = request.uri().path().to_string();
                     let extensions = request.extensions_mut();
-                    extensions.insert(Route(path));
+                    extensions.insert(Route(path.clone()));
                     let http_version = request.version();
 
-                    let mut response = handler(request).unwrap_or_else(|err| err.into_response());
+                    let params = crate::params::Params::new();
+                    let reader = crate::core::UriReader::new(path);
+                    let mut response =
+                        handler(request, params, reader).unwrap_or_else(|err| err.into_response());
 
                     let content_length = response.body().len();
                     *response.version_mut() = http_version;
