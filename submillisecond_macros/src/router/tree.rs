@@ -19,6 +19,10 @@ use self::{
     method::Method,
 };
 
+lazy_static! {
+    static ref RE: Regex = Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>.*)").unwrap();
+}
+
 #[derive(Default)]
 pub struct MethodTries {
     // trie to collect subrouters
@@ -261,11 +265,11 @@ impl MethodTries {
         }
     }
 
-    fn expand_param_child(mut child: Node<(TokenStream, TokenStream)>, captures: Vec<(String, String, String)>, full_path: Vec<u8>) -> TokenStream {
+    fn expand_param_child(mut child: Node<(TokenStream, TokenStream)>,  (lit_prefix, param, lit_suffix): (String, String, String), full_path: Vec<u8>) -> TokenStream {
         let mut output = quote! {};
 
         // iterate in reverse because we need to nest if statements
-        for (lit_prefix, param, lit_suffix) in captures.iter().rev() {
+        // for (lit_prefix, param, lit_suffix) in captures.iter().rev() {
             // first we try to handle the suffix since if there's a static match after a param
             // we want to insert that static match as innermost part of our if statement
             let len = lit_suffix.len();
@@ -307,7 +311,15 @@ impl MethodTries {
                     }
                 }
                 _ => {
-                    let body = if child.is_leaf() {
+                    let consequent_params = RE.captures(&lit_suffix).map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
+                    let conseq_expanded = if let Some(consequent_params) = consequent_params {
+                        Self::expand_param_child(child.clone(), consequent_params, full_path.clone())
+                    } else {
+                        quote! {}
+                    };
+                    let body = if !conseq_expanded.is_empty() {
+                        conseq_expanded
+                    } else if conseq_expanded.is_empty() && child.is_leaf() {
                         if let Some((condition_ext, block)) = child.value.as_ref() {
                                 quote! {
                                     if __reader.peek(#len) == #lit_suffix #condition_ext {
@@ -358,7 +370,7 @@ impl MethodTries {
                     }
                 }
             }
-        }
+        // }
         output
     
     }
@@ -399,18 +411,15 @@ impl MethodTries {
     }
 
     fn expand_method_trie(full_path: Vec<u8>, children: Children<(TokenStream, TokenStream)>) -> Vec<TokenStream> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>.*)").unwrap();
-        }
         children.map(|mut child| {
             let path = String::from_utf8(child.prefix.clone()).unwrap();
             let id = [full_path.clone(), path.as_bytes().to_vec()].concat();
-            let captures = RE.captures_iter(&path)
-                                                    .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
-                                                    .collect::<Vec<(String, String, String)>>();
+            let captures = RE.captures(&path).map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
+                                                    // .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
+                                                    // .collect::<Vec<(String, String, String)>>();
                                                                 
             // split longest common prefix at param and insert param matching 
-            if !captures.is_empty() {
+            if let Some(captures) = captures {
                 return Self::expand_param_child(child, captures, id);
             }
             let len = path.len();
