@@ -62,7 +62,7 @@ impl MethodTries {
     }
 
     pub fn expand(mut self, router: RouterTree) -> TokenStream {
-        self.collect_route_data(None, &router.routes);
+        self.collect_route_data(None, &router.routes, None);
         
         let middleware = router.middleware();
         let (middleware_before, middleware_after) = Self::get_middleware_calls(&middleware, false);
@@ -127,7 +127,7 @@ impl MethodTries {
         }
     }
 
-    fn collect_route_data(&mut self, prefix: Option<&LitStr>, routes: &[ItemRoute]) {
+    fn collect_route_data(&mut self, prefix: Option<&LitStr>, routes: &[ItemRoute], ancestor_guards: Option<TokenStream>) {
         for ItemRoute {
                 method,
                 path,
@@ -144,11 +144,19 @@ impl MethodTries {
                     path.clone()
                 };
 
-                let guards_expanded = guard
+                let mut guards_expanded = guard
                     .as_ref()
                     .map(|guard| &*guard.guard)
                     .map(expand_guard_struct)
                     .map(|guard| quote! { && { #guard } });
+                
+                if let Some(ref ancestor) = ancestor_guards {
+                    if let Some(guards) = guards_expanded {
+                        guards_expanded = Some(quote! {#ancestor #guards});
+                    } else {
+                        guards_expanded = Some(ancestor.clone());
+                    }
+                }
 
                 let mid = if let Some(m) = middleware {
                     m.tree.items()
@@ -198,7 +206,7 @@ impl MethodTries {
                         }
                     },
                     ItemHandler::SubRouter(Router::Tree(tree)) => {
-                        self.collect_route_data(Some(&new_path), &tree.routes);
+                        self.collect_route_data(Some(&new_path), &tree.routes, guards_expanded);
                     },
                     other => eprintln!("Cannot handle received SubRouter with List {:?}", other)
                 }

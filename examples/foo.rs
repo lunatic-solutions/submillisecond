@@ -1,6 +1,6 @@
 use std::io;
 
-use submillisecond::{params::Params, Middleware};
+use submillisecond::{guard::Guard, params::Params, router, Application, Middleware};
 
 struct LoggingMiddleware {
     request_id: String,
@@ -32,14 +32,28 @@ fn bar_handler() -> &'static str {
     "bar"
 }
 
+struct FakeGuard;
+
+impl Guard for FakeGuard {
+    fn check(&self, _: &submillisecond::Request) -> bool {
+        true
+    }
+}
+
+struct BarGuard;
+impl Guard for BarGuard {
+    fn check(&self, _: &submillisecond::Request) -> bool {
+        true
+    }
+}
+
 fn main() -> io::Result<()> {
-    // Application::new(router! {
-    //     "/foo" if true => {
-    //         GET "/bar" use LoggingMiddleware => foo_handler
-    //     }
-    //     GET "/bar" if true => bar_handler
-    //     POST "/foo" => foo_handler
-    // })
-    // .serve("0.0.0.0:3000")
-    Ok(())
+    Application::new(router! {
+        "/foo" if FakeGuard => {
+            GET "/bar" if BarGuard use LoggingMiddleware => foo_handler
+        }
+        GET "/bar" if BarGuard => bar_handler
+        POST "/foo" => foo_handler
+    })
+    .serve("0.0.0.0:3000")
 }
