@@ -1,5 +1,8 @@
 use std::cmp::min;
+use std::hash::Hash;
 use std::{mem, str};
+
+use indexmap::IndexSet;
 
 use super::error::{InsertError, MatchError};
 use super::params::Params;
@@ -26,7 +29,7 @@ pub struct Node<T> {
     pub indices: Vec<u8>,
     pub node_type: NodeType,
     // see `at_inner` for why an unsafe cell is needed.
-    pub value: Vec<T>,
+    pub value: IndexSet<T>,
     pub prefix: Vec<u8>,
     pub children: Vec<Self>,
 }
@@ -93,7 +96,7 @@ impl<T> Default for Node<T> {
             node_type: NodeType::Static,
             indices: Vec::new(),
             children: Vec::new(),
-            value: Vec::new(),
+            value: IndexSet::new(),
             priority: 0,
         }
     }
@@ -113,7 +116,10 @@ impl<T> Default for ConstNode<'_, T> {
     }
 }
 
-impl<T: Clone> Node<T> {
+impl<T: Clone> Node<T>
+where
+    T: Eq + Hash,
+{
     pub fn insert(&mut self, route: impl Into<String>, val: T) -> Result<(), InsertError> {
         let route = route.into().into_bytes();
         let mut prefix = route.as_ref();
@@ -216,7 +222,7 @@ impl<T: Clone> Node<T> {
             }
 
             // otherwise add value to current node
-            current.value.push(val);
+            current.value.insert(val);
 
             return Ok(());
         }
@@ -274,7 +280,7 @@ impl<T: Clone> Node<T> {
                 (Some(..), false) => return Err(InsertError::TooManyParams),
                 // no wildcard, simply use the current node
                 (None, _) => {
-                    current.value.push(val);
+                    current.value.insert(val);
                     current.prefix = prefix.to_owned();
                     return Ok(());
                 }
@@ -319,7 +325,7 @@ impl<T: Clone> Node<T> {
                 }
 
                 // otherwise we're done. Insert the value in the new leaf
-                current.value.push(val);
+                current.value.insert(val);
                 return Ok(());
             }
 
@@ -351,7 +357,7 @@ impl<T: Clone> Node<T> {
             let child = Self {
                 prefix: prefix.to_owned(),
                 node_type: NodeType::CatchAll,
-                value: vec![val],
+                value: IndexSet::from_iter([val]),
                 priority: 1,
                 ..Self::default()
             };

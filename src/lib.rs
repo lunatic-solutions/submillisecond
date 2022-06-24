@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     io::{self},
     mem,
 };
@@ -68,7 +69,7 @@ impl Application {
 
                     let path = request.uri().path().to_string();
                     let extensions = request.extensions_mut();
-                    extensions.insert(Route(path));
+                    extensions.insert(Route(Cow::Owned(path)));
                     let http_version = request.version();
 
                     let mut response = handler(request).unwrap_or_else(|err| err.into_response());

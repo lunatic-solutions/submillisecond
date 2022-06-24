@@ -11,7 +11,7 @@ syn::custom_keyword!(HEAD);
 syn::custom_keyword!(OPTIONS);
 syn::custom_keyword!(PATCH);
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Method {
     Get(GET),
     Post(POST),
