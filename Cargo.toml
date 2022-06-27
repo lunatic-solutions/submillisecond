@@ -23,3 +23,4 @@ submillisecond_macros = { path = "submillisecond_macros" }
 
 [dev-dependencies]
 matchit = "*"
+lunatic-test = "0.9"
