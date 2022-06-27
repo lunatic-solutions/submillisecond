@@ -134,7 +134,7 @@ impl<T: Debug + Clone> TrieNode<T> {
         }) {
             child.as_mut().insert(key, new_value);
             return;
-        } else if key.len() > 1 {
+        } else {
             // create a new terminal child
             children.push(Box::new(TrieNode::create_terminal(
                 key.as_bytes().to_vec(),
