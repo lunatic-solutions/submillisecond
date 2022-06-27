@@ -1,21 +1,13 @@
-use std::{
-    io::{self},
-    mem,
-};
+use std::io;
 
 use handler::HandlerFn;
-use http::{header, HeaderValue};
-use lunatic::{
-    net::{TcpListener, TcpStream, ToSocketAddrs},
-    Mailbox, Process,
-};
+use lunatic::{net::TcpListener, net::ToSocketAddrs, process::StartProcess};
 use params::Params;
-use response::IntoResponse;
 pub use submillisecond_macros::*;
+use supervisor::RequestSupervisorProcess;
 
 pub use crate::error::{BoxError, Error};
 pub use crate::response::Response;
-use crate::router::Route;
 
 #[macro_use]
 pub(crate) mod macros;
@@ -31,6 +23,7 @@ pub mod params;
 pub mod request_context;
 pub mod response;
 pub mod router;
+pub mod supervisor;
 pub mod template;
 
 /// Type alias for [`http::Request`] whose body defaults to [`String`].
@@ -62,45 +55,11 @@ impl Application {
         let listener = TcpListener::bind(addr)?;
 
         while let Ok((stream, _)) = listener.accept() {
-            Process::spawn_link(
-                (stream, self.router as *const () as usize),
-                |(stream, handler_raw): (TcpStream, usize), _: Mailbox<()>| {
-                    let handler = unsafe {
-                        let pointer = handler_raw as *const ();
-                        mem::transmute::<*const (), HandlerFn>(pointer)
-                    };
-
-                    let mut request = match core::parse_request(stream.clone()) {
-                        Ok(request) => request,
-                        Err(err) => {
-                            if let Err(err) = core::write_response(stream, err.into_response()) {
-                                eprintln!("[http reader] Failed to send response {:?}", err);
-                            }
-                            return;
-                        }
-                    };
-
-                    let path = request.uri().path().to_string();
-                    let extensions = request.extensions_mut();
-                    extensions.insert(Route(path.clone()));
-                    let http_version = request.version();
-
-                    let params = crate::params::Params::new();
-                    let reader = crate::core::UriReader::new(path);
-                    let mut response =
-                        handler(request, params, reader).unwrap_or_else(|err| err.into_response());
-
-                    let content_length = response.body().len();
-                    *response.version_mut() = http_version;
-                    response
-                        .headers_mut()
-                        .append(header::CONTENT_LENGTH, HeaderValue::from(content_length));
-
-                    if let Err(err) = core::write_response(stream, response) {
-                        eprintln!("[http reader] Failed to send response {:?}", err);
-                    }
-                },
-            );
+            RequestSupervisorProcess::start((stream, self.router as *const () as usize), None);
+            // Process::spawn_link(
+            //     (stream, self.router as *const () as usize),
+            //     |(stream, handler_raw): (TcpStream, usize), _: Mailbox<()>| {},
+            // );
         }
 
         Ok(())

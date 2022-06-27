@@ -12,10 +12,11 @@ const MAX_HEADERS: usize = 96;
 const REQUEST_BUFFER_SIZE: usize = 1024 * 8;
 const REQUEST_MAX_SIZE: usize = 1024 * 8 * 512; // 512 kB
 
-pub fn write_response(mut stream: TcpStream, response: Response) -> IoResult<()> {
+pub fn encode_response(response: Response) -> IoResult<Vec<u8>> {
+    let mut output = vec![];
     // writing status line
     write!(
-        &mut stream,
+        &mut output,
         "{:?} {} {}\r\n",
         response.version(),
         response.status().as_u16(),
@@ -24,13 +25,13 @@ pub fn write_response(mut stream: TcpStream, response: Response) -> IoResult<()>
     // writing headers
     for (key, value) in response.headers().iter() {
         if let Ok(value) = String::from_utf8(value.as_ref().to_vec()) {
-            write!(stream, "{}: {}\r\n", key, value)?;
+            write!(output, "{}: {}\r\n", key, value)?;
         }
     }
     // separator between header and data
-    write!(&mut stream, "\r\n")?;
-    stream.write_all(response.body())?;
-    Ok(())
+    write!(&mut output, "\r\n")?;
+    output.write_all(response.body())?;
+    Ok(output)
 }
 
 pub fn parse_request(stream: TcpStream) -> Result<Request, ParseRequestError> {
