@@ -24,6 +24,7 @@ submillisecond_macros = { path = "submillisecond_macros" }
 criterion = { git = "https://github.com/bheisler/criterion.rs", branch = "version-0.4", default-features = false }
 base64 = "0.13.0"
 lazy_static = "1.4.0"
+lunatic-test = "0.9"
 ron = "0.7"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 

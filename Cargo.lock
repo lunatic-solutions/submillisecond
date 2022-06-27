@@ -650,6 +650,7 @@ dependencies = [
  "httparse",
  "lazy_static",
  "lunatic",
+ "lunatic-test",
  "mime",
  "paste",
  "percent-encoding",
