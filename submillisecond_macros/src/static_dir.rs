@@ -23,7 +23,7 @@ impl StaticDir {
                     return Err(::submillisecond::router::RouteError::RouteNotMatch(req));
                 }
 
-                match route.as_str() {
+                match route.as_ref() {
                     #match_arms
                     _ => Err(::submillisecond::router::RouteError::RouteNotMatch(req)),
                 }

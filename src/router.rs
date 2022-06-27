@@ -1,7 +1,9 @@
+use std::borrow::Cow;
+
 use crate::{defaults, response::IntoResponse, Request, Response};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd)]
-pub struct Route(pub String);
+pub struct Route(pub Cow<'static, str>);
 
 #[derive(Debug)]
 pub enum RouteError {

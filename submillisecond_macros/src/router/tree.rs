@@ -53,6 +53,9 @@ impl RouterTree {
                     path.push_str("/*__slug");
                 }
             }
+            if let Err(err) = router_node.insert(route.path.value(), (route.method, &route.path)) {
+                return syn::Error::new(route.path.span(), err.to_string()).into_compile_error();
+            }
             if let Err(err) = router_node.insert(path, (route.method, &route.path)) {
                 return syn::Error::new(route.path.span(), err.to_string()).into_compile_error();
             }
@@ -196,7 +199,7 @@ impl RouterTree {
 
                                 __req
                                     .extensions_mut()
-                                    .insert(::submillisecond::router::Route(path));
+                                    .insert(::submillisecond::router::Route(::std::borrow::Cow::Owned(path)));
                             }
 
                             match __req
@@ -208,6 +211,10 @@ impl RouterTree {
                                     __req.extensions_mut().insert(__params);
                                 }
                             }
+                        } else {
+                            __req
+                                .extensions_mut()
+                                .insert(::submillisecond::router::Route(::std::borrow::Cow::Borrowed("/")));
                         }
 
                         (move || {
