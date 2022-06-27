@@ -87,7 +87,7 @@ impl<T: Debug + Clone> TrieNode<T> {
                 swap(&mut new_children, children);
                 let value = if value.is_some() { value.clone() } else { None };
                 let new_child: Box<TrieNode<T>> = Box::new(TrieNode::Node {
-                    value: value,
+                    value,
                     prefix: suffix.to_vec(),
                     children: vec![],
                 });
@@ -133,7 +133,6 @@ impl<T: Debug + Clone> TrieNode<T> {
             false
         }) {
             child.as_mut().insert(key, new_value);
-            return;
         } else {
             // create a new terminal child
             children.push(Box::new(TrieNode::create_terminal(
@@ -160,7 +159,7 @@ impl<T: Clone + Debug> Node<T> {
         self.trie_node.children()
     }
 
-    pub fn is_leaf(&mut self) -> bool {
+    pub fn is_leaf(&self) -> bool {
         if let TrieNode::Node { ref children, .. } = self.trie_node {
             return children.is_empty();
         }

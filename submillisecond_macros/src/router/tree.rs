@@ -285,7 +285,7 @@ impl MethodTries {
                     };
                 }
                 if !child.is_leaf() {
-                    let recur = Self::expand_method_trie(full_path.clone(), child.children());
+                    let recur = Self::expand_method_trie(full_path, child.children());
                     output = quote! {
                         #output
                         #( #recur )*
@@ -302,7 +302,7 @@ impl MethodTries {
                 }
                 // if there's further matching going on we need to strict match the slash
                 if !child.is_leaf() {
-                    let recur = Self::expand_method_trie(full_path.clone(), child.children());
+                    let recur = Self::expand_method_trie(full_path, child.children());
                     output = quote! {
                         #output
                         if __reader.peek(1) == "/" {
@@ -335,7 +335,7 @@ impl MethodTries {
                         quote! {}
                     }
                 } else {
-                    let recur = Self::expand_method_trie(full_path.clone(), child.children());
+                    let recur = Self::expand_method_trie(full_path, child.children());
                     if let Some((condition_ext, block)) = child.value.as_ref() {
                         quote! {
                             if __reader.peek(#len) == #lit_suffix #condition_ext {
