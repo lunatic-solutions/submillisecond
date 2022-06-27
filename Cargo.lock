@@ -505,7 +505,6 @@ dependencies = [
  "headers",
  "http",
  "httparse",
- "lazy_static",
  "lunatic",
  "mime",
  "paste",

@@ -2,17 +2,40 @@ use std::io;
 
 use submillisecond::{handler::HandlerFn, router, Application, Middleware};
 
+#[derive(Default)]
 struct LoggingMiddleware;
 
 impl Middleware for LoggingMiddleware {
-    fn before(req: &mut submillisecond::Request) -> Self {
-        println!("{} {}", req.method(), req.uri().path());
-
-        LoggingMiddleware
+    fn before(&mut self, req: &mut submillisecond::Request) {
+        println!("[ENTRY] {} {}", req.method(), req.uri().path());
     }
 
-    fn after(self, _res: &mut submillisecond::Response) {
+    fn after(&self, _res: &mut submillisecond::Response) {
         println!("[EXIT]");
+    }
+}
+
+#[derive(Default)]
+struct FooMiddleware;
+impl Middleware for FooMiddleware {
+    fn before(&mut self, req: &mut submillisecond::Request) {
+        println!("[FOO ENTRY] {} {}", req.method(), req.uri().path());
+    }
+
+    fn after(&self, _res: &mut submillisecond::Response) {
+        println!("[FOO EXIT]");
+    }
+}
+
+#[derive(Default)]
+struct BazMiddleware;
+impl Middleware for BazMiddleware {
+    fn before(&mut self, req: &mut submillisecond::Request) {
+        println!("[BAZ ENTRY] {} {}", req.method(), req.uri().path());
+    }
+
+    fn after(&self, _res: &mut submillisecond::Response) {
+        println!("[BAZ EXIT]");
     }
 }
 
@@ -25,7 +48,7 @@ fn foo_baz_handler() -> &'static str {
 }
 
 const FOO_ROUTER: HandlerFn = router! {
-    use LoggingMiddleware;
+    use FooMiddleware;
 
     "/foo" => {
         GET "/foobar" => foo_bar_handler
@@ -33,7 +56,7 @@ const FOO_ROUTER: HandlerFn = router! {
 };
 
 const BAZ_ROUTER: HandlerFn = router! {
-    use LoggingMiddleware;
+    use BazMiddleware;
 
     "/baz" => {
         GET "/foobaz" => foo_baz_handler

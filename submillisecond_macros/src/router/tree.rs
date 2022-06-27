@@ -5,13 +5,16 @@ pub mod method;
 use lazy_static::lazy_static;
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
+use regex::Regex;
 use syn::{
     parse::{Parse, ParseStream},
-    Expr, Index, LitStr, Token,
+    Expr, LitStr, Token,
 };
-use regex::Regex;
 
-use crate::{router::Router, trie::{Trie, Children, Node}};
+use crate::{
+    router::Router,
+    trie::{Children, Node, Trie},
+};
 
 use self::{
     item_route::{ItemHandler, ItemRoute},
@@ -20,7 +23,8 @@ use self::{
 };
 
 lazy_static! {
-    static ref RE: Regex = Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>.*)").unwrap();
+    static ref RE: Regex =
+        Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>.*)").unwrap();
 }
 
 #[derive(Default)]
@@ -58,41 +62,39 @@ impl MethodTries {
         self.subrouters.insert(key, value);
     }
 
-    fn expand_subrouter(&mut self) -> TokenStream {
+    fn expand_subrouter(&mut self) -> (TokenStream, TokenStream) {
         let expanded = Self::expand_method_trie(vec![], self.subrouters.children());
-        quote! {
-            #( #expanded )*
-        }
+        (
+            quote! {
+                #( #expanded )*
+            },
+            if expanded.is_empty() {
+                quote! {}
+            } else {
+                quote! {__reader.reset();}
+            },
+        )
     }
 
     pub fn expand(mut self, router: RouterTree) -> TokenStream {
         self.collect_route_data(None, &router.routes, None, router.middleware());
-        
-        let middleware = router.middleware();
-        let (middleware_before, middleware_after) = Self::get_middleware_calls(&middleware, false);
         let expanded_method_arms = self.expand_method_arms();
-
-        let subrouter_expanded = self.expand_subrouter();
+        let (subrouter_expanded, maybe_reset) = self.expand_subrouter();
 
         // TODO: maybe add some hooks to give devs ability to log requests that were sent but failed
         // to parse (also useful for us in case we need to debug)
         let wrapped = quote! {
             |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
-                #middleware_before
 
                 #subrouter_expanded
 
-                let mut __resp = match *__req.method() {
+                // need to reset reader after failing to match subrouters
+                #maybe_reset
+                match *__req.method() {
                     #expanded_method_arms
-        
+
                     _ => ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req)),
-                };
-
-                if let Ok(ref mut __resp) = &mut __resp {
-                    #middleware_after
                 }
-
-                __resp
             }
         };
         wrapped
@@ -100,30 +102,48 @@ impl MethodTries {
 
     fn expand_method_arms(&mut self) -> TokenStream {
         let pairs = [
-            (quote! { ::http::Method::GET }, Self::expand_method_trie(vec![], self.get.children())),
-            (quote! { ::http::Method::POST }, Self::expand_method_trie(vec![], self.post.children())),
-            (quote! { ::http::Method::PUT }, Self::expand_method_trie(vec![], self.put.children())),
-            (quote! { ::http::Method::DELETE }, Self::expand_method_trie(vec![], self.delete.children())),
-            (quote! { ::http::Method::HEAD }, Self::expand_method_trie(vec![], self.head.children())),
-            (quote! { ::http::Method::OPTIONS }, Self::expand_method_trie(vec![], self.options.children())),
-            (quote! { ::http::Method::PATCH }, Self::expand_method_trie(vec![], self.patch.children())),
-            ];
+            (
+                quote! { ::http::Method::GET },
+                Self::expand_method_trie(vec![], self.get.children()),
+            ),
+            (
+                quote! { ::http::Method::POST },
+                Self::expand_method_trie(vec![], self.post.children()),
+            ),
+            (
+                quote! { ::http::Method::PUT },
+                Self::expand_method_trie(vec![], self.put.children()),
+            ),
+            (
+                quote! { ::http::Method::DELETE },
+                Self::expand_method_trie(vec![], self.delete.children()),
+            ),
+            (
+                quote! { ::http::Method::HEAD },
+                Self::expand_method_trie(vec![], self.head.children()),
+            ),
+            (
+                quote! { ::http::Method::OPTIONS },
+                Self::expand_method_trie(vec![], self.options.children()),
+            ),
+            (
+                quote! { ::http::Method::PATCH },
+                Self::expand_method_trie(vec![], self.patch.children()),
+            ),
+        ];
 
         // build expanded per-method match, only implement if at least one route for method is defined, otherwise
         // fall back to default impl
-        let expanded = pairs.iter().map(|(method, arms)| {
+        let expanded = pairs.iter().filter_map(|(method, arms)| {
             if arms.is_empty() {
-                return quote! {
-                    #method => Err(::submillisecond::router::RouteError::RouteNotMatch(__req)),
-                };
+                return None;
             }
-            quote! {
+            Some(quote! {
                 #method => {
-                    let __path = __req.uri().path().to_string();
                     #( #arms )*
                     return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
                 }
-            }
+            })
         });
 
         quote! {
@@ -131,254 +151,238 @@ impl MethodTries {
         }
     }
 
-    fn collect_route_data(&mut self, prefix: Option<&LitStr>, routes: &[ItemRoute], ancestor_guards: Option<TokenStream>, _: Vec<TokenStream>) {
+    fn collect_route_data(
+        &mut self,
+        prefix: Option<&LitStr>,
+        routes: &[ItemRoute],
+        ancestor_guards: Option<TokenStream>,
+        parent_middlewares: Vec<TokenStream>,
+    ) {
         for ItemRoute {
-                method,
-                path,
-                guard,
-                middleware,
-                handler,
-                ..
-            } in routes.iter() {
-                let new_path = if let Some(p) = prefix {
-                    let mut s = p.value();
-                    s.push_str(&path.value());
-                    LitStr::new(&s, path.span())
-                } else {
-                    path.clone()
-                };
+            method,
+            path,
+            guard,
+            middleware,
+            handler,
+            ..
+        } in routes.iter()
+        {
+            let new_path = if let Some(p) = prefix {
+                let mut s = p.value();
+                s.push_str(&path.value());
+                LitStr::new(&s, path.span())
+            } else {
+                path.clone()
+            };
 
-                let mut guards_expanded = guard
-                    .as_ref()
-                    .map(|guard| &*guard.guard)
-                    .map(expand_guard_struct)
-                    .map(|guard| quote! { && { #guard } });
-                
-                if let Some(ref ancestor) = ancestor_guards {
-                    if let Some(guards) = guards_expanded {
-                        guards_expanded = Some(quote! {#ancestor #guards});
-                    } else {
-                        guards_expanded = Some(ancestor.clone());
-                    }
+            let mut guards_expanded = guard
+                .as_ref()
+                .map(|guard| &*guard.guard)
+                .map(expand_guard_struct)
+                .map(|guard| quote! { && { #guard } });
+
+            if let Some(ref ancestor) = ancestor_guards {
+                if let Some(guards) = guards_expanded {
+                    guards_expanded = Some(quote! {#ancestor #guards});
+                } else {
+                    guards_expanded = Some(ancestor.clone());
                 }
+            }
 
-                let mid = if let Some(m) = middleware {
-                    m.tree.items()
-                } else {
-                    vec![]
-                };
-                let (middleware_before, middleware_after) = Self::get_middleware_calls(&mid, true);
+            let mid = if let Some(m) = middleware {
+                m.tree.items()
+            } else {
+                vec![]
+            };
+            let mut full_middlewares = parent_middlewares.clone();
+            full_middlewares.extend_from_slice(&mid);
+            let full_middlewares_expanded = Self::get_middleware_calls(&full_middlewares, true);
 
-                match handler {
-                    ItemHandler::Fn(handler_ident) => {
-                        if let Some(method) = method {
-                            self.insert(*method, new_path.value(), (quote! {#guards_expanded}, quote! {
+            match handler {
+                ItemHandler::Fn(handler_ident) => {
+                    if let Some(method) = method {
+                        self.insert(*method, new_path.value(), (quote! {#guards_expanded}, quote! {
                                 if __reader.is_dangling_slash() {
                                     ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
-                                    #middleware_before
-    
-                                    let mut __resp = ::submillisecond::response::IntoResponse::into_response(
-                                        ::submillisecond::handler::Handler::handle(
-                                            #handler_ident
-                                                as ::submillisecond::handler::FnPtr<
-                                                    _,
-                                                    _,
-                                                    { ::submillisecond::handler::arity(&#handler_ident) },
-                                                >,
-                                            __req,
-                                        ),
+
+                                    #full_middlewares_expanded
+
+                                    return ::std::result::Result::Ok(
+                                        ::submillisecond::response::IntoResponse::into_response(
+                                            ::submillisecond::handler::Handler::handle(
+                                                #handler_ident
+                                                    as ::submillisecond::handler::FnPtr<
+                                                        _,
+                                                        _,
+                                                        { ::submillisecond::handler::arity(&#handler_ident) },
+                                                    >,
+                                                __req
+                                            ),
+                                        )
                                     );
-    
-                                    #middleware_after
-    
-                                    return ::std::result::Result::Ok(__resp);
                                 }
                             }));
-                        } else {
-                            let middleware_after = if !middleware_after.is_empty() {
-                                quote!{
-                                    if let Ok(mut __resp) = __resp.as_mut() {
-                                        #middleware_after
-                                    }
-                                }
-                            } else {quote! {}};
-                            self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, quote! {
+                    } else {
+                        self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, quote! {
                                 ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
-                                #middleware_before
 
-                                let mut __resp = #handler_ident(__req, __params, __reader);
-
-                               #middleware_after
-
-                                return __resp;
+                                #full_middlewares_expanded
+                                return #handler_ident(__req, __params, __reader);
                         }));
-                        }
-                    },
-                    ItemHandler::SubRouter(Router::Tree(tree)) => {
-                        self.collect_route_data(Some(&new_path), &tree.routes, guards_expanded, tree.middleware());
-                    },
-                    ItemHandler::SubRouter(Router::List(list)) => {
-                        self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, list.expand_inner(
-                            if !middleware_after.is_empty() {
-                                    quote!{
-                                    if let Ok(mut __resp) = __resp.as_mut() {
-                                        #middleware_after
-                                    }
-                                }
-                            } else {quote! {}}
-                        )));
-                    },
+                    }
+                }
+                ItemHandler::SubRouter(Router::Tree(tree)) => {
+                    self.collect_route_data(
+                        Some(&new_path),
+                        &tree.routes,
+                        guards_expanded,
+                        full_middlewares.clone(),
+                    );
+                }
+                ItemHandler::SubRouter(Router::List(list)) => {
+                    self.insert_subrouter(
+                        new_path.value(),
+                        (
+                            quote! {#guards_expanded},
+                            list.expand_inner(&full_middlewares),
+                        ),
+                    );
                 }
             }
         }
-
-    fn get_middleware_calls(items: &[TokenStream], use_ref: bool) -> (TokenStream, TokenStream) {
-        if !items.is_empty() {
-            let invoke_middleware = items
-                .iter()
-                .map(|item| {
-                    quote! {
-                        <#item as ::submillisecond::Middleware>::before(&mut __req)
-                    }
-                });
-
-            let before_calls = quote! {
-                let __middleware_calls = ( #( #invoke_middleware, )* );
-            };
-
-            let response_ref = if use_ref {
-                quote! {&mut __resp}
-            } else {
-                quote! {__resp}
-            };
-            let after_calls = (0..items.len())
-                .map(|idx| {
-                    let idx = Index::from(idx);
-                    quote! {
-                        ::submillisecond::Middleware::after(__middleware_calls.#idx, #response_ref);
-                    }
-                });
-
-            (before_calls, quote! {#( #after_calls )*})
-        } else {
-            (quote! {}, quote! {})
-        }
     }
 
-    fn expand_param_child(mut child: Node<(TokenStream, TokenStream)>,  (lit_prefix, param, lit_suffix): (String, String, String), full_path: Vec<u8>) -> TokenStream {
+    fn get_middleware_calls(items: &[TokenStream], _use_ref: bool) -> TokenStream {
+        let before_calls = items
+            .iter()
+            .map(|item| {
+                quote! {
+                     ::submillisecond::request_context::inject_middleware(Box::new(<#item as Default>::default()));
+                }
+            });
+        quote! { #( #before_calls )* }
+    }
+
+    fn expand_param_child(
+        mut child: Node<(TokenStream, TokenStream)>,
+        (lit_prefix, param, lit_suffix): (String, String, String),
+        full_path: Vec<u8>,
+    ) -> TokenStream {
         let mut output = quote! {};
 
         // iterate in reverse because we need to nest if statements
         // for (lit_prefix, param, lit_suffix) in captures.iter().rev() {
-            // first we try to handle the suffix since if there's a static match after a param
-            // we want to insert that static match as innermost part of our if statement
-            let len = lit_suffix.len();
-            match lit_suffix.as_str() {
-                "" => {
-                    if let Some((condition_ext, block)) = child.value.as_ref() {
-                        output = quote! {
-                            if __reader.is_dangling_slash() #condition_ext {
-                                #block
-                            }
-                        };
-                    }
-                    if !child.is_leaf() {
-                        let recur = Self::expand_method_trie(full_path.clone(), child.children());
-                        output = quote! {
-                            #output
-                            #( #recur )*
-                        };
-                    }
-                }
-                "/" => {
-                    if let Some((condition_ext, block)) = child.value.as_ref() {
-                        output = quote! {
-                            if __reader.is_dangling_slash() #condition_ext {
-                                #block
-                            }
-                        };
-                    }
-                    // if there's further matching going on we need to strict match the slash
-                    if !child.is_leaf() {
-                        let recur = Self::expand_method_trie(full_path.clone(), child.children());
-                        output = quote! {
-                            #output
-                            if __reader.peek(1) == "/" {
-                                __reader.read(1);
-                                #( #recur )*
-                            }
-                        };
-                    }
-                }
-                _ => {
-                    let consequent_params = RE.captures(&lit_suffix).map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
-                    let conseq_expanded = if let Some(consequent_params) = consequent_params {
-                        Self::expand_param_child(child.clone(), consequent_params, full_path.clone())
-                    } else {
-                        quote! {}
-                    };
-                    let body = if !conseq_expanded.is_empty() {
-                        conseq_expanded
-                    } else if conseq_expanded.is_empty() && child.is_leaf() {
-                        if let Some((condition_ext, block)) = child.value.as_ref() {
-                                quote! {
-                                    if __reader.peek(#len) == #lit_suffix #condition_ext {
-                                        __reader.read(#len);
-                                        #block
-                                    }
-                                }
-                        } else {
-                            quote! {}
-                        }
-                    } else {
-                        let recur = Self::expand_method_trie(full_path.clone(), child.children());
-                        if let Some((condition_ext, block)) = child.value.as_ref() {
-                            quote! {
-                                if __reader.peek(#len) == #lit_suffix #condition_ext {
-                                    __reader.read(#len);
-                                    #block
-                                    #( #recur )*
-                                }
-                            }
-                        } else {
-                            quote! { #( #recur )* }
+        // first we try to handle the suffix since if there's a static match after a param
+        // we want to insert that static match as innermost part of our if statement
+        let len = lit_suffix.len();
+        match lit_suffix.as_str() {
+            "" => {
+                if let Some((condition_ext, block)) = child.value.as_ref() {
+                    output = quote! {
+                        if __reader.is_dangling_slash() #condition_ext {
+                            #block
                         }
                     };
+                }
+                if !child.is_leaf() {
+                    let recur = Self::expand_method_trie(full_path.clone(), child.children());
                     output = quote! {
                         #output
-                        #body
+                        #( #recur )*
                     };
                 }
             }
-
-            // now we insert parsing of param
-            output = quote! {
-                let param = __reader.read_param();
-                if let Ok(p) = param {
-                    __params.push(#param .to_string(), p.to_string());
-                    #output
+            "/" => {
+                if let Some((condition_ext, block)) = child.value.as_ref() {
+                    output = quote! {
+                        if __reader.is_dangling_slash() #condition_ext {
+                            #block
+                        }
+                    };
                 }
-            };
-            // now we wrap everything with matching the literal before
-            let len = lit_prefix.len();
-            if !lit_prefix.is_empty() {
-                // wrap output
-                output = quote! {
-                    if __reader.peek(#len) == #lit_prefix {
-                        __reader.read(#len);
+                // if there's further matching going on we need to strict match the slash
+                if !child.is_leaf() {
+                    let recur = Self::expand_method_trie(full_path.clone(), child.children());
+                    output = quote! {
                         #output
-                    }
+                        if __reader.peek(1) == "/" {
+                            __reader.read(1);
+                            #( #recur )*
+                        }
+                    };
                 }
             }
+            _ => {
+                let consequent_params = RE
+                    .captures(&lit_suffix)
+                    .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
+                let conseq_expanded = if let Some(consequent_params) = consequent_params {
+                    Self::expand_param_child(child.clone(), consequent_params, full_path.clone())
+                } else {
+                    quote! {}
+                };
+                let body = if !conseq_expanded.is_empty() {
+                    conseq_expanded
+                } else if conseq_expanded.is_empty() && child.is_leaf() {
+                    if let Some((condition_ext, block)) = child.value.as_ref() {
+                        quote! {
+                            if __reader.peek(#len) == #lit_suffix #condition_ext {
+                                __reader.read(#len);
+                                #block
+                            }
+                        }
+                    } else {
+                        quote! {}
+                    }
+                } else {
+                    let recur = Self::expand_method_trie(full_path.clone(), child.children());
+                    if let Some((condition_ext, block)) = child.value.as_ref() {
+                        quote! {
+                            if __reader.peek(#len) == #lit_suffix #condition_ext {
+                                __reader.read(#len);
+                                #block
+                                #( #recur )*
+                            }
+                        }
+                    } else {
+                        quote! { #( #recur )* }
+                    }
+                };
+                output = quote! {
+                    #output
+                    #body
+                };
+            }
+        }
+
+        // now we insert parsing of param
+        output = quote! {
+            let param = __reader.read_param();
+            if let Ok(p) = param {
+                __params.push(#param .to_string(), p.to_string());
+                #output
+            }
+        };
+        // now we wrap everything with matching the literal before
+        let len = lit_prefix.len();
+        if !lit_prefix.is_empty() {
+            // wrap output
+            output = quote! {
+                if __reader.peek(#len) == #lit_prefix {
+                    __reader.read(#len);
+                    #output
+                }
+            }
+        }
         // }
         output
-    
     }
 
     fn expand_node_with_value(
         path: String,
         source: TokenStream,
-        (condition_ext, block): &(TokenStream, TokenStream)) -> TokenStream {
+        (condition_ext, block): &(TokenStream, TokenStream),
+    ) -> TokenStream {
         let len = path.len();
         if path.len() > 1 && path.ends_with('/') {
             let (path, len) = (path[0..(path.len() - 1)].to_string(), path.len() - 1);
@@ -389,7 +393,7 @@ impl MethodTries {
                         #block
                     //}
                     // since path continues there has to be a separator
-                    if __reader.read(1) != "/" {
+                    if !__reader.ensure_next_slash() {
                         return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
                     }
                     #source
@@ -406,43 +410,52 @@ impl MethodTries {
                 #source
             }
         }
-            
-        
     }
 
-    fn expand_method_trie(full_path: Vec<u8>, children: Children<(TokenStream, TokenStream)>) -> Vec<TokenStream> {
-        children.map(|mut child| {
-            let path = String::from_utf8(child.prefix.clone()).unwrap();
-            let id = [full_path.clone(), path.as_bytes().to_vec()].concat();
-            let captures = RE.captures(&path).map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
-                                                    // .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
-                                                    // .collect::<Vec<(String, String, String)>>();
-                                                                
-            // split longest common prefix at param and insert param matching 
-            if let Some(captures) = captures {
-                return Self::expand_param_child(child, captures, id);
-            }
-            let len = path.len();
+    fn expand_method_trie(
+        full_path: Vec<u8>,
+        children: Children<(TokenStream, TokenStream)>,
+    ) -> Vec<TokenStream> {
+        children
+            .map(|mut child| {
+                let path = String::from_utf8(child.prefix.clone()).unwrap();
+                let id = [full_path.clone(), path.as_bytes().to_vec()].concat();
+                let captures = RE
+                    .captures(&path)
+                    .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
+                // .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
+                // .collect::<Vec<(String, String, String)>>();
 
-            // recursive expand if not leaf
-            if !child.is_leaf() {
-                let recur = Self::expand_method_trie(id, child.children());
-                if let Some(v) = child.value {
-                    return Self::expand_node_with_value(path, quote! {
-                        #( #recur )*
-                    }, &v);
+                // split longest common prefix at param and insert param matching
+                if let Some(captures) = captures {
+                    return Self::expand_param_child(child, captures, id);
                 }
-                return quote! {
-                    if __reader.peek(#len) == #path {
-                        __reader.read(#len);
-                        #( #recur )*
+                let len = path.len();
+
+                // recursive expand if not leaf
+                if !child.is_leaf() {
+                    let recur = Self::expand_method_trie(id, child.children());
+                    if let Some(v) = child.value {
+                        return Self::expand_node_with_value(
+                            path,
+                            quote! {
+                                #( #recur )*
+                            },
+                            &v,
+                        );
                     }
-                };
-            } else if let Some(v) = child.value {
-                return Self::expand_node_with_value(path, quote! {}, &v);
-            }
-            quote! {}
-        }).collect()
+                    return quote! {
+                        if __reader.peek(#len) == #path {
+                            __reader.read(#len);
+                            #( #recur )*
+                        }
+                    };
+                } else if let Some(v) = child.value {
+                    return Self::expand_node_with_value(path, quote! {}, &v);
+                }
+                quote! {}
+            })
+            .collect()
     }
 }
 

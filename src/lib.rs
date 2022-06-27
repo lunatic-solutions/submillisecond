@@ -28,6 +28,7 @@ pub mod guard;
 pub mod handler;
 pub mod json;
 pub mod params;
+pub mod request_context;
 pub mod response;
 pub mod router;
 pub mod template;
@@ -35,7 +36,7 @@ pub mod template;
 /// Type alias for [`http::Request`] whose body defaults to [`String`].
 pub type Request<T = Vec<u8>> = http::Request<T>;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Application {
     router: HandlerFn,
 }
@@ -107,6 +108,6 @@ impl Application {
 }
 
 pub trait Middleware {
-    fn before(req: &mut Request) -> Self;
-    fn after(self, res: &mut Response);
+    fn before(&mut self, req: &mut Request);
+    fn after(&self, res: &mut Response);
 }

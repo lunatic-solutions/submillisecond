@@ -2,16 +2,17 @@ use std::io;
 
 use submillisecond::{router, Application, Middleware};
 
+#[derive(Default)]
 struct LoggingMiddleware;
 
 impl Middleware for LoggingMiddleware {
-    fn before(req: &mut submillisecond::Request) -> Self {
+    fn before(&mut self, req: &mut submillisecond::Request) {
         println!("{} {}", req.method(), req.uri().path());
 
-        LoggingMiddleware
+        // LoggingMiddleware
     }
 
-    fn after(self, _res: &mut submillisecond::Response) {
+    fn after(&self, _res: &mut submillisecond::Response) {
         println!("[EXIT]");
     }
 }

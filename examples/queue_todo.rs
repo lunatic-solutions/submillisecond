@@ -19,23 +19,23 @@ use uuid::Uuid;
 // =====================================
 // Middleware for requests
 // =====================================
+#[derive(Default)]
 struct LoggingMiddleware {
     request_id: String,
 }
 
 impl Middleware for LoggingMiddleware {
-    fn before(req: &mut submillisecond::Request) -> Self {
-        let request_id = req
+    fn before(&mut self, req: &mut submillisecond::Request) {
+        self.request_id = req
             .headers()
             .get("x-request-id")
             .and_then(|req_id| req_id.to_str().ok())
             .map(|req_id| req_id.to_string())
             .unwrap_or_else(|| "DEFAULT_REQUEST_ID".to_string());
-        println!("[ENTER] request {}", request_id);
-        LoggingMiddleware { request_id }
+        println!("[ENTER] request {}", self.request_id);
     }
 
-    fn after(self, _res: &mut submillisecond::Response) {
+    fn after(&self, _res: &mut submillisecond::Response) {
         println!("[EXIT] request {}", self.request_id);
     }
 }
@@ -323,21 +323,24 @@ fn liveness_check() -> &'static str {
 
 // has the prefix /api/mgmt
 const MGMT_ROUTER: HandlerFn = router! {
-    GET "/alive" use LoggingMiddleware => liveness_check
-    GET "/health" use LoggingMiddleware => liveness_check
-    GET "/metrics" use LoggingMiddleware => liveness_check
+
+    GET "/alive" => liveness_check
+    GET "/health" => liveness_check
+    GET "/metrics" => liveness_check
 };
 
 const ROUTER: HandlerFn = router! {
+    use LoggingMiddleware;
+
     "/api/users" => {
-        POST "/" use LoggingMiddleware => create_user
+        POST "/" => create_user
         "/:user_id" => {
-            GET "/todos" use LoggingMiddleware => list_todos
-            POST "/todos" use LoggingMiddleware => push_todo
-            POST "/todos/poll" use LoggingMiddleware => poll_todo
+            GET "/todos"  => list_todos
+            POST "/todos" => push_todo
+            POST "/todos/poll" => poll_todo
         }
     }
-    "/api/mgmt" use LoggingMiddleware => MGMT_ROUTER
+    "/api/mgmt" => MGMT_ROUTER
     GET "/something_different/:shoppingcart_id" => liveness_check
 };
 

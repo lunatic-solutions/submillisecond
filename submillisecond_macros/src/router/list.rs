@@ -13,28 +13,34 @@ pub struct RouterList {
 
 impl RouterList {
     pub fn expand(&self) -> TokenStream {
-        let inner = self.expand_inner(quote! {});
+        let inner = self.expand_inner(&[]);
 
         quote! {
-            (|mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
+            (|mut __req: ::submillisecond::Request,
+                mut __params: ::submillisecond::params::Params,
+                mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
                 #inner
             }) as ::submillisecond::handler::HandlerFn
         }
     }
 
-    pub fn expand_inner(&self, middleware_after: TokenStream) -> TokenStream {
+    pub fn expand_inner(&self, middlewares: &[TokenStream]) -> TokenStream {
         let handlers = self.handlers.iter();
         let handlers_len = self.handlers.len();
+        let middlewares_expanded = middlewares.iter().map(|item|
+            quote! {
+                ::submillisecond::request_context::inject_middleware(Box::new(<#item as Default>::default()));
+           });
 
         quote! {
             const HANDLERS: [::submillisecond::handler::HandlerFn; #handlers_len] = [
                 #( #handlers ),*
             ];
+            #( #middlewares_expanded )*
 
             for handler in HANDLERS {
                 match handler(__req, __params.clone(), __reader.clone()) {
                     ::std::result::Result::Ok(__resp) => {
-                        #middleware_after
                         return ::std::result::Result::Ok(__resp)
                     }
                     ::std::result::Result::Err(::submillisecond::router::RouteError::ExtractorError(resp)) =>

@@ -140,14 +140,20 @@ impl UriReader {
         self.uri.len() == self.cursor || &self.uri[self.cursor..] == "/"
     }
 
-    pub fn read(&mut self, len: usize) -> &str {
-        let read_attempt = self.cursor + len;
-        if self.uri.len() >= read_attempt {
-            let s = &self.uri[self.cursor..read_attempt];
-            self.cursor += len;
-            return s;
+    pub fn read(&mut self, len: usize) {
+        self.cursor += len;
+    }
+
+    pub fn ensure_next_slash(&mut self) -> bool {
+        if self.peek(1) == "/" {
+            self.read(1);
+            return true;
         }
-        ""
+        false
+    }
+
+    pub fn reset(&mut self) {
+        self.cursor = 0;
     }
 
     pub fn is_empty(&self) -> bool {
@@ -194,10 +200,10 @@ mod tests {
     fn peek_path() {
         let mut reader = UriReader::new("/alive".to_string());
         assert_eq!(reader.peek(3), "/al");
-        assert_eq!(reader.read(3), "/al");
+        reader.read(3);
         assert_eq!(reader.peek(3), "ive");
-        assert_eq!(reader.read(3), "ive");
+        reader.read(3);
         assert_eq!(reader.peek(3), "");
-        assert_eq!(reader.read(3), "");
+        reader.read(3);
     }
 }
