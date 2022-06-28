@@ -103,31 +103,31 @@ impl MethodTries {
     fn expand_method_arms(&mut self) -> TokenStream {
         let pairs = [
             (
-                quote! { ::http::Method::GET },
+                quote! { ::submillisecond::http::Method::GET },
                 Self::expand_method_trie(vec![], self.get.children()),
             ),
             (
-                quote! { ::http::Method::POST },
+                quote! { ::submillisecond::http::Method::POST },
                 Self::expand_method_trie(vec![], self.post.children()),
             ),
             (
-                quote! { ::http::Method::PUT },
+                quote! { ::submillisecond::http::Method::PUT },
                 Self::expand_method_trie(vec![], self.put.children()),
             ),
             (
-                quote! { ::http::Method::DELETE },
+                quote! { ::submillisecond::http::Method::DELETE },
                 Self::expand_method_trie(vec![], self.delete.children()),
             ),
             (
-                quote! { ::http::Method::HEAD },
+                quote! { ::submillisecond::http::Method::HEAD },
                 Self::expand_method_trie(vec![], self.head.children()),
             ),
             (
-                quote! { ::http::Method::OPTIONS },
+                quote! { ::submillisecond::http::Method::OPTIONS },
                 Self::expand_method_trie(vec![], self.options.children()),
             ),
             (
-                quote! { ::http::Method::PATCH },
+                quote! { ::submillisecond::http::Method::PATCH },
                 Self::expand_method_trie(vec![], self.patch.children()),
             ),
         ];
