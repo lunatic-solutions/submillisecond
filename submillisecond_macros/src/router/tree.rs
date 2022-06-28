@@ -231,6 +231,14 @@ impl MethodTries {
                         }));
                     }
                 }
+                ItemHandler::Macro(macro_expanded) => {
+                    self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, quote! {
+                        ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
+
+                        #full_middlewares_expanded
+                        #macro_expanded
+                    }));
+                }
                 ItemHandler::SubRouter(Router::Tree(tree)) => {
                     self.collect_route_data(
                         Some(&new_path),

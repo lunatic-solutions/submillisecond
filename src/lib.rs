@@ -1,9 +1,11 @@
 use std::{
+    borrow::Cow,
     io::{self},
     mem,
 };
 
 use handler::HandlerFn;
+pub use http;
 use http::{header, HeaderValue};
 use lunatic::{
     net::{TcpListener, TcpStream, ToSocketAddrs},
@@ -82,7 +84,7 @@ impl Application {
 
                     let path = request.uri().path().to_string();
                     let extensions = request.extensions_mut();
-                    extensions.insert(Route(path.clone()));
+                    extensions.insert(Route(Cow::Owned(path.clone())));
                     let http_version = request.version();
 
                     let params = crate::params::Params::new();

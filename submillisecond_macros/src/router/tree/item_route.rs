@@ -2,7 +2,7 @@ use syn::{
     braced, bracketed,
     parse::{Parse, ParseStream},
     spanned::Spanned,
-    token, Expr, LitStr, Path, Token,
+    token, Expr, LitStr, Macro, Path, Token,
 };
 
 use crate::router::Router;
@@ -78,6 +78,7 @@ impl Parse for ItemGuard {
 #[derive(Debug)]
 pub enum ItemHandler {
     Fn(Path),
+    Macro(Macro),
     SubRouter(Router),
 }
 
@@ -95,6 +96,12 @@ impl Parse for ItemHandler {
             return Ok(ItemHandler::SubRouter(Router::List(content.parse()?)));
         }
 
-        Ok(ItemHandler::Fn(input.parse()?))
+        let fork = input.fork();
+        let _: Path = fork.parse()?;
+        if fork.peek(Token![!]) {
+            Ok(ItemHandler::Macro(input.parse()?))
+        } else {
+            Ok(ItemHandler::Fn(input.parse()?))
+        }
     }
 }
