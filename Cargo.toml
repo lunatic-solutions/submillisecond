@@ -1,10 +1,13 @@
-[workspace]
-members = [".", "submillisecond_macros"]
-
 [package]
 edition = "2021"
 name = "submillisecond"
 version = "0.1.0"
+description = "A lunatic web framework for Rust."
+keywords = ["http", "web", "framework"]
+categories = ["network-programming", "web-programming"]
+license = "Apache-2.0/MIT"
+readme = "Readme.md"
+repository = "https://github.com/lunatic-solutions/submillisecond"
 
 [dependencies]
 askama = "0.11"
@@ -18,7 +21,7 @@ percent-encoding = "2.1"
 serde = {version = "1.0.132", features = ["derive"]}
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-submillisecond_macros = {path = "submillisecond_macros"}
+submillisecond_macros = {version = "0.1", path = "submillisecond_macros"}
 
 [dev-dependencies]
 base64 = "0.13.0"
@@ -31,3 +34,6 @@ uuid = {version = "1.0.0", features = ["v4", "serde"]}
 harness = false
 lunatic-test = "0.9"
 name = "router"
+
+[workspace]
+members = [".", "submillisecond_macros"]

@@ -1,7 +1,10 @@
 [package]
 edition = "2021"
 name = "submillisecond_macros"
+description = "Macros used by the submillisecond web framework."
 version = "0.1.0"
+license = "Apache-2.0/MIT"
+repository = "https://github.com/lunatic-solutions/submillisecond/tree/main/submillisecond_macros"
 
 [lib]
 proc-macro = true
