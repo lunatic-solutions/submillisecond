@@ -22,6 +22,20 @@ pub enum Method {
     Patch(PATCH),
 }
 
+impl std::fmt::Display for Method {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Method::Get(_) => write!(f, "GET"),
+            Method::Post(_) => write!(f, "POST"),
+            Method::Put(_) => write!(f, "PUT"),
+            Method::Delete(_) => write!(f, "DELETE"),
+            Method::Head(_) => write!(f, "HEAD"),
+            Method::Options(_) => write!(f, "OPTIONS"),
+            Method::Patch(_) => write!(f, "PATCH"),
+        }
+    }
+}
+
 impl Method {
     pub fn peek(input: ParseStream) -> bool {
         input.peek(GET)

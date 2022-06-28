@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "submillisecond_core", "submillisecond_macros"]
+members = [".", "submillisecond_macros"]
 
 [package]
 edition = "2021"
@@ -15,12 +15,19 @@ lunatic = "0.9.1"
 mime = "0.3.16"
 paste = "1.0"
 percent-encoding = "2.1"
-serde = { version = "1.0.132", features = ["derive"] }
+serde = {version = "1.0.132", features = ["derive"]}
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-submillisecond_core = { path = "submillisecond_core" }
-submillisecond_macros = { path = "submillisecond_macros" }
+submillisecond_macros = {path = "submillisecond_macros"}
 
 [dev-dependencies]
-matchit = "*"
+base64 = "0.13.0"
+criterion = {git = "https://github.com/bheisler/criterion.rs", branch = "version-0.4", default-features = false}
 lunatic-test = "0.9"
+ron = "0.7"
+uuid = {version = "1.0.0", features = ["v4", "serde"]}
+
+[[bench]]
+harness = false
+lunatic-test = "0.9"
+name = "router"

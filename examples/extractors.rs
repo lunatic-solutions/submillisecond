@@ -86,8 +86,7 @@ fn json(Json(login): Json<Login>) -> String {
 fn main() -> io::Result<()> {
     Application::new(router! {
         GET "/" => index
-        GET "/path/:id" => path
-        GET "/query" => query
+        GET "/querys" => query
         GET "/header_map" => header_map
         GET "/typed_header" => typed_header
         GET "/named_param/:age" => named_param
@@ -95,6 +94,7 @@ fn main() -> io::Result<()> {
         POST "/string" => string
         POST "/vec" => vec
         POST "/json" => json
+        GET "/path/:id" => path
     })
     .serve("0.0.0.0:3000")
 }

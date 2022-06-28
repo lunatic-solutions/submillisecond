@@ -2,12 +2,18 @@ mod item_route;
 mod item_use_middleware;
 pub mod method;
 
+use lazy_static::lazy_static;
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
-use submillisecond_core::router::tree::{Node, NodeType};
+use regex::Regex;
 use syn::{
     parse::{Parse, ParseStream},
-    Expr, Index, LitStr, Token,
+    Expr, LitStr, Token,
+};
+
+use crate::{
+    router::Router,
+    trie::{Children, Node, Trie},
 };
 
 use self::{
@@ -16,219 +22,455 @@ use self::{
     method::Method,
 };
 
-#[derive(Debug)]
-pub struct RouterTree {
-    middleware: Vec<ItemUseMiddleware>,
-    routes: Vec<ItemRoute>,
+lazy_static! {
+    static ref RE: Regex =
+        Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>.*)").unwrap();
 }
 
-impl RouterTree {
-    pub fn expand(&self) -> TokenStream {
-        let middleware = self.middleware();
-        let middleware_before = {
-            let invoke_middleware = middleware.iter().map(|item| {
-                quote! {
-                    <#item as ::submillisecond::Middleware>::before(&mut __req)
-                }
-            });
+#[derive(Default)]
+pub struct MethodTries {
+    // trie to collect subrouters
+    subrouters: Trie<(TokenStream, TokenStream)>,
+    // tries to collect
+    get: Trie<(TokenStream, TokenStream)>,
+    post: Trie<(TokenStream, TokenStream)>,
+    put: Trie<(TokenStream, TokenStream)>,
+    delete: Trie<(TokenStream, TokenStream)>,
+    head: Trie<(TokenStream, TokenStream)>,
+    options: Trie<(TokenStream, TokenStream)>,
+    patch: Trie<(TokenStream, TokenStream)>,
+}
 
+impl MethodTries {
+    pub fn new() -> MethodTries {
+        MethodTries::default()
+    }
+
+    pub fn insert(&mut self, method: Method, key: String, value: (TokenStream, TokenStream)) {
+        match method {
+            Method::Get(_) => self.get.insert(key, value),
+            Method::Post(_) => self.post.insert(key, value),
+            Method::Put(_) => self.put.insert(key, value),
+            Method::Delete(_) => self.delete.insert(key, value),
+            Method::Head(_) => self.head.insert(key, value),
+            Method::Options(_) => self.options.insert(key, value),
+            Method::Patch(_) => self.patch.insert(key, value),
+        };
+    }
+
+    pub fn insert_subrouter(&mut self, key: String, value: (TokenStream, TokenStream)) {
+        self.subrouters.insert(key, value);
+    }
+
+    fn expand_subrouter(&mut self) -> (TokenStream, TokenStream) {
+        let expanded = Self::expand_method_trie(vec![], self.subrouters.children());
+        (
             quote! {
-                 let __middleware_calls = ( #( #invoke_middleware, )* );
+                #( #expanded )*
+            },
+            if expanded.is_empty() {
+                quote! {}
+            } else {
+                quote! {__reader.reset();}
+            },
+        )
+    }
+
+    pub fn expand(mut self, router: RouterTree) -> TokenStream {
+        self.collect_route_data(None, &router.routes, None, router.middleware());
+        let expanded_method_arms = self.expand_method_arms();
+        let (subrouter_expanded, maybe_reset) = self.expand_subrouter();
+
+        // TODO: maybe add some hooks to give devs ability to log requests that were sent but failed
+        // to parse (also useful for us in case we need to debug)
+        let wrapped = quote! {
+            |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
+
+                #subrouter_expanded
+
+                // need to reset reader after failing to match subrouters
+                #maybe_reset
+                match *__req.method() {
+                    #expanded_method_arms
+
+                    _ => ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req)),
+                }
             }
         };
-        let middleware_after = (0..middleware.len()).map(|idx| {
-            let idx = Index::from(idx);
-            quote! {
-                __middleware_calls.#idx.after(__resp);
+        wrapped
+    }
+
+    fn expand_method_arms(&mut self) -> TokenStream {
+        let pairs = [
+            (
+                quote! { ::http::Method::GET },
+                Self::expand_method_trie(vec![], self.get.children()),
+            ),
+            (
+                quote! { ::http::Method::POST },
+                Self::expand_method_trie(vec![], self.post.children()),
+            ),
+            (
+                quote! { ::http::Method::PUT },
+                Self::expand_method_trie(vec![], self.put.children()),
+            ),
+            (
+                quote! { ::http::Method::DELETE },
+                Self::expand_method_trie(vec![], self.delete.children()),
+            ),
+            (
+                quote! { ::http::Method::HEAD },
+                Self::expand_method_trie(vec![], self.head.children()),
+            ),
+            (
+                quote! { ::http::Method::OPTIONS },
+                Self::expand_method_trie(vec![], self.options.children()),
+            ),
+            (
+                quote! { ::http::Method::PATCH },
+                Self::expand_method_trie(vec![], self.patch.children()),
+            ),
+        ];
+
+        // build expanded per-method match, only implement if at least one route for method is defined, otherwise
+        // fall back to default impl
+        let expanded = pairs.iter().filter_map(|(method, arms)| {
+            if arms.is_empty() {
+                return None;
             }
+            Some(quote! {
+                #method => {
+                    #( #arms )*
+                    return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
+                }
+            })
         });
 
-        let mut router_node = Node::default();
-        for route in &self.routes {
-            let mut path = route.path.value();
-            if route.method.is_none() {
-                if path == "/" {
-                    path.push_str("*__slug");
-                } else {
-                    path.push_str("/*__slug");
-                }
-            }
-            if let Err(err) = router_node.insert(route.path.value(), (route.method, &route.path)) {
-                return syn::Error::new(route.path.span(), err.to_string()).into_compile_error();
-            }
-            if let Err(err) = router_node.insert(path, (route.method, &route.path)) {
-                return syn::Error::new(route.path.span(), err.to_string()).into_compile_error();
-            }
-        }
-
-        let node_expanded = expand_node(&router_node);
-
-        let arms_expanded = self.routes.iter().map(
-            |ItemRoute {
-                method,
-                path,
-                guard,
-                middleware,
-                handler,
-                ..
-            }| {
-                let method_expanded = method
-                    .as_ref()
-                    .map(
-                        |_| quote! { __method.as_ref().map(|method| method == __req.method()).unwrap_or(false) },
-                    )
-                    .unwrap_or_else(|| quote! { true });
-
-                let guards_expanded = guard
-                    .as_ref()
-                    .map(|guard| &*guard.guard)
-                    .map(expand_guard_struct)
-                    .map(|guard| quote! { && { #guard } });
-
-                let (middleware_before, middleware_after) = if let Some(m) = middleware {
-                    let items = m.tree.items();
-                    let invoke_middleware = items
-                        .iter()
-                        .map(|item| {
-                            quote! {
-                                <#item as ::submillisecond::Middleware>::before(&mut __req)
-                            }
-                        });
-
-                    let before_calls = quote! {
-                        let __middleware_calls = ( #( #invoke_middleware, )* );
-                    };
-
-                    let after_calls = (0..items.len())
-                        .map(|idx| {
-                            let idx = Index::from(idx);
-                            quote! {
-                                ::submillisecond::Middleware::after(__middleware_calls.#idx, &mut __resp);
-                            }
-                        });
-
-                    (before_calls, quote! {#( #after_calls )*})
-                } else {
-                    (quote! {}, quote! {})
-                };
-
-                match handler {
-                    ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
-                        let handler = match handler {
-                            ItemHandler::Fn(handler_fn) => quote! { #handler_fn },
-                            ItemHandler::Macro(item_macro) => quote! { ( #item_macro ) },
-                            ItemHandler::SubRouter(_) => unreachable!(),
-                        };
-
-                        quote! {
-                            #path if #method_expanded #guards_expanded => {
-                                #middleware_before
-
-                                let mut __resp = ::submillisecond::response::IntoResponse::into_response(
-                                    ::submillisecond::handler::Handler::handle(
-                                        #handler
-                                            as ::submillisecond::handler::FnPtr<
-                                                _,
-                                                _,
-                                                { ::submillisecond::handler::arity(&#handler) },
-                                            >,
-                                        __req,
-                                    ),
-                                );
-
-                                #middleware_after
-
-                                return ::std::result::Result::Ok(__resp);
-                            }
-                        }
-                    },
-                    ItemHandler::SubRouter(sub_router) => {
-                        let sub_router_expanded = sub_router.expand();
-
-                        quote! {
-                            #path if #method_expanded #guards_expanded => {
-                                const SUB_ROUTER: ::submillisecond::handler::HandlerFn = #sub_router_expanded;
-                                return SUB_ROUTER(__req);
-                            }
-                        }
-                    },
-                }
-            },
-        );
-
         quote! {
-            (|mut __req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
-                const __ROUTER: ::submillisecond_core::router::Router<'static, (::std::option::Option<::submillisecond::http::Method>, &'static str)> = ::submillisecond_core::router::Router::from_node(
-                    #node_expanded,
-                );
-
-                let __path = &__req
-                    .extensions()
-                    .get::<::submillisecond::router::Route>()
-                    .unwrap()
-                    .0;
-                let __route_match = __ROUTER.at(__path);
-
-                #middleware_before
-
-                let mut __resp = match __route_match {
-                    ::std::result::Result::Ok(::submillisecond_core::router::Match {
-                        params: __params,
-                        values: __values,
-                    }) => {
-                        if !__params.is_empty() {
-                            if let Some(slug) = __params.get("__slug") {
-                                let mut path = ::std::string::String::with_capacity(slug.len() + 1);
-                                path.push('/');
-                                path.push_str(slug);
-
-                                __req
-                                    .extensions_mut()
-                                    .insert(::submillisecond::router::Route(::std::borrow::Cow::Owned(path)));
-                            }
-
-                            match __req
-                                .extensions_mut()
-                                .get_mut::<::submillisecond_core::router::params::Params>()
-                            {
-                                ::std::option::Option::Some(params_ext) => params_ext.merge(__params),
-                                ::std::option::Option::None => {
-                                    __req.extensions_mut().insert(__params);
-                                }
-                            }
-                        } else {
-                            __req
-                                .extensions_mut()
-                                .insert(::submillisecond::router::Route(::std::borrow::Cow::Borrowed("/")));
-                        }
-
-                        (move || {
-                            for (__method, __route) in __values {
-                                match *__route {
-                                    #( #arms_expanded, )*
-                                    _ => {},
-                                }
-                            }
-
-                            ::std::result::Result::Err(
-                                ::submillisecond::router::RouteError::RouteNotMatch(__req),
-                            )
-                        })()
-                    }
-                    ::std::result::Result::Err(_) => {
-                        ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req))
-                    }
-                };
-
-                if let Ok(ref mut __resp) = &mut __resp {
-                    #( #middleware_after )*
-                }
-
-                __resp
-            }) as ::submillisecond::handler::HandlerFn
+            #( #expanded )*
         }
     }
 
+    fn collect_route_data(
+        &mut self,
+        prefix: Option<&LitStr>,
+        routes: &[ItemRoute],
+        ancestor_guards: Option<TokenStream>,
+        parent_middlewares: Vec<TokenStream>,
+    ) {
+        for ItemRoute {
+            method,
+            path,
+            guard,
+            middleware,
+            handler,
+            ..
+        } in routes.iter()
+        {
+            let new_path = if let Some(p) = prefix {
+                let mut s = p.value();
+                s.push_str(&path.value());
+                LitStr::new(&s, path.span())
+            } else {
+                path.clone()
+            };
+
+            let mut guards_expanded = guard
+                .as_ref()
+                .map(|guard| &*guard.guard)
+                .map(expand_guard_struct)
+                .map(|guard| quote! { && { #guard } });
+
+            if let Some(ref ancestor) = ancestor_guards {
+                if let Some(guards) = guards_expanded {
+                    guards_expanded = Some(quote! {#ancestor #guards});
+                } else {
+                    guards_expanded = Some(ancestor.clone());
+                }
+            }
+
+            let mid = if let Some(m) = middleware {
+                m.tree.items()
+            } else {
+                vec![]
+            };
+            let mut full_middlewares = parent_middlewares.clone();
+            full_middlewares.extend_from_slice(&mid);
+            let full_middlewares_expanded = Self::get_middleware_calls(&full_middlewares, true);
+
+            match handler {
+                ItemHandler::Fn(handler_ident) => {
+                    if let Some(method) = method {
+                        self.insert(*method, new_path.value(), (quote! {#guards_expanded}, quote! {
+                                if __reader.is_dangling_slash() {
+                                    ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
+
+                                    #full_middlewares_expanded
+
+                                    return ::std::result::Result::Ok(
+                                        ::submillisecond::response::IntoResponse::into_response(
+                                            ::submillisecond::handler::Handler::handle(
+                                                #handler_ident
+                                                    as ::submillisecond::handler::FnPtr<
+                                                        _,
+                                                        _,
+                                                        { ::submillisecond::handler::arity(&#handler_ident) },
+                                                    >,
+                                                __req
+                                            ),
+                                        )
+                                    );
+                                }
+                            }));
+                    } else {
+                        self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, quote! {
+                                ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
+
+                                #full_middlewares_expanded
+                                return #handler_ident(__req, __params, __reader);
+                        }));
+                    }
+                }
+                ItemHandler::Macro(macro_expanded) => {
+                    self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, quote! {
+                        ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
+
+                        #full_middlewares_expanded
+                        #macro_expanded
+                    }));
+                }
+                ItemHandler::SubRouter(Router::Tree(tree)) => {
+                    self.collect_route_data(
+                        Some(&new_path),
+                        &tree.routes,
+                        guards_expanded,
+                        full_middlewares.clone(),
+                    );
+                }
+                ItemHandler::SubRouter(Router::List(list)) => {
+                    self.insert_subrouter(
+                        new_path.value(),
+                        (
+                            quote! {#guards_expanded},
+                            list.expand_inner(&full_middlewares),
+                        ),
+                    );
+                }
+            }
+        }
+    }
+
+    fn get_middleware_calls(items: &[TokenStream], _use_ref: bool) -> TokenStream {
+        let before_calls = items
+            .iter()
+            .map(|item| {
+                quote! {
+                     ::submillisecond::request_context::inject_middleware(Box::new(<#item as Default>::default()));
+                }
+            });
+        quote! { #( #before_calls )* }
+    }
+
+    fn expand_param_child(
+        mut child: Node<(TokenStream, TokenStream)>,
+        (lit_prefix, param, lit_suffix): (String, String, String),
+        full_path: Vec<u8>,
+    ) -> TokenStream {
+        let mut output = quote! {};
+
+        // iterate in reverse because we need to nest if statements
+        // for (lit_prefix, param, lit_suffix) in captures.iter().rev() {
+        // first we try to handle the suffix since if there's a static match after a param
+        // we want to insert that static match as innermost part of our if statement
+        let len = lit_suffix.len();
+        match lit_suffix.as_str() {
+            "" => {
+                if let Some((condition_ext, block)) = child.value.as_ref() {
+                    output = quote! {
+                        if __reader.is_dangling_slash() #condition_ext {
+                            #block
+                        }
+                    };
+                }
+                if !child.is_leaf() {
+                    let recur = Self::expand_method_trie(full_path, child.children());
+                    output = quote! {
+                        #output
+                        #( #recur )*
+                    };
+                }
+            }
+            "/" => {
+                if let Some((condition_ext, block)) = child.value.as_ref() {
+                    output = quote! {
+                        if __reader.is_dangling_slash() #condition_ext {
+                            #block
+                        }
+                    };
+                }
+                // if there's further matching going on we need to strict match the slash
+                if !child.is_leaf() {
+                    let recur = Self::expand_method_trie(full_path, child.children());
+                    output = quote! {
+                        #output
+                        if __reader.peek(1) == "/" {
+                            __reader.read(1);
+                            #( #recur )*
+                        }
+                    };
+                }
+            }
+            _ => {
+                let consequent_params = RE
+                    .captures(&lit_suffix)
+                    .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
+                let conseq_expanded = if let Some(consequent_params) = consequent_params {
+                    Self::expand_param_child(child.clone(), consequent_params, full_path.clone())
+                } else {
+                    quote! {}
+                };
+                let body = if !conseq_expanded.is_empty() {
+                    conseq_expanded
+                } else if conseq_expanded.is_empty() && child.is_leaf() {
+                    if let Some((condition_ext, block)) = child.value.as_ref() {
+                        quote! {
+                            if __reader.peek(#len) == #lit_suffix #condition_ext {
+                                __reader.read(#len);
+                                #block
+                            }
+                        }
+                    } else {
+                        quote! {}
+                    }
+                } else {
+                    let recur = Self::expand_method_trie(full_path, child.children());
+                    if let Some((condition_ext, block)) = child.value.as_ref() {
+                        quote! {
+                            if __reader.peek(#len) == #lit_suffix #condition_ext {
+                                __reader.read(#len);
+                                #block
+                                #( #recur )*
+                            }
+                        }
+                    } else {
+                        quote! { #( #recur )* }
+                    }
+                };
+                output = quote! {
+                    #output
+                    #body
+                };
+            }
+        }
+
+        // now we insert parsing of param
+        output = quote! {
+            let param = __reader.read_param();
+            if let Ok(p) = param {
+                __params.push(#param .to_string(), p.to_string());
+                #output
+            }
+        };
+        // now we wrap everything with matching the literal before
+        let len = lit_prefix.len();
+        if !lit_prefix.is_empty() {
+            // wrap output
+            output = quote! {
+                if __reader.peek(#len) == #lit_prefix {
+                    __reader.read(#len);
+                    #output
+                }
+            }
+        }
+        // }
+        output
+    }
+
+    fn expand_node_with_value(
+        path: String,
+        source: TokenStream,
+        (condition_ext, block): &(TokenStream, TokenStream),
+    ) -> TokenStream {
+        let len = path.len();
+        if path.len() > 1 && path.ends_with('/') {
+            let (path, len) = (path[0..(path.len() - 1)].to_string(), path.len() - 1);
+            return quote! {
+                if __reader.peek(#len) == #path #condition_ext {
+                    __reader.read(#len);
+                    //if __reader.is_dangling_slash() {
+                        #block
+                    //}
+                    // since path continues there has to be a separator
+                    if !__reader.ensure_next_slash() {
+                        return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
+                    }
+                    #source
+                }
+            };
+        }
+
+        quote! {
+            if __reader.peek(#len) == #path #condition_ext {
+                __reader.read(#len);
+                #block
+
+                #source
+            }
+        }
+    }
+
+    fn expand_method_trie(
+        full_path: Vec<u8>,
+        children: Children<(TokenStream, TokenStream)>,
+    ) -> Vec<TokenStream> {
+        children
+            .map(|mut child| {
+                let path = String::from_utf8(child.prefix.clone()).unwrap();
+                let id = [full_path.clone(), path.as_bytes().to_vec()].concat();
+                let captures = RE
+                    .captures(&path)
+                    .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
+
+                // split longest common prefix at param and insert param matching
+                if let Some(captures) = captures {
+                    return Self::expand_param_child(child, captures, id);
+                }
+                let len = path.len();
+
+                // recursive expand if not leaf
+                if !child.is_leaf() {
+                    let recur = Self::expand_method_trie(id, child.children());
+                    if let Some(v) = child.value {
+                        return Self::expand_node_with_value(
+                            path,
+                            quote! {
+                                #( #recur )*
+                            },
+                            &v,
+                        );
+                    }
+                    return quote! {
+                        if __reader.peek(#len) == #path {
+                            __reader.read(#len);
+                            #( #recur )*
+                        }
+                    };
+                } else if let Some(v) = child.value {
+                    return Self::expand_node_with_value(path, quote! {}, &v);
+                }
+                quote! {}
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct RouterTree {
+    pub middleware: Vec<ItemUseMiddleware>,
+    pub routes: Vec<ItemRoute>,
+}
+
+impl RouterTree {
     /// Returns all the use middleware items with their full path.
     fn middleware(&self) -> Vec<TokenStream> {
         self.middleware.iter().fold(
@@ -268,82 +510,6 @@ impl Parse for RouterTree {
         }
 
         Ok(RouterTree { middleware, routes })
-    }
-}
-
-fn expand_node(
-    Node {
-        priority,
-        wild_child,
-        indices,
-        node_type,
-        value,
-        prefix,
-        children,
-    }: &Node<(Option<Method>, &LitStr)>,
-) -> proc_macro2::TokenStream {
-    let indices_expanded = indices.iter().map(|indicie| {
-        quote! {
-            #indicie
-        }
-    });
-
-    let node_type_expanded = match node_type {
-        NodeType::Root => quote! { ::submillisecond_core::router::tree::NodeType::Root },
-        NodeType::Param => quote! { ::submillisecond_core::router::tree::NodeType::Param },
-        NodeType::CatchAll => quote! { ::submillisecond_core::router::tree::NodeType::CatchAll },
-        NodeType::Static => quote! { ::submillisecond_core::router::tree::NodeType::Static },
-    };
-
-    let prefix_expanded = prefix.iter().map(|prefix| {
-        quote! {
-            #prefix
-        }
-    });
-
-    let children_expanded = children.iter().map(expand_node);
-
-    let value_expanded = value.iter().map(|(method, route)| {
-        let method_expanded = method
-            .as_ref()
-            .map(|method| match method {
-                Method::Get(get) => {
-                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#get) }
-                }
-                Method::Post(post) => {
-                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#post) }
-                }
-                Method::Put(put) => {
-                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#put) }
-                }
-                Method::Delete(delete) => {
-                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#delete) }
-                }
-                Method::Head(head) => {
-                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#head) }
-                }
-                Method::Options(options) => {
-                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#options) }
-                }
-                Method::Patch(patch) => {
-                    quote! { ::std::option::Option::Some(::submillisecond::http::Method::#patch) }
-                }
-            })
-            .unwrap_or_else(|| quote! { ::std::option::Option::None });
-
-        quote! { (#method_expanded, #route) }
-    });
-
-    quote! {
-        ::submillisecond_core::router::tree::ConstNode {
-            priority: #priority,
-            wild_child: #wild_child,
-            indices: &[#( #indices_expanded, )*],
-            node_type: #node_type_expanded,
-            value: &[#( #value_expanded ),*],
-            prefix: &[#( #prefix_expanded, )*],
-            children: &[#( #children_expanded, )*],
-        }
     }
 }
 

@@ -1,6 +1,6 @@
 use std::io;
 
-use submillisecond::{router, static_dir, Application};
+use submillisecond::{response::IntoResponse, router, static_dir, Application};
 
 fn main() -> io::Result<()> {
     Application::new(router! {

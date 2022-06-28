@@ -36,7 +36,7 @@ impl NamedParam {
                 quote! {
                     let params = req
                         .extensions()
-                        .get::<::submillisecond_core::router::params::Params>()
+                        .get::<::submillisecond::params::Params>()
                         .unwrap();
 
                     let fields = ::std::iter::Iterator::collect::<::std::result::Result<::std::vec::Vec<_>, _>>(
@@ -84,7 +84,7 @@ impl NamedParam {
                 quote! {
                     let param_str = req
                         .extensions()
-                        .get::<::submillisecond_core::router::params::Params>()
+                        .get::<::submillisecond::params::Params>()
                         .unwrap()
                         .get(#name)
                         .ok_or_else(<::submillisecond::extract::rejection::MissingPathParams as ::std::default::Default>::default)?;

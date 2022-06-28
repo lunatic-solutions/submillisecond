@@ -1,7 +1,6 @@
 mod list;
 mod tree;
 
-use proc_macro2::TokenStream;
 use syn::{
     parse::{Parse, ParseStream},
     LitStr, Token,
@@ -11,20 +10,12 @@ use self::{
     list::RouterList,
     tree::{method::Method, RouterTree},
 };
+pub use tree::MethodTries;
 
 #[derive(Debug)]
 pub enum Router {
     List(RouterList), // [a, b, c]
     Tree(RouterTree), // { "/" => ... }
-}
-
-impl Router {
-    pub fn expand(&self) -> TokenStream {
-        match self {
-            Router::List(router_list) => router_list.expand(),
-            Router::Tree(router_tree) => router_tree.expand(),
-        }
-    }
 }
 
 impl Parse for Router {

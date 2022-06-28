@@ -11,6 +11,7 @@ use lunatic::{
     net::{TcpListener, TcpStream, ToSocketAddrs},
     Mailbox, Process,
 };
+use params::Params;
 use response::IntoResponse;
 pub use submillisecond_macros::*;
 
@@ -28,6 +29,8 @@ pub mod extract;
 pub mod guard;
 pub mod handler;
 pub mod json;
+pub mod params;
+pub mod request_context;
 pub mod response;
 pub mod router;
 pub mod template;
@@ -35,7 +38,7 @@ pub mod template;
 /// Type alias for [`http::Request`] whose body defaults to [`String`].
 pub type Request<T = Vec<u8>> = http::Request<T>;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Application {
     router: HandlerFn,
 }
@@ -43,6 +46,18 @@ pub struct Application {
 impl Application {
     pub fn new(router: HandlerFn) -> Self {
         Application { router }
+    }
+
+    pub fn merge_extensions(request: &mut Request, params: &mut Params) {
+        let extensions = request.extensions_mut();
+        match extensions.get_mut::<Params>() {
+            Some(ext_params) => {
+                ext_params.merge(params.clone());
+            }
+            None => {
+                extensions.insert(params.clone());
+            }
+        };
     }
 
     pub fn serve<A: ToSocketAddrs>(self, addr: A) -> io::Result<()> {
@@ -69,10 +84,13 @@ impl Application {
 
                     let path = request.uri().path().to_string();
                     let extensions = request.extensions_mut();
-                    extensions.insert(Route(Cow::Owned(path)));
+                    extensions.insert(Route(Cow::Owned(path.clone())));
                     let http_version = request.version();
 
-                    let mut response = handler(request).unwrap_or_else(|err| err.into_response());
+                    let params = crate::params::Params::new();
+                    let reader = crate::core::UriReader::new(path);
+                    let mut response =
+                        handler(request, params, reader).unwrap_or_else(|err| err.into_response());
 
                     let content_length = response.body().len();
                     *response.version_mut() = http_version;
@@ -92,6 +110,6 @@ impl Application {
 }
 
 pub trait Middleware {
-    fn before(req: &mut Request) -> Self;
-    fn after(self, res: &mut Response);
+    fn before(&mut self, req: &mut Request);
+    fn after(&self, res: &mut Response);
 }

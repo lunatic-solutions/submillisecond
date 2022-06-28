@@ -1,15 +1,17 @@
 [package]
+edition = "2021"
 name = "submillisecond_macros"
 version = "0.1.0"
-edition = "2021"
 
 [lib]
 proc-macro = true
 
 [dependencies]
 better-bae = "0.1"
+lazy_static = "1.4.0"
 mime_guess = "2.0"
 proc-macro2 = "1.0"
 quote = "1.0"
-submillisecond_core = { path = "../submillisecond_core" }
-syn = { version = "1.0", features = ["derive", "extra-traits", "full"] }
+regex = "1.5.6"
+rust-format = {version = "0.3", features = ["token_stream"]}
+syn = {version = "1.0", features = ["derive", "extra-traits", "full"]}

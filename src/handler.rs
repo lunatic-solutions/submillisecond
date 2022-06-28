@@ -1,7 +1,10 @@
-use crate::{extract::FromRequest, response::IntoResponse, router::RouteError, Request, Response};
+use crate::{
+    core::UriReader, extract::FromRequest, params::Params, request_context, response::IntoResponse,
+    router::RouteError, Request, Response,
+};
 
 pub type HandlerFn<Req = Vec<u8>, Res = Vec<u8>> =
-    fn(Request<Req>) -> Result<Response<Res>, RouteError>;
+    fn(Request<Req>, Params, UriReader) -> Result<Response<Res>, RouteError>;
 
 pub trait Handler {
     type Response: IntoResponse;
@@ -36,6 +39,7 @@ macro_rules! impl_handler {
 
             #[allow(unused_mut, unused_variables)]
             fn handle(self, mut req: Request) -> Self::Response {
+                request_context::run_before(&mut req);
                 paste::paste! {
                     $(
                         let [< $args:lower >] = match <$args as FromRequest>::from_request(&mut req) {
@@ -43,7 +47,9 @@ macro_rules! impl_handler {
                             Err(err) => return err.into_response(),
                         };
                     )*
-                    self( $( [< $args:lower >] ),* ).into_response()
+                    let mut __resp = self( $( [< $args:lower >] ),* ).into_response();
+                    request_context::drain(&mut __resp);
+                    __resp
                 }
             }
         }

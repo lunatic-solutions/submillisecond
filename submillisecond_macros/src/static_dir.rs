@@ -18,16 +18,26 @@ impl StaticDir {
         let match_arms = self.expand_match_arms();
 
         quote! {
-            (|method: ::submillisecond::http::Method, ::submillisecond::router::Route(route): ::submillisecond::router::Route, req: ::submillisecond::Request| -> ::std::result::Result<(::submillisecond::http::header::HeaderMap, &'static [u8]), ::submillisecond::router::RouteError> {
-                if method != ::submillisecond::http::Method::GET {
-                    return Err(::submillisecond::router::RouteError::RouteNotMatch(req));
+            match |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<(::submillisecond::http::header::HeaderMap, &'static [u8]), ::submillisecond::router::RouteError> {
+                if *__req.method() != ::submillisecond::http::Method::GET {
+                    return Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
                 }
 
+                let route = __req
+                    .extensions()
+                    .get::<::submillisecond::router::Route>()
+                    .unwrap()
+                    .clone()
+                    .0;
                 match route.as_ref() {
                     #match_arms
-                    _ => Err(::submillisecond::router::RouteError::RouteNotMatch(req)),
+                    _ => Err(::submillisecond::router::RouteError::RouteNotMatch(__req)),
                 }
-            })
+            }(__req, __params.clone(), __reader.clone()) {
+                Ok(res) => return Ok(res.into_response()),
+                Err(::submillisecond::router::RouteError::RouteNotMatch(req)) => __req = req,
+                Err(e) => return Err(e),
+            }
         }
     }
 

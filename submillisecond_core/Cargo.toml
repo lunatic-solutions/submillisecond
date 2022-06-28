@@ -1,7 +1,0 @@
-[package]
-name = "submillisecond_core"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-indexmap = "1.9"

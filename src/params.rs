@@ -43,8 +43,14 @@ enum ParamsKind {
     Large(Vec<Param>),
 }
 
+impl Default for Params {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Params {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let kind = ParamsKind::None;
         Self { kind }
     }
@@ -55,18 +61,6 @@ impl Params {
             ParamsKind::None => 0,
             ParamsKind::Small(_, len) => *len,
             ParamsKind::Large(vec) => vec.len(),
-        }
-    }
-
-    pub(crate) fn truncate(&mut self, n: usize) {
-        match &mut self.kind {
-            ParamsKind::None => {}
-            ParamsKind::Small(_, len) => {
-                *len = n;
-            }
-            ParamsKind::Large(vec) => {
-                vec.truncate(n);
-            }
         }
     }
 
@@ -101,7 +95,7 @@ impl Params {
     }
 
     /// Inserts a key value parameter pair into the list.
-    pub(crate) fn push(&mut self, key: String, value: String) {
+    pub fn push(&mut self, key: String, value: String) {
         #[cold]
         fn drain_to_vec<T: Default>(len: usize, elem: T, arr: &mut [T; SMALL]) -> Vec<T> {
             let mut vec = Vec::with_capacity(len + 1);
