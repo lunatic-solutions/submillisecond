@@ -1,9 +1,11 @@
-use super::{ErrorKind, PathDeserializationError};
+use std::{any::type_name, ops, sync::Arc};
+
 use serde::{
     de::{self, DeserializeSeed, EnumAccess, Error, MapAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any, Deserializer,
 };
-use std::{any::type_name, ops, sync::Arc};
+
+use super::{ErrorKind, PathDeserializationError};
 
 macro_rules! unsupported_type {
     ($trait_fn:ident) => {
@@ -42,10 +44,10 @@ macro_rules! parse_single_value {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct PercentDecodedStr(Arc<str>);
+pub struct PercentDecodedStr(Arc<str>);
 
 impl PercentDecodedStr {
-    pub(crate) fn new<S>(s: S) -> Option<Self>
+    pub fn new<S>(s: S) -> Option<Self>
     where
         S: AsRef<str>,
     {
@@ -73,13 +75,13 @@ impl ops::Deref for PercentDecodedStr {
     }
 }
 
-pub(crate) struct PathDeserializer<'de> {
+pub struct PathDeserializer<'de> {
     url_params: &'de [(Arc<str>, PercentDecodedStr)],
 }
 
 impl<'de> PathDeserializer<'de> {
     #[inline]
-    pub(crate) fn new(url_params: &'de [(Arc<str>, PercentDecodedStr)]) -> Self {
+    pub fn new(url_params: &'de [(Arc<str>, PercentDecodedStr)]) -> Self {
         PathDeserializer { url_params }
     }
 }

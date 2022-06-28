@@ -118,7 +118,11 @@ impl IntoResponse for ParseRequestError {
     }
 }
 
-#[derive(Clone)]
+pub enum UriReadError {
+    EmptyOnExpectedParam,
+}
+
+#[derive(Clone, Debug)]
 pub struct UriReader {
     uri: String,
     cursor: usize,
@@ -161,7 +165,7 @@ impl UriReader {
         self.uri.len() <= self.cursor
     }
 
-    pub fn read_param(&mut self) -> Result<&str, String> {
+    pub fn read_param(&mut self) -> Result<&str, UriReadError> {
         let initial_cursor = self.cursor;
         while !self.is_empty() {
             if self.peek(1) != "/" {
@@ -172,7 +176,7 @@ impl UriReader {
         }
         // if nothing was found, return error
         if initial_cursor == self.cursor {
-            return Err("Failed to read param".to_string());
+            return Err(UriReadError::EmptyOnExpectedParam);
         }
         // read the param
         Ok(&self.uri[initial_cursor..self.cursor])

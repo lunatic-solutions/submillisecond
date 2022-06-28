@@ -29,4 +29,5 @@ uuid = {version = "1.0.0", features = ["v4", "serde"]}
 
 [[bench]]
 harness = false
+lunatic-test = "0.9"
 name = "router"

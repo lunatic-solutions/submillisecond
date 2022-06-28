@@ -10,6 +10,7 @@ use lunatic::{
     process::{AbstractProcess, ProcessMessage, ProcessRef},
     Mailbox, Process,
 };
+use std::borrow::Cow;
 use std::io::Write;
 use std::mem;
 
@@ -79,7 +80,7 @@ fn child_handler_process(
 
     let path = request.uri().path().to_string();
     let extensions = request.extensions_mut();
-    extensions.insert(Route(path.clone()));
+    extensions.insert(Route(Cow::Owned(path.clone())));
     let http_version = request.version();
 
     let params = crate::params::Params::new();

@@ -231,6 +231,14 @@ impl MethodTries {
                         }));
                     }
                 }
+                ItemHandler::Macro(macro_expanded) => {
+                    self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, quote! {
+                        ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
+
+                        #full_middlewares_expanded
+                        #macro_expanded
+                    }));
+                }
                 ItemHandler::SubRouter(Router::Tree(tree)) => {
                     self.collect_route_data(
                         Some(&new_path),
@@ -404,9 +412,8 @@ impl MethodTries {
         quote! {
             if __reader.peek(#len) == #path #condition_ext {
                 __reader.read(#len);
-                //if __reader.is_empty() {
-                    #block
-                //}
+                #block
+
                 #source
             }
         }
@@ -423,8 +430,6 @@ impl MethodTries {
                 let captures = RE
                     .captures(&path)
                     .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
-                // .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
-                // .collect::<Vec<(String, String, String)>>();
 
                 // split longest common prefix at param and insert param matching
                 if let Some(captures) = captures {

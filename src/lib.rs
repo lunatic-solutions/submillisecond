@@ -1,7 +1,11 @@
 use std::io;
 
 use handler::HandlerFn;
-use lunatic::{net::TcpListener, net::ToSocketAddrs, process::StartProcess};
+pub use http;
+use lunatic::{
+    net::{TcpListener, ToSocketAddrs},
+    process::StartProcess,
+};
 use params::Params;
 pub use submillisecond_macros::*;
 use supervisor::RequestSupervisorProcess;
@@ -56,10 +60,6 @@ impl Application {
 
         while let Ok((stream, _)) = listener.accept() {
             RequestSupervisorProcess::start((stream, self.router as *const () as usize), None);
-            // Process::spawn_link(
-            //     (stream, self.router as *const () as usize),
-            //     |(stream, handler_raw): (TcpStream, usize), _: Mailbox<()>| {},
-            // );
         }
 
         Ok(())
