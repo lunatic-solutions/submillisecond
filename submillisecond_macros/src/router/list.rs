@@ -18,7 +18,7 @@ impl RouterList {
         quote! {
             (|mut __req: ::submillisecond::Request,
                 mut __params: ::submillisecond::params::Params,
-                mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
+                mut __reader: ::submillisecond::uri_reader::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
                 #inner
             }) as ::submillisecond::handler::HandlerFn
         }

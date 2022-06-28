@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use http::Method;
-use submillisecond::{core::UriReader, params::Params, router, Request};
+use submillisecond::{params::Params, router, uri_reader::UriReader, Request};
 
 fn handler() {}
 

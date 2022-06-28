@@ -29,6 +29,7 @@ pub mod response;
 pub mod router;
 pub mod supervisor;
 pub mod template;
+pub mod uri_reader;
 
 /// Type alias for [`http::Request`] whose body defaults to [`String`].
 pub type Request<T = Vec<u8>> = http::Request<T>;
@@ -59,6 +60,7 @@ impl Application {
         let listener = TcpListener::bind(addr)?;
 
         while let Ok((stream, _)) = listener.accept() {
+            println!("[NEW_TCP] opening new tcp stream");
             RequestSupervisorProcess::start((stream, self.router as *const () as usize), None);
         }
 

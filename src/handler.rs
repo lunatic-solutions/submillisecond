@@ -1,6 +1,6 @@
 use crate::{
-    core::UriReader, extract::FromRequest, params::Params, request_context, response::IntoResponse,
-    router::RouteError, Request, Response,
+    extract::FromRequest, params::Params, request_context, response::IntoResponse,
+    router::RouteError, uri_reader::UriReader, Request, Response,
 };
 
 pub type HandlerFn<Req = Vec<u8>, Res = Vec<u8>> =

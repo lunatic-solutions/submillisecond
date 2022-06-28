@@ -84,7 +84,7 @@ impl MethodTries {
         // TODO: maybe add some hooks to give devs ability to log requests that were sent but failed
         // to parse (also useful for us in case we need to debug)
         let wrapped = quote! {
-            |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
+            |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::uri_reader::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
 
                 #subrouter_expanded
 

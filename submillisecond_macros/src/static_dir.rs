@@ -18,7 +18,7 @@ impl StaticDir {
         let match_arms = self.expand_match_arms();
 
         quote! {
-            match |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<(::submillisecond::http::header::HeaderMap, &'static [u8]), ::submillisecond::router::RouteError> {
+            match |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::uri_reader::UriReader| -> ::std::result::Result<(::submillisecond::http::header::HeaderMap, &'static [u8]), ::submillisecond::router::RouteError> {
                 if *__req.method() != ::submillisecond::http::Method::GET {
                     return Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
                 }

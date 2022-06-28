@@ -2,10 +2,10 @@ use http::Method;
 use lunatic_test::test;
 use std::borrow::Cow;
 use submillisecond::{
-    core::UriReader,
     params::Params,
     router,
     router::{Route, RouteError},
+    uri_reader::UriReader,
     Request,
 };
 
