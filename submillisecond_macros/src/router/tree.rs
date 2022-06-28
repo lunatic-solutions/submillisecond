@@ -74,23 +74,8 @@ impl RouterTree {
             }| {
                 let method_expanded = method
                     .as_ref()
-                    .map(|method| match method {
-                        Method::Get(get) => quote! { ::submillisecond::http::Method::#get },
-                        Method::Post(post) => quote! { ::submillisecond::http::Method::#post },
-                        Method::Put(put) => quote! { ::submillisecond::http::Method::#put },
-                        Method::Delete(delete) => {
-                            quote! { ::submillisecond::http::Method::#delete }
-                        }
-                        Method::Head(head) => quote! { ::submillisecond::http::Method::#head },
-                        Method::Options(options) => {
-                            quote! { ::submillisecond::http::Method::#options }
-                        }
-                        Method::Patch(patch) => {
-                            quote! { ::submillisecond::http::Method::#patch }
-                        }
-                    })
                     .map(
-                        |method| quote! { __method.as_ref().map(|method| method == #method).unwrap_or(false) },
+                        |_| quote! { __method.as_ref().map(|method| method == __req.method()).unwrap_or(false) },
                     )
                     .unwrap_or_else(|| quote! { true });
 
