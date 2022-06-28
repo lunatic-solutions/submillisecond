@@ -412,9 +412,8 @@ impl MethodTries {
         quote! {
             if __reader.peek(#len) == #path #condition_ext {
                 __reader.read(#len);
-                //if __reader.is_empty() {
-                    #block
-                //}
+                #block
+
                 #source
             }
         }
@@ -431,8 +430,6 @@ impl MethodTries {
                 let captures = RE
                     .captures(&path)
                     .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
-                // .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()))
-                // .collect::<Vec<(String, String, String)>>();
 
                 // split longest common prefix at param and insert param matching
                 if let Some(captures) = captures {

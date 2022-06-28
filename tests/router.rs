@@ -1,11 +1,13 @@
 use http::Method;
 use lunatic_test::test;
 use std::borrow::Cow;
-use submillisecond::{core::UriReader, params::Params, router, router::RouteError, Request};
-
-use http::Method;
-use lunatic_test::test;
-use submillisecond::{router, router::Route, router::RouteError, Request};
+use submillisecond::{
+    core::UriReader,
+    params::Params,
+    router,
+    router::{Route, RouteError},
+    Request,
+};
 
 macro_rules! build_request {
     ($method: ident, $uri: literal) => {
@@ -24,11 +26,13 @@ macro_rules! build_request {
 macro_rules! handle_request {
     ($router: ident, $method: ident, $uri: literal) => {{
         let req = build_request!($method, $uri);
-        $router(req)
+        let reader = UriReader::new(req.uri().path().to_string());
+        $router(req, Params::new(), reader)
     }};
     ($router: ident, $method: ident, $uri: literal, $body: expr) => {{
         let req = build_request!($method, $uri, $body);
-        $router(req)
+        let reader = UriReader::new(req.uri().path().to_string());
+        $router(req, Params::new(), reader)
     }};
 }
 
@@ -146,11 +150,11 @@ fn fallthrough_router() {
     let res = handle_request!(router, POST, "/hello");
     assert_200!(res, b"OK");
 
+    let res = handle_request!(router, GET, "/hello/");
+    assert_200!(res, b"OK");
+
     // 404
     let res = handle_request!(router, GET, "/a/b");
-    assert_404!(res);
-
-    let res = handle_request!(router, GET, "/hello/");
     assert_404!(res);
 }
 
