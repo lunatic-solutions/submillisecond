@@ -11,9 +11,7 @@ use lunatic::{
     supervisor::Supervisor,
 };
 use serde::{Deserialize, Serialize};
-use submillisecond::{
-    handler::HandlerFn, json::Json, params::Params, router, Application, Middleware,
-};
+use submillisecond::{json::Json, params::Params, router, Application, Middleware, Router};
 use uuid::Uuid;
 
 // =====================================
@@ -322,14 +320,13 @@ fn liveness_check() -> &'static str {
 }
 
 // has the prefix /api/mgmt
-const MGMT_ROUTER: HandlerFn = router! {
-
+const MGMT_ROUTER: Router = router! {
     GET "/alive" => liveness_check
     GET "/health" => liveness_check
     GET "/metrics" => liveness_check
 };
 
-const ROUTER: HandlerFn = router! {
+const ROUTER: Router = router! {
     use LoggingMiddleware;
 
     "/api/users" => {

@@ -18,9 +18,9 @@ impl RouterList {
         quote! {
             (|mut __req: ::submillisecond::Request,
                 mut __params: ::submillisecond::params::Params,
-                mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::router::RouteError> {
+                mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
                 #inner
-            }) as ::submillisecond::handler::HandlerFn
+            }) as ::submillisecond::Router
         }
     }
 
@@ -33,7 +33,7 @@ impl RouterList {
            });
 
         quote! {
-            const HANDLERS: [::submillisecond::handler::HandlerFn; #handlers_len] = [
+            const HANDLERS: [::submillisecond::Router; #handlers_len] = [
                 #( #handlers ),*
             ];
             #( #middlewares_expanded )*
@@ -43,13 +43,13 @@ impl RouterList {
                     ::std::result::Result::Ok(__resp) => {
                         return ::std::result::Result::Ok(__resp)
                     }
-                    ::std::result::Result::Err(::submillisecond::router::RouteError::ExtractorError(resp)) =>
-                        return ::std::result::Result::Err(::submillisecond::router::RouteError::ExtractorError(resp)),
-                    ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(request)) => __req = request,
+                    ::std::result::Result::Err(::submillisecond::RouteError::ExtractorError(resp)) =>
+                        return ::std::result::Result::Err(::submillisecond::RouteError::ExtractorError(resp)),
+                    ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(request)) => __req = request,
                 }
             }
 
-            return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
+            return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
         }
     }
 }

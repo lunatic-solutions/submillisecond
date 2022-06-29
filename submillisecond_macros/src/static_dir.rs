@@ -18,24 +18,18 @@ impl StaticDir {
         let match_arms = self.expand_match_arms();
 
         quote! {
-            match |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<(::submillisecond::http::header::HeaderMap, &'static [u8]), ::submillisecond::router::RouteError> {
+            match |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<(::submillisecond::http::header::HeaderMap, &'static [u8]), ::submillisecond::RouteError> {
                 if *__req.method() != ::submillisecond::http::Method::GET {
-                    return Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
+                    return Err(::submillisecond::RouteError::RouteNotMatch(__req));
                 }
 
-                let route = __req
-                    .extensions()
-                    .get::<::submillisecond::router::Route>()
-                    .unwrap()
-                    .clone()
-                    .0;
-                match route.as_ref() {
+                match __reader.read_to_end() {
                     #match_arms
-                    _ => Err(::submillisecond::router::RouteError::RouteNotMatch(__req)),
+                    _ => Err(::submillisecond::RouteError::RouteNotMatch(__req)),
                 }
             }(__req, __params.clone(), __reader.clone()) {
                 Ok(res) => return Ok(res.into_response()),
-                Err(::submillisecond::router::RouteError::RouteNotMatch(req)) => __req = req,
+                Err(::submillisecond::RouteError::RouteNotMatch(req)) => __req = req,
                 Err(e) => return Err(e),
             }
         }
@@ -43,7 +37,6 @@ impl StaticDir {
 
     fn expand_match_arms(&self) -> TokenStream {
         let arms = self.files.iter().map(|StaticFile { mime, path, content }| {
-            let path = format!("/{path}");
             let mime = mime.to_string();
             let bytes = quote! { &[#( #content ),*] };
 

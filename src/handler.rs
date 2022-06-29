@@ -1,10 +1,4 @@
-use crate::{
-    core::UriReader, extract::FromRequest, params::Params, request_context, response::IntoResponse,
-    router::RouteError, Request, Response,
-};
-
-pub type HandlerFn<Req = Vec<u8>, Res = Vec<u8>> =
-    fn(Request<Req>, Params, UriReader) -> Result<Response<Res>, RouteError>;
+use crate::{extract::FromRequest, request_context, response::IntoResponse, Request, Response};
 
 pub trait Handler {
     type Response: IntoResponse;

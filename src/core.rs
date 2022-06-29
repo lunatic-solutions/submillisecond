@@ -188,6 +188,10 @@ impl UriReader {
         let end = &self.uri[self.cursor..];
         end == suffix
     }
+
+    pub fn read_to_end(&self) -> &str {
+        &self.uri[self.cursor..]
+    }
 }
 
 #[cfg(test)]
