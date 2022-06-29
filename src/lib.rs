@@ -69,7 +69,7 @@ impl Application {
                         mem::transmute::<*const (), Router>(pointer)
                     };
 
-                    let mut request = match core::parse_request(stream.clone()) {
+                    let request = match core::parse_request(stream.clone()) {
                         Ok(request) => request,
                         Err(err) => {
                             if let Err(err) = core::write_response(stream, err.into_response()) {
@@ -80,8 +80,6 @@ impl Application {
                     };
 
                     let path = request.uri().path().to_string();
-                    let extensions = request.extensions_mut();
-                    extensions.insert(Route(Cow::Owned(path.clone())));
                     let http_version = request.version();
 
                     let params = Params::new();

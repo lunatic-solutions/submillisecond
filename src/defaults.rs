@@ -1,7 +1,7 @@
-use crate::{Request, Response};
+use crate::Response;
 
 /// Return an error 404 not found response.
-pub fn err_404(_: Request) -> Response {
+pub fn err_404() -> Response {
     Response::builder()
         .status(404)
         .header("Content-Type", "text/html; charset=UTF-8")
