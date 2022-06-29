@@ -18,18 +18,24 @@ lazy_static! {
         Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>.*)").unwrap();
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MethodTries {
     // trie to collect subrouters
-    subrouters: Trie<(TokenStream, TokenStream)>,
+    subrouters: Trie<MethodValue>,
     // tries to collect
-    get: Trie<(TokenStream, TokenStream)>,
-    post: Trie<(TokenStream, TokenStream)>,
-    put: Trie<(TokenStream, TokenStream)>,
-    delete: Trie<(TokenStream, TokenStream)>,
-    head: Trie<(TokenStream, TokenStream)>,
-    options: Trie<(TokenStream, TokenStream)>,
-    patch: Trie<(TokenStream, TokenStream)>,
+    get: Trie<MethodValue>,
+    post: Trie<MethodValue>,
+    put: Trie<MethodValue>,
+    delete: Trie<MethodValue>,
+    head: Trie<MethodValue>,
+    options: Trie<MethodValue>,
+    patch: Trie<MethodValue>,
+}
+
+#[derive(Clone, Debug)]
+struct MethodValue {
+    guards: Option<TokenStream>,
+    body: TokenStream,
 }
 
 impl MethodTries {
@@ -37,36 +43,6 @@ impl MethodTries {
         let mut method_tries = MethodTries::default();
         method_tries.collect_route_data(None, &router.routes, None, router.middleware());
         method_tries
-    }
-
-    pub fn insert(&mut self, method: Method, key: String, value: (TokenStream, TokenStream)) {
-        match method {
-            Method::Get(_) => self.get.insert(key, value),
-            Method::Post(_) => self.post.insert(key, value),
-            Method::Put(_) => self.put.insert(key, value),
-            Method::Delete(_) => self.delete.insert(key, value),
-            Method::Head(_) => self.head.insert(key, value),
-            Method::Options(_) => self.options.insert(key, value),
-            Method::Patch(_) => self.patch.insert(key, value),
-        };
-    }
-
-    pub fn insert_subrouter(&mut self, key: String, value: (TokenStream, TokenStream)) {
-        self.subrouters.insert(key, value);
-    }
-
-    fn expand_subrouter(&mut self) -> (TokenStream, TokenStream) {
-        let expanded = Self::expand_method_trie(vec![], self.subrouters.children());
-        (
-            quote! {
-                #( #expanded )*
-            },
-            if expanded.is_empty() {
-                quote! {}
-            } else {
-                quote! {__reader.reset();}
-            },
-        )
     }
 
     pub fn expand(mut self) -> TokenStream {
@@ -84,6 +60,36 @@ impl MethodTries {
                 _ => ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req)),
             }
         }
+    }
+
+    fn insert(&mut self, method: Method, key: String, value: MethodValue) {
+        match method {
+            Method::Get(_) => self.get.insert(key, value),
+            Method::Post(_) => self.post.insert(key, value),
+            Method::Put(_) => self.put.insert(key, value),
+            Method::Delete(_) => self.delete.insert(key, value),
+            Method::Head(_) => self.head.insert(key, value),
+            Method::Options(_) => self.options.insert(key, value),
+            Method::Patch(_) => self.patch.insert(key, value),
+        };
+    }
+
+    fn insert_subrouter(&mut self, key: String, value: MethodValue) {
+        self.subrouters.insert(key, value);
+    }
+
+    fn expand_subrouter(&mut self) -> (TokenStream, TokenStream) {
+        let expanded = Self::expand_method_trie(vec![], self.subrouters.children());
+        (
+            quote! {
+                #( #expanded )*
+            },
+            if expanded.is_empty() {
+                quote! {}
+            } else {
+                quote! {__reader.reset();}
+            },
+        )
     }
 
     fn expand_method_arms(&mut self) -> TokenStream {
@@ -187,7 +193,9 @@ impl MethodTries {
             match handler {
                 ItemHandler::Fn(handler_ident) => {
                     if let Some(method) = method {
-                        self.insert(*method, new_path.value(), (quote! {#guards_expanded}, quote! {
+                        let value = MethodValue {
+                            guards: guards_expanded,
+                            body: quote! {
                                 if __reader.is_dangling_slash() {
                                     ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
 
@@ -207,23 +215,33 @@ impl MethodTries {
                                         )
                                     );
                                 }
-                            }));
+                            },
+                        };
+                        self.insert(*method, new_path.value(), value);
                     } else {
-                        self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, quote! {
+                        let value = MethodValue {
+                            guards: guards_expanded,
+                            body: quote! {
                                 ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
 
                                 #full_middlewares_expanded
                                 return #handler_ident(__req, __params, __reader);
-                        }));
+                            },
+                        };
+                        self.insert_subrouter(new_path.value(), value);
                     }
                 }
                 ItemHandler::Macro(macro_expanded) => {
-                    self.insert_subrouter(new_path.value(), (quote! {#guards_expanded}, quote! {
-                        ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
+                    let value = MethodValue {
+                        guards: guards_expanded,
+                        body: quote! {
+                            ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
 
-                        #full_middlewares_expanded
-                        #macro_expanded
-                    }));
+                            #full_middlewares_expanded
+                            #macro_expanded
+                        },
+                    };
+                    self.insert_subrouter(new_path.value(), value);
                 }
                 ItemHandler::SubRouter(Router::Tree(tree)) => {
                     self.collect_route_data(
@@ -234,13 +252,11 @@ impl MethodTries {
                     );
                 }
                 ItemHandler::SubRouter(Router::List(list)) => {
-                    self.insert_subrouter(
-                        new_path.value(),
-                        (
-                            quote! {#guards_expanded},
-                            list.expand_inner(&full_middlewares),
-                        ),
-                    );
+                    let value = MethodValue {
+                        guards: guards_expanded,
+                        body: list.expand_inner(&full_middlewares),
+                    };
+                    self.insert_subrouter(new_path.value(), value);
                 }
             }
         }
@@ -258,7 +274,7 @@ impl MethodTries {
     }
 
     fn expand_param_child(
-        mut child: Node<(TokenStream, TokenStream)>,
+        mut child: Node<MethodValue>,
         (lit_prefix, param, lit_suffix): (String, String, String),
         full_path: Vec<u8>,
     ) -> TokenStream {
@@ -271,10 +287,10 @@ impl MethodTries {
         let len = lit_suffix.len();
         match lit_suffix.as_str() {
             "" => {
-                if let Some((condition_ext, block)) = child.value.as_ref() {
+                if let Some(MethodValue { guards, body }) = child.value.as_ref() {
                     output = quote! {
-                        if __reader.is_dangling_slash() #condition_ext {
-                            #block
+                        if __reader.is_dangling_slash() #guards {
+                            #body
                         }
                     };
                 }
@@ -287,10 +303,10 @@ impl MethodTries {
                 }
             }
             "/" => {
-                if let Some((condition_ext, block)) = child.value.as_ref() {
+                if let Some(MethodValue { guards, body }) = child.value.as_ref() {
                     output = quote! {
-                        if __reader.is_dangling_slash() #condition_ext {
-                            #block
+                        if __reader.is_dangling_slash() #guards {
+                            #body
                         }
                     };
                 }
@@ -318,11 +334,11 @@ impl MethodTries {
                 let body = if !conseq_expanded.is_empty() {
                     conseq_expanded
                 } else if conseq_expanded.is_empty() && child.is_leaf() {
-                    if let Some((condition_ext, block)) = child.value.as_ref() {
+                    if let Some(MethodValue { guards, body }) = child.value.as_ref() {
                         quote! {
-                            if __reader.peek(#len) == #lit_suffix #condition_ext {
+                            if __reader.peek(#len) == #lit_suffix #guards {
                                 __reader.read(#len);
-                                #block
+                                #body
                             }
                         }
                     } else {
@@ -330,11 +346,11 @@ impl MethodTries {
                     }
                 } else {
                     let recur = Self::expand_method_trie(full_path, child.children());
-                    if let Some((condition_ext, block)) = child.value.as_ref() {
+                    if let Some(MethodValue { guards, body }) = child.value.as_ref() {
                         quote! {
-                            if __reader.peek(#len) == #lit_suffix #condition_ext {
+                            if __reader.peek(#len) == #lit_suffix #guards {
                                 __reader.read(#len);
-                                #block
+                                #body
                                 #( #recur )*
                             }
                         }
@@ -375,16 +391,16 @@ impl MethodTries {
     fn expand_node_with_value(
         path: String,
         source: TokenStream,
-        (condition_ext, block): &(TokenStream, TokenStream),
+        MethodValue { guards, body }: &MethodValue,
     ) -> TokenStream {
         let len = path.len();
         if path.len() > 1 && path.ends_with('/') {
             let (path, len) = (path[0..(path.len() - 1)].to_string(), path.len() - 1);
             return quote! {
-                if __reader.peek(#len) == #path #condition_ext {
+                if __reader.peek(#len) == #path #guards {
                     __reader.read(#len);
                     //if __reader.is_dangling_slash() {
-                        #block
+                        #body
                     //}
                     // since path continues there has to be a separator
                     if !__reader.ensure_next_slash() {
@@ -396,19 +412,16 @@ impl MethodTries {
         }
 
         quote! {
-            if __reader.peek(#len) == #path #condition_ext {
+            if __reader.peek(#len) == #path #guards {
                 __reader.read(#len);
-                #block
+                #body
 
                 #source
             }
         }
     }
 
-    fn expand_method_trie(
-        full_path: Vec<u8>,
-        children: Children<(TokenStream, TokenStream)>,
-    ) -> Vec<TokenStream> {
+    fn expand_method_trie(full_path: Vec<u8>, children: Children<MethodValue>) -> Vec<TokenStream> {
         children
             .map(|mut child| {
                 let path = String::from_utf8(child.prefix.clone()).unwrap();
