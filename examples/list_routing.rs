@@ -1,6 +1,6 @@
 use std::io;
 
-use submillisecond::{handler::HandlerFn, router, Application, Middleware};
+use submillisecond::{router, Application, Middleware, Router};
 
 #[derive(Default)]
 struct LoggingMiddleware;
@@ -47,7 +47,7 @@ fn foo_baz_handler() -> &'static str {
     "foo baz"
 }
 
-const FOO_ROUTER: HandlerFn = router! {
+const FOO_ROUTER: Router = router! {
     use FooMiddleware;
 
     "/foo" => {
@@ -55,7 +55,7 @@ const FOO_ROUTER: HandlerFn = router! {
     }
 };
 
-const BAZ_ROUTER: HandlerFn = router! {
+const BAZ_ROUTER: Router = router! {
     use BazMiddleware;
 
     "/baz" => {
@@ -63,7 +63,7 @@ const BAZ_ROUTER: HandlerFn = router! {
     }
 };
 
-const V1_ROUTER: HandlerFn = router![FOO_ROUTER, BAZ_ROUTER];
+const V1_ROUTER: Router = router![FOO_ROUTER, BAZ_ROUTER];
 
 fn main() -> io::Result<()> {
     Application::new(router! {

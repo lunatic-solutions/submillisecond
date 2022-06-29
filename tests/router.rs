@@ -1,13 +1,6 @@
 use http::Method;
 use lunatic_test::test;
-use std::borrow::Cow;
-use submillisecond::{
-    core::UriReader,
-    params::Params,
-    router,
-    router::{Route, RouteError},
-    Request,
-};
+use submillisecond::{core::UriReader, params::Params, router, Request, RouteError};
 
 macro_rules! build_request {
     ($method: ident, $uri: literal) => {
@@ -17,7 +10,6 @@ macro_rules! build_request {
         Request::builder()
             .method(Method::$method)
             .uri($uri)
-            .extension(Route(Cow::Borrowed($uri)))
             .body($body.to_vec())
             .unwrap()
     };

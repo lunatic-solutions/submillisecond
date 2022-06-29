@@ -1,10 +1,4 @@
-use crate::{
-    core::UriReader, extract::FromRequest, params::Params, request_context, response::IntoResponse,
-    router::RouteError, Request, Response,
-};
-
-pub type HandlerFn<Req = Vec<u8>, Res = Vec<u8>> =
-    fn(Request<Req>, Params, UriReader) -> Result<Response<Res>, RouteError>;
+use crate::{extract::FromRequest, request_context, response::IntoResponse, Request, Response};
 
 pub trait Handler {
     type Response: IntoResponse;
@@ -57,22 +51,7 @@ macro_rules! impl_handler {
 }
 
 impl_handler!();
-impl_handler!(E1);
-impl_handler!(E1, E2);
-impl_handler!(E1, E2, E3);
-impl_handler!(E1, E2, E3, E4);
-impl_handler!(E1, E2, E3, E4, E5);
-impl_handler!(E1, E2, E3, E4, E5, E6);
-impl_handler!(E1, E2, E3, E4, E5, E6, E7);
-impl_handler!(E1, E2, E3, E4, E5, E6, E7, E8);
-impl_handler!(E1, E2, E3, E4, E5, E6, E7, E8, E9);
-impl_handler!(E1, E2, E3, E4, E5, E6, E7, E8, E9, E10);
-impl_handler!(E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11);
-impl_handler!(E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12);
-impl_handler!(E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13);
-impl_handler!(E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13, E14);
-impl_handler!(E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13, E14, E15);
-impl_handler!(E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13, E14, E15, E16);
+all_the_tuples!(impl_handler);
 
 macro_rules! impl_arity {
     ( $value: literal $( , $args: ident )* ) => {
@@ -86,22 +65,7 @@ macro_rules! impl_arity {
 }
 
 impl_arity!(0);
-impl_arity!(1, A);
-impl_arity!(2, A, B);
-impl_arity!(3, A, B, C);
-impl_arity!(4, A, B, C, D);
-impl_arity!(5, A, B, C, D, E);
-impl_arity!(6, A, B, C, D, E, F);
-impl_arity!(7, A, B, C, D, E, F, G);
-impl_arity!(8, A, B, C, D, E, F, G, H);
-impl_arity!(9, A, B, C, D, E, F, G, H, I);
-impl_arity!(10, A, B, C, D, E, F, G, H, I, J);
-impl_arity!(11, A, B, C, D, E, F, G, H, I, J, K);
-impl_arity!(12, A, B, C, D, E, F, G, H, I, J, K, L);
-impl_arity!(13, A, B, C, D, E, F, G, H, I, J, K, L, M);
-impl_arity!(14, A, B, C, D, E, F, G, H, I, J, K, L, M, N);
-impl_arity!(15, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O);
-impl_arity!(16, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
+all_the_tuples!(impl_arity, numbered);
 
 macro_rules! impl_fn_ptr_decay {
     ( $value: literal $( , $args: ident )* ) => {
@@ -112,19 +76,4 @@ macro_rules! impl_fn_ptr_decay {
 }
 
 impl_fn_ptr_decay!(0);
-impl_fn_ptr_decay!(1, A);
-impl_fn_ptr_decay!(2, A, B);
-impl_fn_ptr_decay!(3, A, B, C);
-impl_fn_ptr_decay!(4, A, B, C, D);
-impl_fn_ptr_decay!(5, A, B, C, D, E);
-impl_fn_ptr_decay!(6, A, B, C, D, E, F);
-impl_fn_ptr_decay!(7, A, B, C, D, E, F, G);
-impl_fn_ptr_decay!(8, A, B, C, D, E, F, G, H);
-impl_fn_ptr_decay!(9, A, B, C, D, E, F, G, H, I);
-impl_fn_ptr_decay!(10, A, B, C, D, E, F, G, H, I, J);
-impl_fn_ptr_decay!(11, A, B, C, D, E, F, G, H, I, J, K);
-impl_fn_ptr_decay!(12, A, B, C, D, E, F, G, H, I, J, K, L);
-impl_fn_ptr_decay!(13, A, B, C, D, E, F, G, H, I, J, K, L, M);
-impl_fn_ptr_decay!(14, A, B, C, D, E, F, G, H, I, J, K, L, M, N);
-impl_fn_ptr_decay!(15, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O);
-impl_fn_ptr_decay!(16, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
+all_the_tuples!(impl_fn_ptr_decay, numbered);

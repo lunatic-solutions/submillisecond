@@ -81,7 +81,7 @@ impl MethodTries {
             match *__req.method() {
                 #expanded_method_arms
 
-                _ => ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req)),
+                _ => ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req)),
             }
         }
     }
@@ -127,7 +127,7 @@ impl MethodTries {
             Some(quote! {
                 #method => {
                     #( #arms )*
-                    return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
+                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
                 }
             })
         });
@@ -388,7 +388,7 @@ impl MethodTries {
                     //}
                     // since path continues there has to be a separator
                     if !__reader.ensure_next_slash() {
-                        return ::std::result::Result::Err(::submillisecond::router::RouteError::RouteNotMatch(__req));
+                        return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
                     }
                     #source
                 }

@@ -11,9 +11,7 @@ use lunatic::{
     supervisor::Supervisor,
 };
 use serde::{Deserialize, Serialize};
-use submillisecond::{
-    handler::HandlerFn, json::Json, params::Params, router, Application, Middleware,
-};
+use submillisecond::{json::Json, params::Params, router, Application, Middleware, Router};
 use uuid::Uuid;
 
 // =====================================
@@ -73,7 +71,7 @@ impl FileLog {
         FileLog {
             // cwd,
             // file_name,
-            full_path: full_path.to_path_buf(),
+            full_path: full_path.clone(),
             file: match File::create(&full_path) {
                 Err(why) => panic!("couldn't open {:?}: {}", cwd, why),
                 // write 0 as initial cursor
@@ -177,7 +175,7 @@ impl ProcessRequest<CreateUserDto> for PersistenceProcess {
         CreateUserDto { nickname, name }: CreateUserDto,
     ) -> Self::Response {
         let user_uuid = Uuid::new_v4();
-        if let Some(_) = state.users_nicknames.get(&nickname) {
+        if state.users_nicknames.get(&nickname).is_some() {
             // user already exists
             return None;
         }
@@ -235,7 +233,7 @@ impl ProcessRequest<ListTodos> for PersistenceProcess {
         // self.todos_wal
         //     .append_confirmation(message_uuid, pubrel.clone(), SystemTime::now());
         if let Some(user) = state.users.get_mut(&user_id) {
-            return user.todos.iter().map(|t| t.clone()).collect();
+            return user.todos.iter().cloned().collect();
         }
         vec![]
     }
@@ -313,7 +311,7 @@ fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
     if persistence.request(AddTodo(Uuid::from_str(user_id).unwrap(), todo.clone())) {
         return submillisecond::json::Json(Some(todo));
     }
-    return submillisecond::json::Json(None);
+    submillisecond::json::Json(None)
 }
 
 fn liveness_check() -> &'static str {
@@ -322,14 +320,13 @@ fn liveness_check() -> &'static str {
 }
 
 // has the prefix /api/mgmt
-const MGMT_ROUTER: HandlerFn = router! {
-
+const MGMT_ROUTER: Router = router! {
     GET "/alive" => liveness_check
     GET "/health" => liveness_check
     GET "/metrics" => liveness_check
 };
 
-const ROUTER: HandlerFn = router! {
+const ROUTER: Router = router! {
     use LoggingMiddleware;
 
     "/api/users" => {
