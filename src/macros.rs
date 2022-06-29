@@ -150,4 +150,22 @@ macro_rules! all_the_tuples {
         $name!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15);
         $name!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16);
     };
+    ($name:ident, numbered) => {
+        $name!(1, T1);
+        $name!(2, T1, T2);
+        $name!(3, T1, T2, T3);
+        $name!(4, T1, T2, T3, T4);
+        $name!(5, T1, T2, T3, T4, T5);
+        $name!(6, T1, T2, T3, T4, T5, T6);
+        $name!(7, T1, T2, T3, T4, T5, T6, T7);
+        $name!(8, T1, T2, T3, T4, T5, T6, T7, T8);
+        $name!(9, T1, T2, T3, T4, T5, T6, T7, T8, T9);
+        $name!(10, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+        $name!(11, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+        $name!(12, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
+        $name!(13, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13);
+        $name!(14, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14);
+        $name!(15, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15);
+        $name!(16, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16);
+    };
 }
