@@ -34,6 +34,7 @@ pub struct MethodTries {
 
 #[derive(Clone, Debug)]
 struct MethodValue {
+    method: Option<Method>,
     guards: Option<TokenStream>,
     body: TokenStream,
 }
@@ -94,44 +95,45 @@ impl MethodTries {
 
     fn expand_method_arms(&mut self) -> TokenStream {
         let pairs = [
-            (
-                quote! { ::submillisecond::http::Method::GET },
-                Self::expand_method_trie(vec![], self.get.children()),
-            ),
-            (
-                quote! { ::submillisecond::http::Method::POST },
-                Self::expand_method_trie(vec![], self.post.children()),
-            ),
-            (
-                quote! { ::submillisecond::http::Method::PUT },
-                Self::expand_method_trie(vec![], self.put.children()),
-            ),
-            (
-                quote! { ::submillisecond::http::Method::DELETE },
-                Self::expand_method_trie(vec![], self.delete.children()),
-            ),
-            (
-                quote! { ::submillisecond::http::Method::HEAD },
-                Self::expand_method_trie(vec![], self.head.children()),
-            ),
-            (
-                quote! { ::submillisecond::http::Method::OPTIONS },
-                Self::expand_method_trie(vec![], self.options.children()),
-            ),
-            (
-                quote! { ::submillisecond::http::Method::PATCH },
-                Self::expand_method_trie(vec![], self.patch.children()),
-            ),
+            (quote! { ::http::Method::GET }, self.get.children()),
+            (quote! { ::http::Method::POST }, self.post.children()),
+            (quote! { ::http::Method::PUT }, self.put.children()),
+            (quote! { ::http::Method::DELETE }, self.delete.children()),
+            (quote! { ::http::Method::HEAD }, self.head.children()),
+            (quote! { ::http::Method::OPTIONS }, self.options.children()),
+            (quote! { ::http::Method::PATCH }, self.patch.children()),
         ];
 
         // build expanded per-method match, only implement if at least one route for method is defined, otherwise
         // fall back to default impl
-        let expanded = pairs.iter().filter_map(|(method, arms)| {
+        let expanded = pairs.into_iter().filter_map(|(method, children)| {
+            let arms = Self::expand_method_trie(vec![], children.clone());
             if arms.is_empty() {
                 return None;
             }
+
+            fn flatten_methods(methods: &mut Vec<Method>, children: Children<MethodValue>) {
+                for node in children {
+                    if let Some(value) = &node.value {
+                        if let Some(method) = &value.method {
+                            methods.push(*method);
+                        }
+                    }
+
+                    if !node.is_leaf() {
+                        flatten_methods(methods, node.children());
+                    }
+                }
+            }
+
+            let mut methods = Vec::new();
+            flatten_methods(&mut methods, children);
+
             Some(quote! {
                 #method => {
+                    // Forward spans for method prefix syntax highlighting.
+                    // Without this, the GET/POST keywords wouldn't be highlighted correctly in the IDE.
+                    #( let _ = ::http::Method::#methods; )*
                     #( #arms )*
                     return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
                 }
@@ -194,6 +196,7 @@ impl MethodTries {
                 ItemHandler::Fn(handler_ident) => {
                     if let Some(method) = method {
                         let value = MethodValue {
+                            method: Some(*method),
                             guards: guards_expanded,
                             body: quote! {
                                 if __reader.is_dangling_slash() {
@@ -220,6 +223,7 @@ impl MethodTries {
                         self.insert(*method, new_path.value(), value);
                     } else {
                         let value = MethodValue {
+                            method: None,
                             guards: guards_expanded,
                             body: quote! {
                                 ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
@@ -233,6 +237,7 @@ impl MethodTries {
                 }
                 ItemHandler::Macro(macro_expanded) => {
                     let value = MethodValue {
+                        method: None,
                         guards: guards_expanded,
                         body: quote! {
                             ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
@@ -253,6 +258,7 @@ impl MethodTries {
                 }
                 ItemHandler::SubRouter(Router::List(list)) => {
                     let value = MethodValue {
+                        method: None,
                         guards: guards_expanded,
                         body: list.expand_inner(&full_middlewares),
                     };
@@ -274,7 +280,7 @@ impl MethodTries {
     }
 
     fn expand_param_child(
-        mut child: Node<MethodValue>,
+        child: Node<MethodValue>,
         (lit_prefix, param, lit_suffix): (String, String, String),
         full_path: Vec<u8>,
     ) -> TokenStream {
@@ -287,7 +293,12 @@ impl MethodTries {
         let len = lit_suffix.len();
         match lit_suffix.as_str() {
             "" => {
-                if let Some(MethodValue { guards, body }) = child.value.as_ref() {
+                if let Some(MethodValue {
+                    method: _,
+                    guards,
+                    body,
+                }) = child.value.as_ref()
+                {
                     output = quote! {
                         if __reader.is_dangling_slash() #guards {
                             #body
@@ -303,7 +314,12 @@ impl MethodTries {
                 }
             }
             "/" => {
-                if let Some(MethodValue { guards, body }) = child.value.as_ref() {
+                if let Some(MethodValue {
+                    method: _,
+                    guards,
+                    body,
+                }) = child.value.as_ref()
+                {
                     output = quote! {
                         if __reader.is_dangling_slash() #guards {
                             #body
@@ -334,7 +350,12 @@ impl MethodTries {
                 let body = if !conseq_expanded.is_empty() {
                     conseq_expanded
                 } else if conseq_expanded.is_empty() && child.is_leaf() {
-                    if let Some(MethodValue { guards, body }) = child.value.as_ref() {
+                    if let Some(MethodValue {
+                        method: _,
+                        guards,
+                        body,
+                    }) = child.value.as_ref()
+                    {
                         quote! {
                             if __reader.peek(#len) == #lit_suffix #guards {
                                 __reader.read(#len);
@@ -346,7 +367,12 @@ impl MethodTries {
                     }
                 } else {
                     let recur = Self::expand_method_trie(full_path, child.children());
-                    if let Some(MethodValue { guards, body }) = child.value.as_ref() {
+                    if let Some(MethodValue {
+                        method: _,
+                        guards,
+                        body,
+                    }) = child.value.as_ref()
+                    {
                         quote! {
                             if __reader.peek(#len) == #lit_suffix #guards {
                                 __reader.read(#len);
@@ -391,7 +417,11 @@ impl MethodTries {
     fn expand_node_with_value(
         path: String,
         source: TokenStream,
-        MethodValue { guards, body }: &MethodValue,
+        MethodValue {
+            method: _,
+            guards,
+            body,
+        }: &MethodValue,
     ) -> TokenStream {
         let len = path.len();
         if path.len() > 1 && path.ends_with('/') {
@@ -399,10 +429,9 @@ impl MethodTries {
             return quote! {
                 if __reader.peek(#len) == #path #guards {
                     __reader.read(#len);
-                    //if __reader.is_dangling_slash() {
-                        #body
-                    //}
-                    // since path continues there has to be a separator
+                    #body
+
+                        // since path continues there has to be a separator
                     if !__reader.ensure_next_slash() {
                         return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
                     }
@@ -423,7 +452,7 @@ impl MethodTries {
 
     fn expand_method_trie(full_path: Vec<u8>, children: Children<MethodValue>) -> Vec<TokenStream> {
         children
-            .map(|mut child| {
+            .map(|child| {
                 let path = String::from_utf8(child.prefix.clone()).unwrap();
                 let id = [full_path.clone(), path.as_bytes().to_vec()].concat();
                 let captures = RE
