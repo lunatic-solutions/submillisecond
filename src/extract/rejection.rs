@@ -1,4 +1,6 @@
-use crate::{response::IntoResponse, BoxError, Error, Response};
+use crate::{response::IntoResponse, Response};
+#[cfg(feature = "query")]
+use crate::{BoxError, Error};
 
 use super::path::FailedToDeserializePathParams;
 
@@ -24,12 +26,14 @@ composite_rejection! {
 
 /// Rejection type for extractors that deserialize query strings if the input
 /// couldn't be deserialized into the target type.
+#[cfg(feature = "query")]
 #[derive(Debug)]
 pub struct FailedToDeserializeQueryString {
     error: Error,
     type_name: &'static str,
 }
 
+#[cfg(feature = "query")]
 impl FailedToDeserializeQueryString {
     #[doc(hidden)]
     pub fn __private_new<T, E>(error: E) -> Self
@@ -43,12 +47,14 @@ impl FailedToDeserializeQueryString {
     }
 }
 
+#[cfg(feature = "query")]
 impl IntoResponse for FailedToDeserializeQueryString {
     fn into_response(self) -> Response {
         (http::StatusCode::UNPROCESSABLE_ENTITY, self.to_string()).into_response()
     }
 }
 
+#[cfg(feature = "query")]
 impl std::fmt::Display for FailedToDeserializeQueryString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -59,8 +65,10 @@ impl std::fmt::Display for FailedToDeserializeQueryString {
     }
 }
 
+#[cfg(feature = "query")]
 impl std::error::Error for FailedToDeserializeQueryString {}
 
+#[cfg(feature = "query")]
 composite_rejection! {
     /// Rejection used for [`Query`](super::Query).
     ///
@@ -88,6 +96,7 @@ composite_rejection! {
     }
 }
 
+#[cfg(feature = "json")]
 define_rejection! {
     #[status = UNPROCESSABLE_ENTITY]
     #[body = "Failed to deserialize the JSON body into the target type"]
@@ -99,6 +108,7 @@ define_rejection! {
     pub struct JsonDataError(Error);
 }
 
+#[cfg(feature = "json")]
 define_rejection! {
     #[status = BAD_REQUEST]
     #[body = "Failed to parse the request body as JSON"]
@@ -109,6 +119,7 @@ define_rejection! {
     pub struct JsonSyntaxError(Error);
 }
 
+#[cfg(feature = "json")]
 define_rejection! {
     #[status = UNSUPPORTED_MEDIA_TYPE]
     #[body = "Expected request with `Content-Type: application/json`"]
@@ -118,6 +129,7 @@ define_rejection! {
     pub struct MissingJsonContentType;
 }
 
+#[cfg(feature = "json")]
 composite_rejection! {
     /// Rejection used for [`Json`](crate::json::Json).
     ///
