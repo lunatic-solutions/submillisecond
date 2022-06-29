@@ -219,7 +219,7 @@ mod tests {
         trie.insert("/vec".to_string(), "/");
         trie.insert("/json".to_string(), "/");
 
-        let prefixes: Vec<Vec<u8>> = trie.children().map(|c| c.prefix.clone()).collect();
+        let prefixes: Vec<Vec<u8>> = trie.children().map(|c| c.prefix).collect();
         assert_eq!(prefixes, vec![vec![47]])
     }
 }
