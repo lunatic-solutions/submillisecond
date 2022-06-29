@@ -3,14 +3,17 @@
 //! Many of the types and implementations were taken from [Axum](https://crates.io/crates/axum).
 
 pub use path::Path;
+#[cfg(feature = "query")]
 pub use query::Query;
 pub use typed_header::TypedHeader;
 
 mod header_map;
+#[cfg(feature = "json")]
 mod json;
 mod method;
 mod params;
 pub mod path;
+#[cfg(feature = "query")]
 mod query;
 pub mod rejection;
 mod request;
