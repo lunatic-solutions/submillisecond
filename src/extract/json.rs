@@ -23,11 +23,11 @@ where
             return Err(MissingJsonContentType.into());
         }
 
-        let body = String::from_utf8_lossy(req.body());
-        println!("{body}");
-        let pp = serde_json::from_str::<T>(&body);
-        println!("{pp:?}");
-        println!("{:?}", req.body());
+        // let body = String::from_utf8_lossy(req.body());
+        // println!("{body}");
+        // let pp = serde_json::from_str::<T>(&body);
+        // println!("{pp:?}");
+        // println!("{:?}", req.body());
 
         let value = match serde_json::from_slice(req.body()) {
             Ok(value) => value,

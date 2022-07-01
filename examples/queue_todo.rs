@@ -111,10 +111,11 @@ impl FileLog {
                 "[FileLog {:?}] couldn't write to file: {}",
                 self.full_path, why
             ),
-            Ok(_) => println!(
-                "[FileLog {:?}] Successfully appended log to file",
-                self.full_path
-            ),
+            Ok(_) => {}
+            // Ok(_) => println!(
+            //     "[FileLog {:?}] Successfully appended log to file",
+            //     self.full_path
+            // ),
         };
     }
 }
@@ -304,7 +305,7 @@ fn poll_todo(params: Params) -> Json<Todo> {
 fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
     let user_id = params.get("user_id").unwrap();
-    println!("RECEIVED BODY {:?} | {user_id}", body);
+    // println!("RECEIVED BODY {:?} | {user_id}", body);
     let todo = Todo {
         uuid: Uuid::new_v4(),
         title: body.0.title,

@@ -2,12 +2,11 @@ use crate::core;
 use crate::response::IntoResponse;
 use crate::router::Route;
 use crate::{handler::HandlerFn, Response};
-use http::{header, HeaderValue, Version};
-use lunatic::process::{Message, ProcessRequest, Request};
+use http::{header, HeaderValue};
 use lunatic::{
     host,
     net::TcpStream,
-    process::{AbstractProcess, ProcessMessage, ProcessRef},
+    process::{AbstractProcess, Message, ProcessMessage, ProcessRef},
     Mailbox, Process,
 };
 use serde::{Deserialize, Serialize};
@@ -19,6 +18,8 @@ use std::mem;
 pub struct RequestSupervisorProcess {
     stream: TcpStream,
     this: ProcessRef<Self>,
+    pointer_raw: usize,
+    handler_process: Process<()>,
 }
 
 impl AbstractProcess for RequestSupervisorProcess {
@@ -34,10 +35,12 @@ impl AbstractProcess for RequestSupervisorProcess {
             child_handler_process,
         );
 
-        // link handler process such that handle_link_trapped is called
-        handler_process.link();
-
-        RequestSupervisorProcess { stream, this }
+        RequestSupervisorProcess {
+            stream,
+            this,
+            pointer_raw,
+            handler_process,
+        }
     }
 
     fn terminate(_state: Self::State) {}
@@ -69,70 +72,74 @@ fn child_handler_process(
         mem::transmute::<*const (), HandlerFn>(pointer)
     };
 
-    let mut pipelining_enabled = false;
-    loop {
-        let mut request = match core::parse_request(stream.clone()) {
-            Ok(request) => request,
-            Err(err) => {
-                return match core::encode_response(err.into_response()) {
-                    Ok(output) => parent.send(output),
-                    Err(err) => {
-                        eprintln!("[http reader] Failed to send response {:?}", err);
-                        panic!("Failed to parse request {:?}", err);
-                    }
-                };
-            }
-        };
-
-        if request.version() == Version::HTTP_11 {
-            pipelining_enabled = true;
+    let mut keep_alive = false;
+    let mut request = match core::parse_request(stream.clone()) {
+        Ok(request) => request,
+        Err(err) => {
+            return match core::encode_response(err.into_response()) {
+                Ok(output) => parent.send(ChildResponse(output, keep_alive)),
+                Err(err) => {
+                    eprintln!("[http reader] Failed to send response {:?}", err);
+                    panic!("Failed to parse request {:?}", err);
+                }
+            };
         }
+    };
 
-        let path = request.uri().path().to_string();
-        let extensions = request.extensions_mut();
-        extensions.insert(Route(Cow::Owned(path.clone())));
-        let http_version = request.version();
-
-        let params = crate::params::Params::new();
-        let reader = crate::uri_reader::UriReader::new(path);
-        let mut response =
-            handler(request, params, reader).unwrap_or_else(|err| err.into_response());
-
-        let content_length = response.body().len();
-        *response.version_mut() = http_version;
-        response
-            .headers_mut()
-            .append(header::CONTENT_LENGTH, HeaderValue::from(content_length));
-
-        match core::encode_response(response) {
-            Ok(output) => parent.send(output),
-            Err(err) => eprintln!("[http reader] Failed to send response {:?}", err),
-        }
-
-        // break the loop
-        if !pipelining_enabled {
-            parent.request(StopSupervisor {});
-            break;
-        }
+    if let Some(conn) = request.headers().get("Connection") {
+        keep_alive = conn == "keep-alive";
     }
-}
 
-impl ProcessMessage<Vec<u8>> for RequestSupervisorProcess {
-    fn handle(state: &mut RequestSupervisorProcess, response: Vec<u8>) {
-        if let Err(err) = state.stream.write_all(&response) {
-            eprintln!("[http reader] Failed to send response {:?}", err);
-        }
-        state.this.shutdown()
+    let path = request.uri().path().to_string();
+    let extensions = request.extensions_mut();
+    extensions.insert(Route(Cow::Owned(path.clone())));
+
+    let path = request.uri().path().to_string();
+    let extensions = request.extensions_mut();
+    extensions.insert(Route(Cow::Owned(path.clone())));
+    let http_version = request.version();
+
+    let params = crate::params::Params::new();
+    let reader = crate::uri_reader::UriReader::new(path);
+    let mut response = handler(request, params, reader).unwrap_or_else(|err| err.into_response());
+
+    let content_length = response.body().len();
+    *response.version_mut() = http_version;
+    response
+        .headers_mut()
+        .append(header::CONTENT_LENGTH, HeaderValue::from(content_length));
+
+    match core::encode_response(response) {
+        Ok(output) => parent.send(ChildResponse(output, keep_alive)),
+        Err(err) => eprintln!("[http reader] Failed to send response {:?}", err),
     }
 }
 
 #[derive(Serialize, Deserialize)]
-struct StopSupervisor;
-impl ProcessRequest<StopSupervisor> for RequestSupervisorProcess {
-    type Response = bool;
-
-    fn handle(state: &mut RequestSupervisorProcess, _: StopSupervisor) -> bool {
-        state.this.shutdown();
-        true
+struct ChildResponse(
+    /// encoded http response of child process
+    Vec<u8>,
+    /// boolean indicating whether connection should be reused
+    bool,
+);
+impl ProcessMessage<ChildResponse> for RequestSupervisorProcess {
+    fn handle(
+        state: &mut RequestSupervisorProcess,
+        ChildResponse(response, keep_alive): ChildResponse,
+    ) {
+        if let Err(err) = state.stream.write_all(&response) {
+            eprintln!("[http reader] Failed to send response {:?}", err);
+        }
+        if keep_alive {
+            // unlink from finished handler
+            state.handler_process.unlink();
+            // create new process
+            state.handler_process = Process::spawn_link(
+                (state.stream.clone(), state.pointer_raw, state.this.clone()),
+                child_handler_process,
+            );
+        } else {
+            state.this.shutdown()
+        }
     }
 }
