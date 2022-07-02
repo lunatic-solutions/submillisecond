@@ -40,7 +40,10 @@ pub fn parse_request(stream: TcpStream) -> Result<Request, ParseRequestError> {
     let mut buf = [0_u8; REQUEST_BUFFER_SIZE];
 
     loop {
-        let i = reader.read(&mut buf).unwrap();
+        let i = match reader.read(&mut buf) {
+            Ok(i) => i,
+            Err(_) => return Err(ParseRequestError::MissingMethod),
+        };
         if i > 0 {
             raw_request.extend(&buf[..i]);
         }
@@ -117,4 +120,3 @@ impl IntoResponse for ParseRequestError {
         }
     }
 }
-

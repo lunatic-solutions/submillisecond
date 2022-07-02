@@ -386,12 +386,11 @@ checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 [[package]]
 name = "lunatic"
 version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3ce1e2012da260ffbb21cb60dc2e0dc0a178efc91cf0696b12a5c194f59cf44"
+source = "git+https://github.com/lunatic-solutions/lunatic-rs?branch=main#79c8e12bcc1b46dd317906a0169a94cf9083c4bc"
 dependencies = [
  "bincode",
  "lunatic-macros",
- "lunatic-test",
+ "lunatic-test 0.9.0 (git+https://github.com/lunatic-solutions/lunatic-rs?branch=main)",
  "paste",
  "protobuf",
  "rmp-serde",
@@ -403,8 +402,7 @@ dependencies = [
 [[package]]
 name = "lunatic-macros"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73c74f1d2a468540554a434ab18bffc42485f69a776f1851cf3390b8f43432e4"
+source = "git+https://github.com/lunatic-solutions/lunatic-rs?branch=main#79c8e12bcc1b46dd317906a0169a94cf9083c4bc"
 dependencies = [
  "quote",
  "syn",
@@ -415,6 +413,15 @@ name = "lunatic-test"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc7bb599e1f665a513db71a958640ef915575efc7712486be1bb0c43b59e105f"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "lunatic-test"
+version = "0.9.0"
+source = "git+https://github.com/lunatic-solutions/lunatic-rs?branch=main#79c8e12bcc1b46dd317906a0169a94cf9083c4bc"
 dependencies = [
  "quote",
  "syn",
@@ -638,6 +645,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_bytes"
+version = "0.11.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "212e73464ebcde48d723aa02eb270ba62eff38a9b732df31f33f1b4e145f3a54"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_cbor"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -703,12 +719,13 @@ dependencies = [
  "http",
  "httparse",
  "lunatic",
- "lunatic-test",
+ "lunatic-test 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime",
  "paste",
  "percent-encoding",
  "ron",
  "serde",
+ "serde_bytes",
  "serde_json",
  "serde_urlencoded",
  "submillisecond_macros",

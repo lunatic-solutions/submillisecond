@@ -162,7 +162,7 @@ impl ProcessRequest<AddTodo> for PersistenceProcess {
 
     fn handle(state: &mut Self::State, AddTodo(user_id, todo): AddTodo) -> bool {
         if let Some(user) = state.users.get_mut(&user_id) {
-            state.wal.append_push_todo(user.uuid, todo.clone());
+            // state.wal.append_push_todo(user.uuid, todo.clone());
             user.todos.push_back(todo);
             return true;
         }
@@ -188,7 +188,7 @@ impl ProcessRequest<CreateUserDto> for PersistenceProcess {
             name,
             todos: VecDeque::new(),
         };
-        state.wal.append_new_user(&user);
+        // state.wal.append_new_user(&user);
         state.users_nicknames.insert(nickname, user_uuid);
         state.users.insert(user_uuid, user);
         Some(user_uuid)
@@ -203,7 +203,7 @@ impl ProcessRequest<PollTodo> for PersistenceProcess {
     fn handle(state: &mut Self::State, PollTodo(user_id): PollTodo) -> Self::Response {
         if let Some(user) = state.users.get_mut(&user_id) {
             if let Some(front) = user.todos.front() {
-                state.wal.append_poll_todo(user.uuid, front.uuid);
+                // state.wal.append_poll_todo(user.uuid, front.uuid);
             }
             return user.todos.pop_front();
         }

@@ -46,7 +46,6 @@ impl AbstractProcess for RequestSupervisorProcess {
     fn terminate(_state: Self::State) {}
 
     fn handle_link_trapped(state: &mut Self::State, _tag: lunatic::Tag) {
-        println!("Handling trapped link");
         match Response::builder()
             .status(500)
             .body("Internal Server Error".as_bytes().to_vec())
@@ -80,7 +79,7 @@ fn child_handler_process(
                 Ok(output) => parent.send(ChildResponse(output, keep_alive)),
                 Err(err) => {
                     eprintln!("[http reader] Failed to send response {:?}", err);
-                    panic!("Failed to parse request {:?}", err);
+                    return parent.send(CloseConnection);
                 }
             };
         }
@@ -118,6 +117,7 @@ fn child_handler_process(
 #[derive(Serialize, Deserialize)]
 struct ChildResponse(
     /// encoded http response of child process
+    #[serde(with = "serde_bytes")]
     Vec<u8>,
     /// boolean indicating whether connection should be reused
     bool,
@@ -141,5 +141,16 @@ impl ProcessMessage<ChildResponse> for RequestSupervisorProcess {
         } else {
             state.this.shutdown()
         }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct CloseConnection;
+impl ProcessMessage<CloseConnection> for RequestSupervisorProcess {
+    fn handle(state: &mut RequestSupervisorProcess, _: CloseConnection) {
+        state.handler_process.unlink();
+
+        println!("Shutting down supervisor...");
+        state.this.shutdown()
     }
 }
