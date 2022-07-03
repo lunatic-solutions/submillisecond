@@ -32,11 +32,11 @@ impl Middleware for LoggingMiddleware {
             .and_then(|req_id| req_id.to_str().ok())
             .map(|req_id| req_id.to_string())
             .unwrap_or_else(|| "DEFAULT_REQUEST_ID".to_string());
-        println!("[ENTER] request {}", self.request_id);
+        // println!("[ENTER] request {}", self.request_id);
     }
 
     fn after(&self, _res: &mut submillisecond::Response) {
-        println!("[EXIT] request {}", self.request_id);
+        // println!("[EXIT] request {}", self.request_id);
     }
 }
 
@@ -111,11 +111,10 @@ impl FileLog {
                 "[FileLog {:?}] couldn't write to file: {}",
                 self.full_path, why
             ),
-            Ok(_) => {}
-            // Ok(_) => println!(
-            //     "[FileLog {:?}] Successfully appended log to file",
-            //     self.full_path
-            // ),
+            Ok(_) => println!(
+                "[FileLog {:?}] Successfully appended log to file",
+                self.full_path
+            ),
         };
     }
 }

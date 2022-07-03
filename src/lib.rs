@@ -8,7 +8,7 @@ use lunatic::{
 };
 use params::Params;
 pub use submillisecond_macros::*;
-use supervisor::RequestSupervisorProcess;
+use supervisor::{RequestProcessConfig, RequestSupervisorProcess};
 
 pub use crate::error::{BoxError, Error};
 pub use crate::response::Response;
@@ -34,14 +34,18 @@ pub mod uri_reader;
 /// Type alias for [`http::Request`] whose body defaults to [`String`].
 pub type Request<T = Vec<u8>> = http::Request<T>;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Application {
     router: HandlerFn,
+    config: RequestProcessConfig,
 }
 
 impl Application {
     pub fn new(router: HandlerFn) -> Self {
-        Application { router }
+        Application {
+            router,
+            config: RequestProcessConfig::default(),
+        }
     }
 
     pub fn merge_extensions(request: &mut Request, params: &mut Params) {
@@ -56,12 +60,23 @@ impl Application {
         };
     }
 
+    pub fn use_config(&mut self, config: RequestProcessConfig) {
+        self.config = config;
+    }
+
     pub fn serve<A: ToSocketAddrs>(self, addr: A) -> io::Result<()> {
         let listener = TcpListener::bind(addr)?;
 
         while let Ok((stream, _)) = listener.accept() {
             println!("[NEW_TCP] opening new tcp stream");
-            RequestSupervisorProcess::start((stream, self.router as *const () as usize), None);
+            RequestSupervisorProcess::start(
+                (
+                    stream,
+                    self.router as *const () as usize,
+                    self.config.clone(),
+                ),
+                None,
+            );
         }
 
         Ok(())

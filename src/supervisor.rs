@@ -13,6 +13,23 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::io::Write;
 use std::mem;
+use std::time::{Duration, Instant};
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct RequestProcessConfig {
+    /// the duration after which a request should be closed due to timeout
+    /// if the connection has not received a request yet
+    /// defaults to 60 seconds
+    max_request_duration: Duration,
+}
+
+impl Default for RequestProcessConfig {
+    fn default() -> Self {
+        Self {
+            max_request_duration: Duration::new(60, 0),
+        }
+    }
+}
 
 /// The `RequestSupervisorProcess` is supervising one instance of a `RequestProcess`.
 pub struct RequestSupervisorProcess {
@@ -20,13 +37,15 @@ pub struct RequestSupervisorProcess {
     this: ProcessRef<Self>,
     pointer_raw: usize,
     handler_process: Process<()>,
+    last_request: Option<Instant>,
+    config: RequestProcessConfig,
 }
 
 impl AbstractProcess for RequestSupervisorProcess {
-    type Arg = (TcpStream, usize);
+    type Arg = (TcpStream, usize, RequestProcessConfig);
     type State = Self;
 
-    fn init(this: ProcessRef<Self>, (stream, pointer_raw): Self::Arg) -> Self::State {
+    fn init(this: ProcessRef<Self>, (stream, pointer_raw, config): Self::Arg) -> Self::State {
         // RequestSupervisorProcess shouldn't die when a request handler dies.
         unsafe { host::api::process::die_when_link_dies(1) };
         // spawn a new process that reads from the stream and sends back a message
@@ -35,11 +54,15 @@ impl AbstractProcess for RequestSupervisorProcess {
             child_handler_process,
         );
 
+        this.send_after(CloseConnection::Timeout, config.max_request_duration);
+
         RequestSupervisorProcess {
             stream,
             this,
             pointer_raw,
             handler_process,
+            last_request: None,
+            config,
         }
     }
 
@@ -79,11 +102,13 @@ fn child_handler_process(
                 Ok(output) => parent.send(ChildResponse(output, keep_alive)),
                 Err(err) => {
                     eprintln!("[http reader] Failed to send response {:?}", err);
-                    return parent.send(CloseConnection);
+                    return parent.send(CloseConnection::End);
                 }
             };
         }
     };
+
+    parent.send(ReceivedRequest);
 
     if let Some(conn) = request.headers().get("Connection") {
         keep_alive = conn == "keep-alive";
@@ -145,12 +170,51 @@ impl ProcessMessage<ChildResponse> for RequestSupervisorProcess {
 }
 
 #[derive(Serialize, Deserialize)]
-struct CloseConnection;
+enum CloseConnection {
+    Timeout,
+    End,
+}
 impl ProcessMessage<CloseConnection> for RequestSupervisorProcess {
-    fn handle(state: &mut RequestSupervisorProcess, _: CloseConnection) {
+    fn handle(state: &mut RequestSupervisorProcess, reason: CloseConnection) {
+        if let CloseConnection::Timeout = reason {
+            if let Some(last) = state.last_request.map(|l| Instant::now().duration_since(l)) {
+                // last response was sent not that long ago, call send_after again
+                if last < state.config.max_request_duration {
+                    state.this.send_after(
+                        CloseConnection::Timeout,
+                        state.config.max_request_duration - last,
+                    );
+                    return;
+                }
+            }
+            // kill handler
+            state.handler_process.unlink();
+            state.handler_process.kill();
+            println!("Closing connection due to timeout");
+            // unwrap builder result here because there's something really bad going on if this fails
+            return match core::encode_response(
+                Response::builder().status(408).body(vec![]).unwrap(),
+            ) {
+                Ok(response) => {
+                    if let Err(e) = state.stream.write_all(&response) {
+                        eprintln!("Failed to send 408 timeout to client {:?}", e);
+                    }
+                    return state.this.shutdown();
+                }
+                Err(enc) => eprintln!("Failed to encode 408 response {:?}", enc),
+            };
+        }
         state.handler_process.unlink();
 
         println!("Shutting down supervisor...");
         state.this.shutdown()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct ReceivedRequest;
+impl ProcessMessage<ReceivedRequest> for RequestSupervisorProcess {
+    fn handle(state: &mut RequestSupervisorProcess, _: ReceivedRequest) {
+        state.last_request = Some(Instant::now());
     }
 }
