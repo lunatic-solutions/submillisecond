@@ -8,7 +8,7 @@ use syn::{
 
 #[derive(Debug, Default)]
 pub struct RouterList {
-    handlers: Punctuated<Path, Token![,]>,
+    pub handlers: Punctuated<Path, Token![,]>,
 }
 
 impl RouterList {
