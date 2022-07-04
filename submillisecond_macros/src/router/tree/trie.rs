@@ -142,7 +142,7 @@ impl<T: Debug + Clone> TrieNode<T> {
         }
     }
 
-    pub fn children(&mut self) -> Children<T> {
+    pub fn children(&self) -> Children<T> {
         Children::new(self.clone())
     }
 }
@@ -155,7 +155,7 @@ pub struct Node<T> {
 }
 
 impl<T: Clone + Debug> Node<T> {
-    pub fn children(&mut self) -> Children<T> {
+    pub fn children(&self) -> Children<T> {
         self.trie_node.children()
     }
 
@@ -167,7 +167,7 @@ impl<T: Clone + Debug> Node<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Children<T>
 where
     T: Debug + Clone,

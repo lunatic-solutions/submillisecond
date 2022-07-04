@@ -1,7 +1,5 @@
-use syn::{
-    parse::{Parse, ParseStream},
-    spanned::Spanned,
-};
+use quote::{quote, ToTokens};
+use syn::parse::{Parse, ParseStream};
 
 syn::custom_keyword!(GET);
 syn::custom_keyword!(POST);
@@ -11,7 +9,7 @@ syn::custom_keyword!(HEAD);
 syn::custom_keyword!(OPTIONS);
 syn::custom_keyword!(PATCH);
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub enum Method {
     Get(GET),
     Post(POST),
@@ -78,16 +76,16 @@ impl Parse for Method {
     }
 }
 
-impl Spanned for Method {
-    fn span(&self) -> proc_macro2::Span {
+impl ToTokens for Method {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
-            Method::Get(get) => get.span(),
-            Method::Post(post) => post.span(),
-            Method::Put(put) => put.span(),
-            Method::Delete(delete) => delete.span(),
-            Method::Head(head) => head.span(),
-            Method::Options(options) => options.span(),
-            Method::Patch(patch) => patch.span(),
+            Method::Get(get) => tokens.extend(quote! { #get }),
+            Method::Post(post) => tokens.extend(quote! { #post }),
+            Method::Put(put) => tokens.extend(quote! { #put }),
+            Method::Delete(delete) => tokens.extend(quote! { #delete }),
+            Method::Head(head) => tokens.extend(quote! { #head }),
+            Method::Options(options) => tokens.extend(quote! { #options }),
+            Method::Patch(patch) => tokens.extend(quote! { #patch }),
         }
     }
 }
