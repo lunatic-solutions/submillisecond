@@ -597,6 +597,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rust-crypto-wasm"
+version = "0.2.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea726b733930cff9deb62a5250266616b0b144569dd30d98866ef6fbe0734a0f"
+
+[[package]]
 name = "rust-format"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -686,6 +692,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_millis"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6e2dc780ca5ee2c369d1d01d100270203c4ff923d2a4264812d723766434d00"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -724,9 +739,11 @@ dependencies = [
  "paste",
  "percent-encoding",
  "ron",
+ "rust-crypto-wasm",
  "serde",
  "serde_bytes",
  "serde_json",
+ "serde_millis",
  "serde_urlencoded",
  "submillisecond_macros",
  "uuid",
