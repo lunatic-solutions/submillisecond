@@ -8,7 +8,7 @@ use syn::{
     token, Ident, Token,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ItemUseMiddleware {
     pub use_token: Token![use],
     pub leading_colon: Option<Token![::]>,
@@ -25,7 +25,7 @@ impl Parse for ItemUseMiddleware {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum UseMiddlewareTree {
     Path(UseMiddlewarePath),
     Name(UseMiddlewareName),
@@ -85,19 +85,19 @@ impl Parse for UseMiddlewareTree {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct UseMiddlewarePath {
     pub ident: Ident,
     pub colon2_token: Token![::],
     pub tree: Box<UseMiddlewareTree>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct UseMiddlewareName {
     pub ident: Ident,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct UseMiddlewareGroup {
     pub brace_token: token::Brace,
     pub items: Punctuated<UseMiddlewareTree, Token![,]>,

@@ -80,7 +80,7 @@ impl MethodTries {
     }
 
     fn expand_subrouter(&mut self) -> (TokenStream, TokenStream) {
-        let expanded = Self::expand_method_trie(vec![], self.subrouters.children());
+        let expanded = Self::expand_method_trie(&[], self.subrouters.children());
         (
             quote! {
                 #( #expanded )*
@@ -107,7 +107,7 @@ impl MethodTries {
         // build expanded per-method match, only implement if at least one route for method is defined, otherwise
         // fall back to default impl
         let expanded = pairs.into_iter().filter_map(|(method, children)| {
-            let arms = Self::expand_method_trie(vec![], children.clone());
+            let arms = Self::expand_method_trie(&[], children.clone());
             if arms.is_empty() {
                 return None;
             }
@@ -282,7 +282,7 @@ impl MethodTries {
     fn expand_param_child(
         child: Node<MethodValue>,
         (lit_prefix, param, lit_suffix): (String, String, String),
-        full_path: Vec<u8>,
+        full_path: &[u8],
     ) -> TokenStream {
         let mut output = quote! {};
 
@@ -343,7 +343,7 @@ impl MethodTries {
                     .captures(&lit_suffix)
                     .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
                 let conseq_expanded = if let Some(consequent_params) = consequent_params {
-                    Self::expand_param_child(child.clone(), consequent_params, full_path.clone())
+                    Self::expand_param_child(child.clone(), consequent_params, full_path)
                 } else {
                     quote! {}
                 };
@@ -415,7 +415,7 @@ impl MethodTries {
     }
 
     fn expand_node_with_value(
-        path: String,
+        path: &str,
         source: TokenStream,
         MethodValue {
             method: _,
@@ -450,24 +450,24 @@ impl MethodTries {
         }
     }
 
-    fn expand_method_trie(full_path: Vec<u8>, children: Children<MethodValue>) -> Vec<TokenStream> {
+    fn expand_method_trie(full_path: &[u8], children: Children<MethodValue>) -> Vec<TokenStream> {
         children
             .map(|child| {
-                let path = String::from_utf8(child.prefix.clone()).unwrap();
-                let id = [full_path.clone(), path.as_bytes().to_vec()].concat();
+                let path = &child.prefix;
+                let id = [full_path, path.as_bytes()].concat();
                 let captures = RE
-                    .captures(&path)
+                    .captures(path)
                     .map(|m| (m[1].to_string(), m[2].to_string(), m[3].to_string()));
 
                 // split longest common prefix at param and insert param matching
                 if let Some(captures) = captures {
-                    return Self::expand_param_child(child, captures, id);
+                    return Self::expand_param_child(child, captures, &id);
                 }
                 let len = path.len();
 
                 // recursive expand if not leaf
                 if !child.is_leaf() {
-                    let recur = Self::expand_method_trie(id, child.children());
+                    let recur = Self::expand_method_trie(&id, child.children());
                     if let Some(v) = child.value {
                         return Self::expand_node_with_value(
                             path,
