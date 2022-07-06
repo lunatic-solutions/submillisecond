@@ -148,6 +148,10 @@ impl UriReader {
         self.cursor += len;
     }
 
+    pub fn read_back(&mut self, len: usize) {
+        self.cursor -= len;
+    }
+
     pub fn ensure_next_slash(&mut self) -> bool {
         if self.peek(1) == "/" {
             self.read(1);

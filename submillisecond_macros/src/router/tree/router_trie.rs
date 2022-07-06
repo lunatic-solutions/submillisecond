@@ -132,7 +132,18 @@ impl<'r> RouterTrie<'r> {
 
                     let body = match node_type {
                         NodeType::Handler => Self::expand_handler(handler, &middleware),
-                        NodeType::Subrouter => Self::expand_subrouter(handler, &middleware),
+                        NodeType::Subrouter => {
+                            let expanded = Self::expand_subrouter(handler, &middleware);
+                            if prefix.ends_with('/') {
+                                quote! {
+                                    __reader.read_back(1);
+
+                                    #expanded
+                                } 
+                            } else {
+                                expanded
+                            }
+                        },
                     };
 
                     quote! {
@@ -226,7 +237,7 @@ impl<'r> RouterTrie<'r> {
                 quote! {
                     #middleware_expanded
 
-                    (#subrouter_expanded)(__req, __params, __reader)
+                    return (#subrouter_expanded)(__req, __params, __reader)
                 }
             },
         }
