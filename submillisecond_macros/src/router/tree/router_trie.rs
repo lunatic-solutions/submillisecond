@@ -359,7 +359,7 @@ impl<'r> RouterTrie<'r> {
 
                 quote! {
                     if __reader.is_dangling_slash() {
-                        ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
+                        ::submillisecond::Application::merge_params(&mut __req, &mut __params);
 
                         #middleware_expanded
 
@@ -399,7 +399,7 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(middleware);
 
                 quote! {
-                    ::submillisecond::Application::merge_extensions(&mut __req, &mut __params);
+                    ::submillisecond::Application::merge_params(&mut __req, &mut __params);
 
                     #middleware_expanded
 
