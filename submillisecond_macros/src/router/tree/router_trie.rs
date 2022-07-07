@@ -239,7 +239,7 @@ impl<'r> RouterTrie<'r> {
                 }
             }
             _ => {
-                let captures = Self::capture_param_parts(prefix);
+                let captures = Self::capture_param_parts(suffix);
                 let conseq_expanded = match captures {
                     Some((prefix, param, suffix)) => {
                         Self::expand_param_node(full_path, node, prefix, param, suffix)
@@ -254,7 +254,7 @@ impl<'r> RouterTrie<'r> {
                         let ExpandedNodeParts {
                             guards_expanded,
                             handler_expanded,
-                        } = Self::expand_node_parts(prefix, value);
+                        } = Self::expand_node_parts(suffix, value);
 
                         expanded.append_all(quote! {
                             if __reader.peek(#suffix_len) == #suffix #guards_expanded {
@@ -270,7 +270,7 @@ impl<'r> RouterTrie<'r> {
                         let ExpandedNodeParts {
                             guards_expanded,
                             handler_expanded,
-                        } = Self::expand_node_parts(prefix, value);
+                        } = Self::expand_node_parts(suffix, value);
 
                         expanded.append_all(quote! {
                             if __reader.peek(#suffix_len) == #suffix #guards_expanded {
