@@ -2,11 +2,12 @@ use std::{fs, io, path::Path};
 
 use mime_guess::{mime, Mime};
 use proc_macro2::TokenStream;
-use quote::quote;
 use syn::{
     parse::{Parse, ParseStream},
     LitStr,
 };
+
+use crate::hquote;
 
 #[derive(Debug)]
 pub struct StaticDir {
@@ -17,19 +18,19 @@ impl StaticDir {
     pub fn expand(&self) -> TokenStream {
         let match_arms = self.expand_match_arms();
 
-        quote! {
+        hquote! {
             (|
-                mut __req: ::submillisecond::Request,
-                mut __params: ::submillisecond::params::Params,
-                mut __reader: ::submillisecond::core::UriReader
+                mut req: ::submillisecond::Request,
+                mut params: ::submillisecond::params::Params,
+                mut reader: ::submillisecond::core::UriReader
             | -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
-                if *__req.method() != ::submillisecond::http::Method::GET {
-                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
+                if *req.method() != ::submillisecond::http::Method::GET {
+                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req));
                 }
 
-                match __reader.read_to_end() {
+                match reader.read_to_end() {
                     #match_arms
-                    _ => ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req)),
+                    _ => ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req)),
                 }
             }) as ::submillisecond::Router
         }
@@ -39,9 +40,9 @@ impl StaticDir {
         let arms = self.files.iter().map(|StaticFile { mime, path, content }| {
             let path = format!("/{path}");
             let mime = mime.to_string();
-            let bytes = quote! { &[#( #content ),*] };
+            let bytes = hquote! { &[#( #content ),*] };
 
-            quote! {
+            hquote! {
                 #path => {
                     let mut headers = ::submillisecond::http::header::HeaderMap::new();
                     headers.insert(::submillisecond::http::header::CONTENT_TYPE, #mime.parse().unwrap());
@@ -50,7 +51,7 @@ impl StaticDir {
             }
         });
 
-        quote! { #( #arms, )* }
+        hquote! { #( #arms, )* }
     }
 }
 

@@ -1,9 +1,9 @@
 use lazy_static::lazy_static;
 use proc_macro2::TokenStream;
-use quote::{quote, TokenStreamExt};
+use quote::TokenStreamExt;
 use regex::Regex;
 
-use crate::router::Router;
+use crate::{hquote, router::Router};
 
 use super::{
     item_route::{ItemGuard, ItemHandler, ItemRoute},
@@ -34,7 +34,7 @@ pub struct RouterTrie<'r> {
 
 #[derive(Clone, Debug)]
 struct TrieValue<'r> {
-    guard: Vec<&'r ItemGuard>,
+    guards: Vec<&'r ItemGuard>,
     middleware: Vec<&'r ItemUseMiddleware>,
     handler: &'r ItemHandler,
     node_type: NodeType,
@@ -52,17 +52,17 @@ struct ExpandedNodeParts {
     handler_expanded: TokenStream,
 }
 
-macro_rules! quote_reader_fallback {
-    ($($tt:tt)*) => {{
-        let mut _s = quote::__private::TokenStream::new();
-        quote::quote_each_token!{_s $($tt)*}
-        quote! {
-            let __cursor = __reader.cursor;
-            {#_s}
-            __reader.cursor = __cursor;
-        }
-    }};
-}
+macro_rules! quote_reader_fallback {($($tt:tt)*) => {{
+    let mut _s = quote::__private::TokenStream::new();
+    let _span = proc_macro2::Span::mixed_site();
+    quote::quote_each_token_spanned!{ _s _span $($tt)* }
+    hquote! {
+        let cursor = reader.cursor;
+        {#_s}
+        #[allow(unreachable_code)]
+        { reader.cursor = cursor; }
+    }
+}}}
 
 impl<'r> RouterTrie<'r> {
     /// Create a new [`RouterTrie`] from an instance of [`RouterTree`].
@@ -82,7 +82,7 @@ impl<'r> RouterTrie<'r> {
         let subrouters_expanded = self.expand_subrouters();
         let handlers_expanded = self.expand_handlers();
 
-        quote! {
+        hquote! {
             #subrouters_expanded
             #handlers_expanded
         }
@@ -92,8 +92,8 @@ impl<'r> RouterTrie<'r> {
     fn expand_subrouters(&self) -> TokenStream {
         let mut subrouters_expanded = Self::expand_nodes("", self.subrouters.children());
         if !subrouters_expanded.is_empty() {
-            subrouters_expanded.append_all(quote! {
-                __reader.reset();
+            subrouters_expanded.append_all(hquote! {
+                reader.reset();
             })
         }
         subrouters_expanded
@@ -102,13 +102,13 @@ impl<'r> RouterTrie<'r> {
     /// Expand handlers for each http method as a match statement.
     fn expand_handlers(&self) -> TokenStream {
         let arms = [
-            (quote! { ::http::Method::GET }, self.get.children()),
-            (quote! { ::http::Method::POST }, self.post.children()),
-            (quote! { ::http::Method::PUT }, self.put.children()),
-            (quote! { ::http::Method::DELETE }, self.delete.children()),
-            (quote! { ::http::Method::HEAD }, self.head.children()),
-            (quote! { ::http::Method::OPTIONS }, self.options.children()),
-            (quote! { ::http::Method::PATCH }, self.patch.children()),
+            (hquote! { ::http::Method::GET }, self.get.children()),
+            (hquote! { ::http::Method::POST }, self.post.children()),
+            (hquote! { ::http::Method::PUT }, self.put.children()),
+            (hquote! { ::http::Method::DELETE }, self.delete.children()),
+            (hquote! { ::http::Method::HEAD }, self.head.children()),
+            (hquote! { ::http::Method::OPTIONS }, self.options.children()),
+            (hquote! { ::http::Method::PATCH }, self.patch.children()),
         ]
         .into_iter()
         .filter_map(|(method, children)| {
@@ -117,19 +117,19 @@ impl<'r> RouterTrie<'r> {
                 return None;
             }
 
-            Some(quote! {
+            Some(hquote! {
                 #method => {
                     #arms
-                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
+                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req));
                 }
             })
         });
 
-        quote! {
-            match *__req.method() {
+        hquote! {
+            match *req.method() {
                 #( #arms )*
                 _ => {
-                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
+                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req));
                 }
             }
         }
@@ -142,7 +142,7 @@ impl<'r> RouterTrie<'r> {
     ) -> TokenStream {
         let nodes_expanded = nodes.map(|node| Self::expand_node(full_path, &node));
 
-        quote! {
+        hquote! {
             #( #nodes_expanded )*
         }
     }
@@ -164,12 +164,12 @@ impl<'r> RouterTrie<'r> {
                 None => Self::expand_static_node(prefix, value, child_nodes_expanded),
             },
             None if !child_nodes_expanded.is_empty() => quote_reader_fallback! {
-                if __reader.peek(#prefix_len) == #prefix {
-                    __reader.read(#prefix_len);
+                if reader.peek(#prefix_len) == #prefix {
+                    reader.read(#prefix_len);
                     #child_nodes_expanded
                 }
             },
-            None => quote! {},
+            None => hquote! {},
         }
     }
 
@@ -182,14 +182,14 @@ impl<'r> RouterTrie<'r> {
         let prefix_len = prefix.len();
 
         let ensure_next_slash_expanded = if prefix.len() > 1 && prefix.ends_with('/') {
-            quote! {
+            hquote! {
                 // since path continues there has to be a separator
-                if !__reader.ensure_next_slash() {
-                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
+                if !reader.ensure_next_slash() {
+                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req));
                 }
             }
         } else {
-            quote! {}
+            hquote! {}
         };
 
         let ExpandedNodeParts {
@@ -198,8 +198,8 @@ impl<'r> RouterTrie<'r> {
         } = Self::expand_node_parts(prefix, value);
 
         quote_reader_fallback! {
-            if __reader.peek(#prefix_len) == #prefix #guards_expanded {
-                __reader.read(#prefix_len);
+            if reader.peek(#prefix_len) == #prefix #guards_expanded {
+                reader.read(#prefix_len);
 
                 #handler_expanded
 
@@ -219,7 +219,7 @@ impl<'r> RouterTrie<'r> {
         suffix: &str,
     ) -> TokenStream {
         let suffix_len = suffix.len();
-        let mut expanded = quote! {};
+        let mut expanded = hquote! {};
 
         match suffix {
             "" | "/" => {
@@ -229,8 +229,8 @@ impl<'r> RouterTrie<'r> {
                         handler_expanded,
                     } = Self::expand_node_parts(prefix, value);
 
-                    expanded.append_all(quote! {
-                        if __reader.is_dangling_slash() #guards_expanded {
+                    expanded.append_all(hquote! {
+                        if reader.is_dangling_slash() #guards_expanded {
                             #handler_expanded
                         }
                     });
@@ -242,8 +242,8 @@ impl<'r> RouterTrie<'r> {
                         expanded.append_all(recur);
                     } else {
                         expanded.append_all(quote_reader_fallback! {
-                            if __reader.peek(#suffix_len) == #suffix {
-                                __reader.read(#suffix_len);
+                            if reader.peek(#suffix_len) == #suffix {
+                                reader.read(#suffix_len);
                                 #recur
                             }
                         });
@@ -256,7 +256,7 @@ impl<'r> RouterTrie<'r> {
                     Some((prefix, param, suffix)) => {
                         Self::expand_param_node(full_path, node, prefix, param, suffix)
                     }
-                    None => quote! {},
+                    None => hquote! {},
                 };
 
                 if !conseq_expanded.is_empty() {
@@ -269,8 +269,8 @@ impl<'r> RouterTrie<'r> {
                         } = Self::expand_node_parts(suffix, value);
 
                         expanded.append_all(quote_reader_fallback! {
-                            if __reader.peek(#suffix_len) == #suffix #guards_expanded {
-                                __reader.read(#suffix_len);
+                            if reader.peek(#suffix_len) == #suffix #guards_expanded {
+                                reader.read(#suffix_len);
                                 #handler_expanded
                             }
                         });
@@ -285,8 +285,8 @@ impl<'r> RouterTrie<'r> {
                         } = Self::expand_node_parts(suffix, value);
 
                         expanded.append_all(quote_reader_fallback! {
-                            if __reader.peek(#suffix_len) == #suffix #guards_expanded {
-                                __reader.read(#suffix_len);
+                            if reader.peek(#suffix_len) == #suffix #guards_expanded {
+                                reader.read(#suffix_len);
                                 #handler_expanded
                                 #recur
                             }
@@ -300,9 +300,9 @@ impl<'r> RouterTrie<'r> {
 
         // now we insert parsing of param
         expanded = quote_reader_fallback! {
-            let param = __reader.read_param();
+            let param = reader.read_param();
             if let Ok(value) = param {
-                __params.push(#param.to_string(), value.to_string());
+                params.push(#param.to_string(), value.to_string());
                 #expanded
             }
         };
@@ -311,8 +311,8 @@ impl<'r> RouterTrie<'r> {
         let prefix_len = prefix.len();
         if !prefix.is_empty() {
             expanded = quote_reader_fallback! {
-                if __reader.peek(#prefix_len) == #prefix {
-                    __reader.read(#prefix_len);
+                if reader.peek(#prefix_len) == #prefix {
+                    reader.read(#prefix_len);
                     #expanded
                 }
             }
@@ -325,7 +325,7 @@ impl<'r> RouterTrie<'r> {
     fn expand_node_parts(
         prefix: &str,
         TrieValue {
-            guard,
+            guards: guard,
             middleware,
             handler,
             node_type,
@@ -333,7 +333,7 @@ impl<'r> RouterTrie<'r> {
     ) -> ExpandedNodeParts {
         let guards_expanded = guard
             .iter()
-            .fold(quote! {}, |acc, guard| quote! { #acc && #guard });
+            .fold(hquote! {}, |acc, guard| hquote! { #acc && #guard });
 
         let handler_expanded = match node_type {
             NodeType::Handler => Self::expand_handler(handler, middleware),
@@ -341,7 +341,7 @@ impl<'r> RouterTrie<'r> {
                 let expanded = Self::expand_subrouter(handler, middleware);
                 if prefix.ends_with('/') {
                     quote_reader_fallback! {
-                        __reader.read_back(1);
+                        reader.read_back(1);
 
                         #expanded
                     }
@@ -362,16 +362,16 @@ impl<'r> RouterTrie<'r> {
         match handler {
             ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
                 let handler = match handler {
-                    ItemHandler::Fn(handler) => quote! { #handler },
-                    ItemHandler::Macro(item_macro) => quote! { (#item_macro) },
+                    ItemHandler::Fn(handler) => hquote! { #handler },
+                    ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
                     ItemHandler::SubRouter(_) => unreachable!(),
                 };
 
                 let middleware_expanded = Self::expand_middleware(middleware);
 
-                quote! {
-                    if __reader.is_dangling_slash() {
-                        ::submillisecond::Application::merge_params(&mut __req, &mut __params);
+                hquote! {
+                    if reader.is_dangling_slash() {
+                        ::submillisecond::Application::merge_params(&mut req, &mut params);
 
                         #middleware_expanded
 
@@ -384,7 +384,7 @@ impl<'r> RouterTrie<'r> {
                                             _,
                                             { ::submillisecond::handler::arity(&#handler) },
                                         >,
-                                    __req
+                                    req
                                 ),
                             )
                         );
@@ -403,19 +403,19 @@ impl<'r> RouterTrie<'r> {
         match handler {
             ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
                 let handler = match handler {
-                    ItemHandler::Fn(handler) => quote! { #handler },
-                    ItemHandler::Macro(item_macro) => quote! { (#item_macro) },
+                    ItemHandler::Fn(handler) => hquote! { #handler },
+                    ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
                     ItemHandler::SubRouter(_) => unreachable!(),
                 };
 
                 let middleware_expanded = Self::expand_middleware(middleware);
 
-                quote! {
-                    ::submillisecond::Application::merge_params(&mut __req, &mut __params);
+                hquote! {
+                    ::submillisecond::Application::merge_params(&mut req, &mut params);
 
                     #middleware_expanded
 
-                    return #handler(__req, __params, __reader);
+                    return #handler(req, params, reader);
                 }
             }
             ItemHandler::SubRouter(subrouter) => {
@@ -423,10 +423,10 @@ impl<'r> RouterTrie<'r> {
 
                 let middleware_expanded = Self::expand_middleware(middleware);
 
-                quote! {
+                hquote! {
                     #middleware_expanded
 
-                    return (#subrouter_expanded)(__req, __params, __reader)
+                    return (#subrouter_expanded)(req, params, reader)
                 }
             }
         }
@@ -434,12 +434,11 @@ impl<'r> RouterTrie<'r> {
 
     /// Expand middleware to inject into local static middleware vec.
     fn expand_middleware(middleware: &[&'r ItemUseMiddleware]) -> TokenStream {
-        let all_middleware: Vec<_> = middleware
+        let all_middleware = middleware
             .iter()
-            .flat_map(|middleware| middleware.tree.items())
-            .collect();
+            .flat_map(|middleware| middleware.tree.items());
 
-        quote! {
+        hquote! {
             #(
                 ::submillisecond::request_context::inject_middleware(Box::new(<#all_middleware as Default>::default()));
             )*
@@ -502,7 +501,7 @@ impl<'r> RouterTrie<'r> {
                 }
                 _ => {
                     let value = TrieValue {
-                        guard: all_guards,
+                        guards: all_guards,
                         middleware: all_middleware,
                         handler,
                         node_type: if method.is_some() {

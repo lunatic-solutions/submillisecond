@@ -5,11 +5,12 @@ mod router_trie;
 mod trie;
 
 use proc_macro2::TokenStream;
-use quote::quote;
 use syn::{
     parse::{Parse, ParseStream},
     LitStr, Token,
 };
+
+use crate::hquote;
 
 use self::{
     item_route::ItemRoute, item_use_middleware::ItemUseMiddleware, method::Method,
@@ -27,10 +28,10 @@ impl RouterTree {
         let trie = RouterTrie::new(self);
         let inner = trie.expand();
 
-        quote! {
-            (|mut __req: ::submillisecond::Request,
-                mut __params: ::submillisecond::params::Params,
-                mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
+        hquote! {
+            (|mut req: ::submillisecond::Request,
+                mut params: ::submillisecond::params::Params,
+                mut reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
                 #inner
             }) as ::submillisecond::Router
         }

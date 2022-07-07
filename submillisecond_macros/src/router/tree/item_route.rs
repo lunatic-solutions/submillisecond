@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::{quote, quote_spanned, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt};
 use syn::{
     braced, bracketed,
     parse::{Parse, ParseStream},
@@ -7,7 +7,7 @@ use syn::{
     token, Expr, LitStr, Macro, Path, Token,
 };
 
-use crate::router::Router;
+use crate::{hquote, router::Router};
 
 use super::{item_use_middleware::ItemUseMiddleware, method::Method};
 
@@ -90,17 +90,13 @@ fn expand_guard_struct(guard: &syn::Expr) -> TokenStream {
             let op = &expr_binary.op;
             let right = expand_guard_struct(&expr_binary.right);
 
-            quote! {
-                #left #op #right
-            }
+            hquote! { #left #op #right }
         }
         Expr::Paren(expr_paren) => {
             let expr = expand_guard_struct(&expr_paren.expr);
-            quote_spanned!(expr_paren.paren_token.span=> (#expr))
+            hquote! { (#expr) }
         }
-        expr => quote! {
-            ::submillisecond::guard::Guard::check(&#expr, &__req)
-        },
+        expr => hquote! { ::submillisecond::guard::Guard::check(&#expr, &req) },
     }
 }
 

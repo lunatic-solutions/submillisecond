@@ -1,5 +1,4 @@
 use proc_macro2::TokenStream;
-use quote::quote;
 use syn::{
     braced,
     ext::IdentExt,
@@ -7,6 +6,8 @@ use syn::{
     punctuated::Punctuated,
     token, Ident, Token,
 };
+
+use crate::hquote;
 
 #[derive(Clone, Debug)]
 pub struct ItemUseMiddleware {
@@ -38,10 +39,10 @@ impl UseMiddlewareTree {
             UseMiddlewareTree::Path(UseMiddlewarePath { ident, tree, .. }) => tree
                 .items()
                 .into_iter()
-                .map(|item| quote! { #ident::#item })
+                .map(|item| hquote! { #ident::#item })
                 .collect(),
             UseMiddlewareTree::Name(UseMiddlewareName { ident }) => {
-                vec![quote! { #ident }]
+                vec![hquote! { #ident }]
             }
             UseMiddlewareTree::Group(UseMiddlewareGroup { items, .. }) => {
                 items.iter().flat_map(UseMiddlewareTree::items).collect()
