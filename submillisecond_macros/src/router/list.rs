@@ -1,10 +1,11 @@
 use proc_macro2::TokenStream;
-use quote::quote;
 use syn::{
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     Path, Token,
 };
+
+use crate::hquote;
 
 #[derive(Debug, Default)]
 pub struct RouterList {
@@ -15,10 +16,10 @@ impl RouterList {
     pub fn expand(&self) -> TokenStream {
         let inner = self.expand_inner(&[]);
 
-        quote! {
-            (|mut __req: ::submillisecond::Request,
-                mut __params: ::submillisecond::params::Params,
-                mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
+        hquote! {
+            (|mut req: ::submillisecond::Request,
+                mut params: ::submillisecond::params::Params,
+                mut reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
                 #inner
             }) as ::submillisecond::Router
         }
@@ -28,28 +29,28 @@ impl RouterList {
         let handlers = self.handlers.iter();
         let handlers_len = self.handlers.len();
         let middlewares_expanded = middlewares.iter().map(|item|
-            quote! {
+            hquote! {
                 ::submillisecond::request_context::inject_middleware(Box::new(<#item as Default>::default()));
            });
 
-        quote! {
+        hquote! {
             const HANDLERS: [::submillisecond::Router; #handlers_len] = [
                 #( #handlers ),*
             ];
             #( #middlewares_expanded )*
 
             for handler in HANDLERS {
-                match handler(__req, __params.clone(), __reader.clone()) {
-                    ::std::result::Result::Ok(__resp) => {
-                        return ::std::result::Result::Ok(__resp)
+                match handler(req, params.clone(), reader.clone()) {
+                    ::std::result::Result::Ok(resp) => {
+                        return ::std::result::Result::Ok(resp)
                     }
                     ::std::result::Result::Err(::submillisecond::RouteError::ExtractorError(resp)) =>
                         return ::std::result::Result::Err(::submillisecond::RouteError::ExtractorError(resp)),
-                    ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(request)) => __req = request,
+                    ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(request)) => req = request,
                 }
             }
 
-            return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
+            return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req));
         }
     }
 }

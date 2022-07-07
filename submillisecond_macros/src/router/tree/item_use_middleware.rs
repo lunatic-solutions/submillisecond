@@ -1,5 +1,4 @@
 use proc_macro2::TokenStream;
-use quote::quote;
 use syn::{
     braced,
     ext::IdentExt,
@@ -8,7 +7,9 @@ use syn::{
     token, Ident, Token,
 };
 
-#[derive(Debug)]
+use crate::hquote;
+
+#[derive(Clone, Debug)]
 pub struct ItemUseMiddleware {
     pub use_token: Token![use],
     pub leading_colon: Option<Token![::]>,
@@ -25,7 +26,7 @@ impl Parse for ItemUseMiddleware {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum UseMiddlewareTree {
     Path(UseMiddlewarePath),
     Name(UseMiddlewareName),
@@ -38,10 +39,10 @@ impl UseMiddlewareTree {
             UseMiddlewareTree::Path(UseMiddlewarePath { ident, tree, .. }) => tree
                 .items()
                 .into_iter()
-                .map(|item| quote! { #ident::#item })
+                .map(|item| hquote! { #ident::#item })
                 .collect(),
             UseMiddlewareTree::Name(UseMiddlewareName { ident }) => {
-                vec![quote! { #ident }]
+                vec![hquote! { #ident }]
             }
             UseMiddlewareTree::Group(UseMiddlewareGroup { items, .. }) => {
                 items.iter().flat_map(UseMiddlewareTree::items).collect()
@@ -85,19 +86,19 @@ impl Parse for UseMiddlewareTree {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct UseMiddlewarePath {
     pub ident: Ident,
     pub colon2_token: Token![::],
     pub tree: Box<UseMiddlewareTree>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct UseMiddlewareName {
     pub ident: Ident,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct UseMiddlewareGroup {
     pub brace_token: token::Brace,
     pub items: Punctuated<UseMiddlewareTree, Token![,]>,

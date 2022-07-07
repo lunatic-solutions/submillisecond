@@ -1,5 +1,7 @@
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::parse::{Parse, ParseStream};
+
+use crate::hquote;
 
 syn::custom_keyword!(GET);
 syn::custom_keyword!(POST);
@@ -79,13 +81,13 @@ impl Parse for Method {
 impl ToTokens for Method {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
-            Method::Get(get) => tokens.extend(quote! { #get }),
-            Method::Post(post) => tokens.extend(quote! { #post }),
-            Method::Put(put) => tokens.extend(quote! { #put }),
-            Method::Delete(delete) => tokens.extend(quote! { #delete }),
-            Method::Head(head) => tokens.extend(quote! { #head }),
-            Method::Options(options) => tokens.extend(quote! { #options }),
-            Method::Patch(patch) => tokens.extend(quote! { #patch }),
+            Method::Get(get) => tokens.extend(hquote! { #get }),
+            Method::Post(post) => tokens.extend(hquote! { #post }),
+            Method::Put(put) => tokens.extend(hquote! { #put }),
+            Method::Delete(delete) => tokens.extend(hquote! { #delete }),
+            Method::Head(head) => tokens.extend(hquote! { #head }),
+            Method::Options(options) => tokens.extend(hquote! { #options }),
+            Method::Patch(patch) => tokens.extend(hquote! { #patch }),
         }
     }
 }

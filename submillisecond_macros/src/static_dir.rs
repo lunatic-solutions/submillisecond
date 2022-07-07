@@ -2,11 +2,12 @@ use std::{fs, io, path::Path};
 
 use mime_guess::{mime, Mime};
 use proc_macro2::TokenStream;
-use quote::quote;
 use syn::{
     parse::{Parse, ParseStream},
     LitStr,
 };
+
+use crate::hquote;
 
 #[derive(Debug)]
 pub struct StaticDir {
@@ -17,39 +18,40 @@ impl StaticDir {
     pub fn expand(&self) -> TokenStream {
         let match_arms = self.expand_match_arms();
 
-        quote! {
-            match |mut __req: ::submillisecond::Request, mut __params: ::submillisecond::params::Params, mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<(::submillisecond::http::header::HeaderMap, &'static [u8]), ::submillisecond::RouteError> {
-                if *__req.method() != ::submillisecond::http::Method::GET {
-                    return Err(::submillisecond::RouteError::RouteNotMatch(__req));
+        hquote! {
+            (|
+                mut req: ::submillisecond::Request,
+                mut params: ::submillisecond::params::Params,
+                mut reader: ::submillisecond::core::UriReader
+            | -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
+                if *req.method() != ::submillisecond::http::Method::GET {
+                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req));
                 }
 
-                match __reader.read_to_end() {
+                match reader.read_to_end() {
                     #match_arms
-                    _ => Err(::submillisecond::RouteError::RouteNotMatch(__req)),
+                    _ => ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req)),
                 }
-            }(__req, __params.clone(), __reader.clone()) {
-                Ok(res) => return Ok(res.into_response()),
-                Err(::submillisecond::RouteError::RouteNotMatch(req)) => __req = req,
-                Err(e) => return Err(e),
-            }
+            }) as ::submillisecond::Router
         }
     }
 
     fn expand_match_arms(&self) -> TokenStream {
         let arms = self.files.iter().map(|StaticFile { mime, path, content }| {
+            let path = format!("/{path}");
             let mime = mime.to_string();
-            let bytes = quote! { &[#( #content ),*] };
+            let bytes = hquote! { &[#( #content ),*] };
 
-            quote! {
+            hquote! {
                 #path => {
                     let mut headers = ::submillisecond::http::header::HeaderMap::new();
                     headers.insert(::submillisecond::http::header::CONTENT_TYPE, #mime.parse().unwrap());
-                    Ok((headers, #bytes))
+                    ::std::result::Result::Ok(::submillisecond::response::IntoResponse::into_response((headers, #bytes as &'static [u8])))
                 }
             }
         });
 
-        quote! { #( #arms, )* }
+        hquote! { #( #arms, )* }
     }
 }
 

@@ -1,19 +1,20 @@
 mod item_route;
 mod item_use_middleware;
 pub mod method;
-mod method_tries;
+mod router_trie;
 mod trie;
 
 use proc_macro2::TokenStream;
-use quote::quote;
 use syn::{
     parse::{Parse, ParseStream},
     LitStr, Token,
 };
 
+use crate::hquote;
+
 use self::{
     item_route::ItemRoute, item_use_middleware::ItemUseMiddleware, method::Method,
-    method_tries::MethodTries,
+    router_trie::RouterTrie,
 };
 
 #[derive(Debug)]
@@ -24,36 +25,16 @@ pub struct RouterTree {
 
 impl RouterTree {
     pub fn expand(&self) -> TokenStream {
-        let method_tries_expanded = MethodTries::new(self).expand();
+        let trie = RouterTrie::new(self);
+        let inner = trie.expand();
 
-        quote! {
-            (|mut __req: ::submillisecond::Request,
-                mut __params: ::submillisecond::params::Params,
-                mut __reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
-                #method_tries_expanded
+        hquote! {
+            (|mut req: ::submillisecond::Request,
+                mut params: ::submillisecond::params::Params,
+                mut reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
+                #inner
             }) as ::submillisecond::Router
         }
-    }
-
-    /// Returns all the use middleware items with their full path.
-    fn middleware(&self) -> Vec<TokenStream> {
-        self.middleware.iter().fold(
-            Vec::with_capacity(self.middleware.len()),
-            |mut acc, item| {
-                let items = item.tree.items();
-                match item.leading_colon {
-                    Some(leading_colon) => {
-                        acc.extend(
-                            items
-                                .into_iter()
-                                .map(|item| quote! { #leading_colon #item }),
-                        );
-                    }
-                    None => acc.extend(items.into_iter()),
-                }
-                acc
-            },
-        )
     }
 }
 

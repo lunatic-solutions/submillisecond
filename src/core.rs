@@ -124,7 +124,7 @@ pub enum UriReadError {
 #[derive(Clone, Debug)]
 pub struct UriReader {
     uri: String,
-    cursor: usize,
+    pub cursor: usize,
 }
 
 impl UriReader {
@@ -146,6 +146,10 @@ impl UriReader {
 
     pub fn read(&mut self, len: usize) {
         self.cursor += len;
+    }
+
+    pub fn read_back(&mut self, len: usize) {
+        self.cursor -= len;
     }
 
     pub fn ensure_next_slash(&mut self) -> bool {

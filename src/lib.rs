@@ -47,7 +47,7 @@ impl Application {
         Application { router }
     }
 
-    pub fn merge_extensions(request: &mut Request, params: &mut Params) {
+    pub fn merge_params(request: &mut Request, params: &mut Params) {
         let extensions = request.extensions_mut();
         match extensions.get_mut::<Params>() {
             Some(ext_params) => {

@@ -1,3 +1,5 @@
+use proc_macro2::TokenStream;
+use quote::{ToTokens, TokenStreamExt};
 use syn::{
     braced, bracketed,
     parse::{Parse, ParseStream},
@@ -5,7 +7,7 @@ use syn::{
     token, Expr, LitStr, Macro, Path, Token,
 };
 
-use crate::router::Router;
+use crate::{hquote, router::Router};
 
 use super::{item_use_middleware::ItemUseMiddleware, method::Method};
 
@@ -72,6 +74,29 @@ impl Parse for ItemGuard {
             if_token: input.parse()?,
             guard: Box::new(input.call(Expr::parse_without_eager_brace)?),
         })
+    }
+}
+
+impl ToTokens for ItemGuard {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        tokens.append_all(expand_guard_struct(&self.guard));
+    }
+}
+
+fn expand_guard_struct(guard: &syn::Expr) -> TokenStream {
+    match guard {
+        Expr::Binary(expr_binary) => {
+            let left = expand_guard_struct(&expr_binary.left);
+            let op = &expr_binary.op;
+            let right = expand_guard_struct(&expr_binary.right);
+
+            hquote! { #left #op #right }
+        }
+        Expr::Paren(expr_paren) => {
+            let expr = expand_guard_struct(&expr_paren.expr);
+            hquote! { (#expr) }
+        }
+        expr => hquote! { ::submillisecond::guard::Guard::check(&#expr, &req) },
     }
 }
 

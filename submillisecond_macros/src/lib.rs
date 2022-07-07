@@ -27,3 +27,10 @@ pub fn static_dir(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as StaticDir);
     input.expand().into()
 }
+
+macro_rules! hquote {( $($tt:tt)* ) => (
+    ::quote::quote_spanned! { ::proc_macro2::Span::mixed_site()=>
+        $($tt)*
+    }
+)}
+pub(crate) use hquote;
