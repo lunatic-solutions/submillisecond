@@ -124,7 +124,7 @@ pub enum UriReadError {
 #[derive(Clone, Debug)]
 pub struct UriReader {
     uri: String,
-    cursor: usize,
+    pub cursor: usize,
 }
 
 impl UriReader {

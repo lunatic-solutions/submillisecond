@@ -52,6 +52,18 @@ struct ExpandedNodeParts {
     handler_expanded: TokenStream,
 }
 
+macro_rules! quote_reader_fallback {
+    ($($tt:tt)*) => {{
+        let mut _s = quote::__private::TokenStream::new();
+        quote::quote_each_token!{_s $($tt)*}
+        quote! {
+            let __cursor = __reader.cursor;
+            {#_s}
+            __reader.cursor = __cursor;
+        }
+    }};
+}
+
 impl<'r> RouterTrie<'r> {
     /// Create a new [`RouterTrie`] from an instance of [`RouterTree`].
     pub fn new(router_tree: &'r RouterTree) -> Self {
@@ -77,7 +89,7 @@ impl<'r> RouterTrie<'r> {
     }
 
     /// Expand subrouters.
-    pub fn expand_subrouters(&self) -> TokenStream {
+    fn expand_subrouters(&self) -> TokenStream {
         let mut subrouters_expanded = Self::expand_nodes("", self.subrouters.children());
         if !subrouters_expanded.is_empty() {
             subrouters_expanded.append_all(quote! {
@@ -88,7 +100,7 @@ impl<'r> RouterTrie<'r> {
     }
 
     /// Expand handlers for each http method as a match statement.
-    pub fn expand_handlers(&self) -> TokenStream {
+    fn expand_handlers(&self) -> TokenStream {
         let arms = [
             (quote! { ::http::Method::GET }, self.get.children()),
             (quote! { ::http::Method::POST }, self.post.children()),
@@ -151,7 +163,7 @@ impl<'r> RouterTrie<'r> {
                 }
                 None => Self::expand_static_node(prefix, value, child_nodes_expanded),
             },
-            None if !child_nodes_expanded.is_empty() => quote! {
+            None if !child_nodes_expanded.is_empty() => quote_reader_fallback! {
                 if __reader.peek(#prefix_len) == #prefix {
                     __reader.read(#prefix_len);
                     #child_nodes_expanded
@@ -185,7 +197,7 @@ impl<'r> RouterTrie<'r> {
             handler_expanded,
         } = Self::expand_node_parts(prefix, value);
 
-        quote! {
+        quote_reader_fallback! {
             if __reader.peek(#prefix_len) == #prefix #guards_expanded {
                 __reader.read(#prefix_len);
 
@@ -229,7 +241,7 @@ impl<'r> RouterTrie<'r> {
                     if suffix.is_empty() {
                         expanded.append_all(recur);
                     } else {
-                        expanded.append_all(quote! {
+                        expanded.append_all(quote_reader_fallback! {
                             if __reader.peek(#suffix_len) == #suffix {
                                 __reader.read(#suffix_len);
                                 #recur
@@ -256,7 +268,7 @@ impl<'r> RouterTrie<'r> {
                             handler_expanded,
                         } = Self::expand_node_parts(suffix, value);
 
-                        expanded.append_all(quote! {
+                        expanded.append_all(quote_reader_fallback! {
                             if __reader.peek(#suffix_len) == #suffix #guards_expanded {
                                 __reader.read(#suffix_len);
                                 #handler_expanded
@@ -272,7 +284,7 @@ impl<'r> RouterTrie<'r> {
                             handler_expanded,
                         } = Self::expand_node_parts(suffix, value);
 
-                        expanded.append_all(quote! {
+                        expanded.append_all(quote_reader_fallback! {
                             if __reader.peek(#suffix_len) == #suffix #guards_expanded {
                                 __reader.read(#suffix_len);
                                 #handler_expanded
@@ -287,7 +299,7 @@ impl<'r> RouterTrie<'r> {
         }
 
         // now we insert parsing of param
-        expanded = quote! {
+        expanded = quote_reader_fallback! {
             let param = __reader.read_param();
             if let Ok(value) = param {
                 __params.push(#param.to_string(), value.to_string());
@@ -298,7 +310,7 @@ impl<'r> RouterTrie<'r> {
         // now we wrap everything with matching the literal before
         let prefix_len = prefix.len();
         if !prefix.is_empty() {
-            expanded = quote! {
+            expanded = quote_reader_fallback! {
                 if __reader.peek(#prefix_len) == #prefix {
                     __reader.read(#prefix_len);
                     #expanded
@@ -328,7 +340,7 @@ impl<'r> RouterTrie<'r> {
             NodeType::Subrouter => {
                 let expanded = Self::expand_subrouter(handler, middleware);
                 if prefix.ends_with('/') {
-                    quote! {
+                    quote_reader_fallback! {
                         __reader.read_back(1);
 
                         #expanded
