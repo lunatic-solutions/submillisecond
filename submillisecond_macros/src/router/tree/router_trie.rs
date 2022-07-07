@@ -1,6 +1,8 @@
 
 use proc_macro2::TokenStream;
 use quote::{quote, TokenStreamExt};
+use lazy_static::lazy_static;
+use regex::Regex;
 
 use crate::router::Router;
 
@@ -11,6 +13,11 @@ use super::{
     trie::{Node, Trie},
     RouterTree,
 };
+
+lazy_static! {
+    static ref RE: Regex =
+        Regex::new(r"(?P<lit_prefix>[^:]*):(?P<param>[a-zA-Z_]+)(?P<lit_suffix>.*)").unwrap();
+}
 
 #[derive(Debug, Default)]
 pub struct RouterTrie<'r> {
@@ -28,7 +35,7 @@ pub struct RouterTrie<'r> {
 
 #[derive(Clone, Debug)]
 struct TrieValue<'r> {
-    guard: &'r Option<ItemGuard>,
+    guard: Vec<&'r ItemGuard>,
     middleware: Vec<&'r ItemUseMiddleware>,
     handler: &'r ItemHandler,
     node_type: NodeType
@@ -40,14 +47,21 @@ enum NodeType {
     Subrouter
 }
 
+#[derive(Clone, Debug)]
+struct ExpandedNodeParts {
+    guards_expanded: TokenStream,
+    handler_expanded: TokenStream,
+}
+
 impl<'r> RouterTrie<'r> {
     /// Create a new [`RouterTrie`] from an instance of [`RouterTree`].
     pub fn new(router_tree: &'r RouterTree) -> Self {
         let mut trie = RouterTrie::default();
-        trie.collect_tries(None, &router_tree.routes, router_tree.middleware.iter().collect());
+        trie.collect_tries(None, &router_tree.routes, router_tree.middleware.iter().collect(), Vec::new());
         trie
     }
 
+    /// Expand function body.
     pub fn expand(&self) -> TokenStream {
         let subrouters_expanded = self.expand_subrouters();
         let handlers_expanded = self.expand_handlers();
@@ -58,6 +72,7 @@ impl<'r> RouterTrie<'r> {
         }
     }
 
+    /// Expand subrouters.
     pub fn expand_subrouters(&self) -> TokenStream {
         let mut subrouters_expanded = Self::expand_nodes("", self.subrouters.children());
         if !subrouters_expanded.is_empty() {
@@ -68,6 +83,7 @@ impl<'r> RouterTrie<'r> {
         subrouters_expanded
     }
 
+    /// Expand handlers for each http method as a match statement.
     pub fn expand_handlers(&self) -> TokenStream {
         let arms = [
             (quote! { ::http::Method::GET }, self.get.children()),
@@ -104,68 +120,13 @@ impl<'r> RouterTrie<'r> {
         }
     }
 
+    /// Expand an iterator of nodes, typically [`super::trie::Children`].
     fn expand_nodes(
         full_path: &str,
         nodes: impl Iterator<Item = Node<TrieValue<'r>>>,
     ) -> TokenStream {
         let nodes_expanded = nodes.map(|node| {
-            let children = node.children();
-            let Node { prefix, value, .. } = node;
-            let full_path = format!("{full_path}{prefix}");
-            let prefix_len = prefix.len();
-            let child_nodes_expanded = Self::expand_nodes(&full_path, children);
-
-            match value {
-                Some(TrieValue { guard, middleware, handler, node_type }) => {
-                    let ensure_next_slash_expanded = if prefix.len() > 1 && prefix.ends_with('/') {
-                        quote! {
-                            // since path continues there has to be a separator
-                            if !__reader.ensure_next_slash() {
-                                return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
-                            }
-                        }
-                    } else {
-                        quote! {}
-                    };
-
-                    let guard_expanded = guard.as_ref().map(|guard| quote! { && #guard });
-
-                    let body = match node_type {
-                        NodeType::Handler => Self::expand_handler(handler, &middleware),
-                        NodeType::Subrouter => {
-                            let expanded = Self::expand_subrouter(handler, &middleware);
-                            if prefix.ends_with('/') {
-                                quote! {
-                                    __reader.read_back(1);
-
-                                    #expanded
-                                } 
-                            } else {
-                                expanded
-                            }
-                        },
-                    };
-
-                    quote! {
-                        if __reader.peek(#prefix_len) == #prefix #guard_expanded {
-                            __reader.read(#prefix_len);
-        
-                            #body
-        
-                            #ensure_next_slash_expanded
-        
-                            #child_nodes_expanded
-                        }
-                    }
-                }
-                None if !child_nodes_expanded.is_empty() => quote! {
-                    if __reader.peek(#prefix_len) == #prefix {
-                        __reader.read(#prefix_len);
-                        #child_nodes_expanded
-                    }
-                },
-                None => quote! {}
-            }
+            Self::expand_node(full_path, &node)
         });
 
         quote! {
@@ -173,6 +134,197 @@ impl<'r> RouterTrie<'r> {
         }
     }
 
+    /// Expand a single node.
+    fn expand_node(full_path: &str, node: &Node<TrieValue<'r>>) -> TokenStream {
+        let children = node.children();
+        let Node { prefix, value, .. } = &node;
+        let full_path = format!("{full_path}{prefix}");
+        
+        let captures = RE.captures(prefix)
+            .map(|captures|
+                (captures.get(1).unwrap().as_str(),
+                captures.get(2).unwrap().as_str(),
+                captures.get(3).unwrap().as_str()));
+
+        let child_nodes_expanded = Self::expand_nodes(&full_path, children);
+        let prefix_len = prefix.len();
+
+        match value {
+            Some(value) => {
+                match captures {
+                    Some((prefix, param, suffix)) => {
+                        Self::expand_param_node(&full_path, node, prefix, param, suffix)
+                    },
+                    None => {
+                        Self::expand_static_node(prefix, value, child_nodes_expanded)
+                    },
+                }
+            }
+            None if !child_nodes_expanded.is_empty() => quote! {
+                if __reader.peek(#prefix_len) == #prefix {
+                    __reader.read(#prefix_len);
+                    #child_nodes_expanded
+                }
+            },
+            None => quote! {}
+        }
+    }
+
+    /// Expand a static node with no parameters.
+    fn expand_static_node(prefix: &str, value: &TrieValue<'r>, child_nodes_expanded: TokenStream) -> TokenStream {
+        let prefix_len = prefix.len();
+
+        let ensure_next_slash_expanded = if prefix.len() > 1 && prefix.ends_with('/') {
+            quote! {
+                // since path continues there has to be a separator
+                if !__reader.ensure_next_slash() {
+                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
+                }
+            }
+        } else {
+            quote! {}
+        };
+
+        let ExpandedNodeParts { guards_expanded, handler_expanded } = Self::expand_node_parts(prefix, value);
+
+        quote! {
+            if __reader.peek(#prefix_len) == #prefix #guards_expanded {
+                __reader.read(#prefix_len);
+
+                #handler_expanded
+
+                #ensure_next_slash_expanded
+
+                #child_nodes_expanded
+            }
+        }
+    }
+
+    /// Expand a node with parameter(s) recursively.
+    fn expand_param_node(full_path: &str, node: &Node<TrieValue<'r>>, prefix: &str, param: &str, suffix: &str) -> TokenStream {
+        let suffix_len = suffix.len();
+        let mut expanded = quote! {};
+
+        match suffix {
+            "" | "/" => {
+                if let Some(value) = &node.value {
+                    let ExpandedNodeParts { guards_expanded, handler_expanded } = Self::expand_node_parts(prefix, value);
+
+                    expanded.append_all(quote! {
+                        if __reader.is_dangling_slash() #guards_expanded {
+                            #handler_expanded
+                        }
+                    });
+                }
+
+                if !node.is_leaf() {
+                    let recur = Self::expand_nodes(full_path, node.children());
+                    if suffix.is_empty() {
+                        expanded.append_all(recur);
+                    } else {
+                        expanded.append_all(quote! {
+                            if __reader.peek(#suffix_len) == #suffix {
+                                __reader.read(#suffix_len);
+                                #recur
+                            }
+                        });
+                    }
+                }
+            },
+            _ => {
+                let captures = RE.captures(suffix)
+                    .map(|captures|
+                        (captures.get(1).unwrap().as_str(),
+                        captures.get(2).unwrap().as_str(),
+                        captures.get(3).unwrap().as_str()));
+
+                let conseq_expanded = match captures {
+                    Some((prefix, param, suffix)) => {
+                        Self::expand_param_node(full_path, node, prefix, param, suffix)
+                    }
+                    None => quote! {}
+                };
+
+                if !conseq_expanded.is_empty() {
+                    expanded.append_all(conseq_expanded);
+                } else if conseq_expanded.is_empty() && node.is_leaf() {
+                    if let Some(value) = &node.value {
+                        let ExpandedNodeParts { guards_expanded, handler_expanded } = Self::expand_node_parts(prefix, value);
+    
+                        expanded.append_all(quote! {
+                            if __reader.peek(#suffix_len) == #suffix #guards_expanded {
+                                __reader.read(#suffix_len);
+                                #handler_expanded
+                            }
+                        });
+                    }
+                } else {
+                    let recur = Self::expand_nodes(full_path, node.children());
+
+                    if let Some(value) = &node.value {
+                        let ExpandedNodeParts { guards_expanded, handler_expanded } = Self::expand_node_parts(prefix, value);
+    
+                        expanded.append_all(quote! {
+                            if __reader.peek(#suffix_len) == #suffix #guards_expanded {
+                                __reader.read(#suffix_len);
+                                #handler_expanded
+                                #recur
+                            }
+                        });
+                    } else {
+                        expanded.append_all(recur);
+                    }
+                };
+            }
+        }
+
+        // now we insert parsing of param
+        expanded = quote! {
+            let param = __reader.read_param();
+            if let Ok(value) = param {
+                __params.push(#param.to_string(), value.to_string());
+                #expanded
+            }
+        };
+
+        // now we wrap everything with matching the literal before
+        let prefix_len = prefix.len();
+        if !prefix.is_empty() {
+            expanded = quote! {
+                if __reader.peek(#prefix_len) == #prefix {
+                    __reader.read(#prefix_len);
+                    #expanded
+                }
+            }
+        }
+
+        expanded
+    }
+
+    /// Expand a node guards and handler.
+    fn expand_node_parts(prefix: &str, TrieValue { guard, middleware, handler, node_type  }: &TrieValue<'r>) -> ExpandedNodeParts {
+        let guards_expanded = guard.iter().fold(quote! {}, |acc, guard| quote! { #acc && #guard });
+
+        let handler_expanded = match node_type {
+            NodeType::Handler => Self::expand_handler(handler, middleware),
+            NodeType::Subrouter => {
+                let expanded = Self::expand_subrouter(handler, middleware);
+                if prefix.ends_with('/') {
+                    quote! {
+                        __reader.read_back(1);
+
+                        #expanded
+                    } 
+                } else {
+                    expanded
+                }
+            },
+        };
+
+        ExpandedNodeParts { guards_expanded, handler_expanded }
+    }
+
+    /// Expand a handler.
     fn expand_handler(handler: &ItemHandler, middleware: &[&'r ItemUseMiddleware]) -> TokenStream {
         match handler {
             ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
@@ -210,6 +362,7 @@ impl<'r> RouterTrie<'r> {
         }
     }
 
+    /// Expand a subrouter.
     fn expand_subrouter(handler: &ItemHandler, middleware: &[&'r ItemUseMiddleware]) -> TokenStream {
         match handler {
             ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
@@ -243,6 +396,7 @@ impl<'r> RouterTrie<'r> {
         }
     }
 
+    /// Expand middleware to inject into local static middleware vec.
     fn expand_middleware(middleware: &[&'r ItemUseMiddleware]) -> TokenStream {
         let all_middleware: Vec<_> = middleware.iter().flat_map(|middleware| middleware.tree.items()).collect();
 
@@ -271,8 +425,8 @@ impl<'r> RouterTrie<'r> {
         };
     }
 
-    /// Recursively collect handlers and subrouters
-    fn collect_tries(&mut self, prefix: Option<String>, routes: &'r [ItemRoute], all_middleware: Vec<&'r ItemUseMiddleware>) {
+    /// Recursively collect handlers and subrouters.
+    fn collect_tries(&mut self, prefix: Option<String>, routes: &'r [ItemRoute], all_middleware: Vec<&'r ItemUseMiddleware>, all_guards: Vec<&'r ItemGuard>) {
         for ItemRoute {
             method,
             path,
@@ -291,14 +445,19 @@ impl<'r> RouterTrie<'r> {
             if let Some(middleware) = middleware {
                 all_middleware.push(middleware);
             }
+            
+            let mut all_guards = all_guards.clone();
+            if let Some(guard) = guard {
+                all_guards.push(guard);
+            }
 
             match handler {
                 ItemHandler::SubRouter(Router::Tree(tree)) => {
-                    self.collect_tries(Some(new_path), &tree.routes, all_middleware);
+                    self.collect_tries(Some(new_path), &tree.routes, all_middleware, all_guards);
                 }
                 _ => {
                     let value = TrieValue {
-                        guard,
+                        guard: all_guards,
                         middleware: all_middleware,
                         handler,
                         node_type: if method.is_some() { NodeType::Handler } else { NodeType::Subrouter },

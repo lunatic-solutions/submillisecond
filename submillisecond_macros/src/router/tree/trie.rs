@@ -159,6 +159,13 @@ where
     pub fn children(&self) -> Children<V> {
         self.trie_node.children()
     }
+
+    pub fn is_leaf(&self) -> bool {
+        if let TrieNode::Node { ref children, .. } = self.trie_node {
+            return children.is_empty();
+        }
+        true
+    }
 }
 
 #[derive(Clone, Debug)]

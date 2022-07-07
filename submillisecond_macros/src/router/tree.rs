@@ -1,7 +1,6 @@
 mod item_route;
 mod item_use_middleware;
 pub mod method;
-// mod method_tries;
 mod router_trie;
 mod trie;
 
