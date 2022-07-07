@@ -34,6 +34,7 @@ pub struct RouterTrie<'r> {
 
 #[derive(Clone, Debug)]
 struct TrieValue<'r> {
+    method: &'r Option<Method>,
     guards: Vec<&'r ItemGuard>,
     middleware: Vec<&'r ItemUseMiddleware>,
     handler: &'r ItemHandler,
@@ -325,6 +326,7 @@ impl<'r> RouterTrie<'r> {
     fn expand_node_parts(
         prefix: &str,
         TrieValue {
+            method,
             guards: guard,
             middleware,
             handler,
@@ -336,7 +338,7 @@ impl<'r> RouterTrie<'r> {
             .fold(hquote! {}, |acc, guard| hquote! { #acc && #guard });
 
         let handler_expanded = match node_type {
-            NodeType::Handler => Self::expand_handler(handler, middleware),
+            NodeType::Handler => Self::expand_handler(method, handler, middleware),
             NodeType::Subrouter => {
                 let expanded = Self::expand_subrouter(handler, middleware);
                 if prefix.ends_with('/') {
@@ -358,8 +360,12 @@ impl<'r> RouterTrie<'r> {
     }
 
     /// Expand a handler.
-    fn expand_handler(handler: &ItemHandler, middleware: &[&'r ItemUseMiddleware]) -> TokenStream {
-        match handler {
+    fn expand_handler(
+        method: &'r Option<Method>,
+        handler: &ItemHandler,
+        middleware: &[&'r ItemUseMiddleware],
+    ) -> TokenStream {
+        let expanded = match handler {
             ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
                 let handler = match handler {
                     ItemHandler::Fn(handler) => hquote! { #handler },
@@ -392,6 +398,14 @@ impl<'r> RouterTrie<'r> {
                 }
             }
             ItemHandler::SubRouter(_) => Self::expand_subrouter(handler, middleware),
+        };
+
+        match method {
+            Some(method) => hquote! {
+                let _ = ::http::Method::#method;
+                #expanded
+            },
+            None => expanded,
         }
     }
 
@@ -501,6 +515,7 @@ impl<'r> RouterTrie<'r> {
                 }
                 _ => {
                     let value = TrieValue {
+                        method,
                         guards: all_guards,
                         middleware: all_middleware,
                         handler,
