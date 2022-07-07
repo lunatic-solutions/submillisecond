@@ -1,7 +1,6 @@
-
+use lazy_static::lazy_static;
 use proc_macro2::TokenStream;
 use quote::{quote, TokenStreamExt};
-use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::router::Router;
@@ -38,13 +37,13 @@ struct TrieValue<'r> {
     guard: Vec<&'r ItemGuard>,
     middleware: Vec<&'r ItemUseMiddleware>,
     handler: &'r ItemHandler,
-    node_type: NodeType
+    node_type: NodeType,
 }
 
 #[derive(Clone, Copy, Debug)]
 enum NodeType {
     Handler,
-    Subrouter
+    Subrouter,
 }
 
 #[derive(Clone, Debug)]
@@ -57,7 +56,12 @@ impl<'r> RouterTrie<'r> {
     /// Create a new [`RouterTrie`] from an instance of [`RouterTree`].
     pub fn new(router_tree: &'r RouterTree) -> Self {
         let mut trie = RouterTrie::default();
-        trie.collect_tries(None, &router_tree.routes, router_tree.middleware.iter().collect(), Vec::new());
+        trie.collect_tries(
+            None,
+            &router_tree.routes,
+            router_tree.middleware.iter().collect(),
+            Vec::new(),
+        );
         trie
     }
 
@@ -104,7 +108,6 @@ impl<'r> RouterTrie<'r> {
             Some(quote! {
                 #method => {
                     #arms
-                    
                     return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(__req));
                 }
             })
@@ -125,9 +128,7 @@ impl<'r> RouterTrie<'r> {
         full_path: &str,
         nodes: impl Iterator<Item = Node<TrieValue<'r>>>,
     ) -> TokenStream {
-        let nodes_expanded = nodes.map(|node| {
-            Self::expand_node(full_path, &node)
-        });
+        let nodes_expanded = nodes.map(|node| Self::expand_node(full_path, &node));
 
         quote! {
             #( #nodes_expanded )*
@@ -139,39 +140,33 @@ impl<'r> RouterTrie<'r> {
         let children = node.children();
         let Node { prefix, value, .. } = &node;
         let full_path = format!("{full_path}{prefix}");
-        
-        let captures = RE.captures(prefix)
-            .map(|captures|
-                (captures.get(1).unwrap().as_str(),
-                captures.get(2).unwrap().as_str(),
-                captures.get(3).unwrap().as_str()));
-
+        let captures = Self::capture_param_parts(prefix);
         let child_nodes_expanded = Self::expand_nodes(&full_path, children);
         let prefix_len = prefix.len();
 
         match value {
-            Some(value) => {
-                match captures {
-                    Some((prefix, param, suffix)) => {
-                        Self::expand_param_node(&full_path, node, prefix, param, suffix)
-                    },
-                    None => {
-                        Self::expand_static_node(prefix, value, child_nodes_expanded)
-                    },
+            Some(value) => match captures {
+                Some((prefix, param, suffix)) => {
+                    Self::expand_param_node(&full_path, node, prefix, param, suffix)
                 }
-            }
+                None => Self::expand_static_node(prefix, value, child_nodes_expanded),
+            },
             None if !child_nodes_expanded.is_empty() => quote! {
                 if __reader.peek(#prefix_len) == #prefix {
                     __reader.read(#prefix_len);
                     #child_nodes_expanded
                 }
             },
-            None => quote! {}
+            None => quote! {},
         }
     }
 
     /// Expand a static node with no parameters.
-    fn expand_static_node(prefix: &str, value: &TrieValue<'r>, child_nodes_expanded: TokenStream) -> TokenStream {
+    fn expand_static_node(
+        prefix: &str,
+        value: &TrieValue<'r>,
+        child_nodes_expanded: TokenStream,
+    ) -> TokenStream {
         let prefix_len = prefix.len();
 
         let ensure_next_slash_expanded = if prefix.len() > 1 && prefix.ends_with('/') {
@@ -185,7 +180,10 @@ impl<'r> RouterTrie<'r> {
             quote! {}
         };
 
-        let ExpandedNodeParts { guards_expanded, handler_expanded } = Self::expand_node_parts(prefix, value);
+        let ExpandedNodeParts {
+            guards_expanded,
+            handler_expanded,
+        } = Self::expand_node_parts(prefix, value);
 
         quote! {
             if __reader.peek(#prefix_len) == #prefix #guards_expanded {
@@ -201,14 +199,23 @@ impl<'r> RouterTrie<'r> {
     }
 
     /// Expand a node with parameter(s) recursively.
-    fn expand_param_node(full_path: &str, node: &Node<TrieValue<'r>>, prefix: &str, param: &str, suffix: &str) -> TokenStream {
+    fn expand_param_node(
+        full_path: &str,
+        node: &Node<TrieValue<'r>>,
+        prefix: &str,
+        param: &str,
+        suffix: &str,
+    ) -> TokenStream {
         let suffix_len = suffix.len();
         let mut expanded = quote! {};
 
         match suffix {
             "" | "/" => {
                 if let Some(value) = &node.value {
-                    let ExpandedNodeParts { guards_expanded, handler_expanded } = Self::expand_node_parts(prefix, value);
+                    let ExpandedNodeParts {
+                        guards_expanded,
+                        handler_expanded,
+                    } = Self::expand_node_parts(prefix, value);
 
                     expanded.append_all(quote! {
                         if __reader.is_dangling_slash() #guards_expanded {
@@ -230,27 +237,25 @@ impl<'r> RouterTrie<'r> {
                         });
                     }
                 }
-            },
+            }
             _ => {
-                let captures = RE.captures(suffix)
-                    .map(|captures|
-                        (captures.get(1).unwrap().as_str(),
-                        captures.get(2).unwrap().as_str(),
-                        captures.get(3).unwrap().as_str()));
-
+                let captures = Self::capture_param_parts(prefix);
                 let conseq_expanded = match captures {
                     Some((prefix, param, suffix)) => {
                         Self::expand_param_node(full_path, node, prefix, param, suffix)
                     }
-                    None => quote! {}
+                    None => quote! {},
                 };
 
                 if !conseq_expanded.is_empty() {
                     expanded.append_all(conseq_expanded);
                 } else if conseq_expanded.is_empty() && node.is_leaf() {
                     if let Some(value) = &node.value {
-                        let ExpandedNodeParts { guards_expanded, handler_expanded } = Self::expand_node_parts(prefix, value);
-    
+                        let ExpandedNodeParts {
+                            guards_expanded,
+                            handler_expanded,
+                        } = Self::expand_node_parts(prefix, value);
+
                         expanded.append_all(quote! {
                             if __reader.peek(#suffix_len) == #suffix #guards_expanded {
                                 __reader.read(#suffix_len);
@@ -262,8 +267,11 @@ impl<'r> RouterTrie<'r> {
                     let recur = Self::expand_nodes(full_path, node.children());
 
                     if let Some(value) = &node.value {
-                        let ExpandedNodeParts { guards_expanded, handler_expanded } = Self::expand_node_parts(prefix, value);
-    
+                        let ExpandedNodeParts {
+                            guards_expanded,
+                            handler_expanded,
+                        } = Self::expand_node_parts(prefix, value);
+
                         expanded.append_all(quote! {
                             if __reader.peek(#suffix_len) == #suffix #guards_expanded {
                                 __reader.read(#suffix_len);
@@ -302,8 +310,18 @@ impl<'r> RouterTrie<'r> {
     }
 
     /// Expand a node guards and handler.
-    fn expand_node_parts(prefix: &str, TrieValue { guard, middleware, handler, node_type  }: &TrieValue<'r>) -> ExpandedNodeParts {
-        let guards_expanded = guard.iter().fold(quote! {}, |acc, guard| quote! { #acc && #guard });
+    fn expand_node_parts(
+        prefix: &str,
+        TrieValue {
+            guard,
+            middleware,
+            handler,
+            node_type,
+        }: &TrieValue<'r>,
+    ) -> ExpandedNodeParts {
+        let guards_expanded = guard
+            .iter()
+            .fold(quote! {}, |acc, guard| quote! { #acc && #guard });
 
         let handler_expanded = match node_type {
             NodeType::Handler => Self::expand_handler(handler, middleware),
@@ -314,14 +332,17 @@ impl<'r> RouterTrie<'r> {
                         __reader.read_back(1);
 
                         #expanded
-                    } 
+                    }
                 } else {
                     expanded
                 }
-            },
+            }
         };
 
-        ExpandedNodeParts { guards_expanded, handler_expanded }
+        ExpandedNodeParts {
+            guards_expanded,
+            handler_expanded,
+        }
     }
 
     /// Expand a handler.
@@ -357,13 +378,16 @@ impl<'r> RouterTrie<'r> {
                         );
                     }
                 }
-            },
+            }
             ItemHandler::SubRouter(_) => Self::expand_subrouter(handler, middleware),
         }
     }
 
     /// Expand a subrouter.
-    fn expand_subrouter(handler: &ItemHandler, middleware: &[&'r ItemUseMiddleware]) -> TokenStream {
+    fn expand_subrouter(
+        handler: &ItemHandler,
+        middleware: &[&'r ItemUseMiddleware],
+    ) -> TokenStream {
         match handler {
             ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
                 let handler = match handler {
@@ -381,7 +405,7 @@ impl<'r> RouterTrie<'r> {
 
                     return #handler(__req, __params, __reader);
                 }
-            },
+            }
             ItemHandler::SubRouter(subrouter) => {
                 let subrouter_expanded = subrouter.expand();
 
@@ -392,13 +416,16 @@ impl<'r> RouterTrie<'r> {
 
                     return (#subrouter_expanded)(__req, __params, __reader)
                 }
-            },
+            }
         }
     }
 
     /// Expand middleware to inject into local static middleware vec.
     fn expand_middleware(middleware: &[&'r ItemUseMiddleware]) -> TokenStream {
-        let all_middleware: Vec<_> = middleware.iter().flat_map(|middleware| middleware.tree.items()).collect();
+        let all_middleware: Vec<_> = middleware
+            .iter()
+            .flat_map(|middleware| middleware.tree.items())
+            .collect();
 
         quote! {
             #(
@@ -426,7 +453,13 @@ impl<'r> RouterTrie<'r> {
     }
 
     /// Recursively collect handlers and subrouters.
-    fn collect_tries(&mut self, prefix: Option<String>, routes: &'r [ItemRoute], all_middleware: Vec<&'r ItemUseMiddleware>, all_guards: Vec<&'r ItemGuard>) {
+    fn collect_tries(
+        &mut self,
+        prefix: Option<String>,
+        routes: &'r [ItemRoute],
+        all_middleware: Vec<&'r ItemUseMiddleware>,
+        all_guards: Vec<&'r ItemGuard>,
+    ) {
         for ItemRoute {
             method,
             path,
@@ -445,7 +478,7 @@ impl<'r> RouterTrie<'r> {
             if let Some(middleware) = middleware {
                 all_middleware.push(middleware);
             }
-            
+
             let mut all_guards = all_guards.clone();
             if let Some(guard) = guard {
                 all_guards.push(guard);
@@ -460,7 +493,11 @@ impl<'r> RouterTrie<'r> {
                         guard: all_guards,
                         middleware: all_middleware,
                         handler,
-                        node_type: if method.is_some() { NodeType::Handler } else { NodeType::Subrouter },
+                        node_type: if method.is_some() {
+                            NodeType::Handler
+                        } else {
+                            NodeType::Subrouter
+                        },
                     };
 
                     if let Some(method) = *method {
@@ -471,5 +508,15 @@ impl<'r> RouterTrie<'r> {
                 }
             }
         }
+    }
+
+    fn capture_param_parts(s: &str) -> Option<(&str, &str, &str)> {
+        RE.captures(s).map(|captures| {
+            (
+                captures.get(1).unwrap().as_str(),
+                captures.get(2).unwrap().as_str(),
+                captures.get(3).unwrap().as_str(),
+            )
+        })
     }
 }
