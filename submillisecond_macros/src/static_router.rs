@@ -10,11 +10,11 @@ use syn::{
 use crate::hquote;
 
 #[derive(Debug)]
-pub struct StaticDir {
+pub struct StaticRouter {
     files: Vec<StaticFile>,
 }
 
-impl StaticDir {
+impl StaticRouter {
     pub fn expand(&self) -> TokenStream {
         let match_arms = self.expand_match_arms();
 
@@ -55,12 +55,12 @@ impl StaticDir {
     }
 }
 
-impl Parse for StaticDir {
+impl Parse for StaticRouter {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let dir: LitStr = input.parse()?;
         let files = walk_dir(dir.value()).map_err(|err| syn::Error::new(dir.span(), err))?;
 
-        Ok(StaticDir { files })
+        Ok(StaticRouter { files })
     }
 }
 
