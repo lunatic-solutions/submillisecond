@@ -11,6 +11,7 @@ repository = "https://github.com/lunatic-solutions/submillisecond"
 
 [features]
 default = []
+cookie = ["dep:cookie"]
 json = ["serde_json"]
 query = ["serde_urlencoded"]
 template = ["askama"]
@@ -28,6 +29,7 @@ submillisecond_macros = { version = "0.1", path = "submillisecond_macros" }
 
 # optional dependencies
 askama = { version = "0.11", optional = true }
+cookie = { version = "0.16", optional = true }
 serde_json = { version = "1.0", optional = true }
 serde_urlencoded = { version = "0.7", optional = true }
 
