@@ -373,15 +373,10 @@ impl<'r> RouterTrie<'r> {
                     ItemHandler::SubRouter(_) => unreachable!(),
                 };
 
-                let middleware_expanded = Self::expand_middleware(middleware);
-
-                hquote! {
-                    if reader.is_dangling_slash() {
-                        ::submillisecond::Application::merge_params(&mut req, &mut params);
-
-                        #middleware_expanded
-
-                        return ::std::result::Result::Ok(
+                let middleware_expanded = Self::expand_middleware(
+                    middleware,
+                    hquote! {
+                        ::std::result::Result::Ok(
                             ::submillisecond::response::IntoResponse::into_response(
                                 ::submillisecond::handler::Handler::handle(
                                     #handler
@@ -393,7 +388,15 @@ impl<'r> RouterTrie<'r> {
                                     req
                                 ),
                             )
-                        );
+                        )
+                    },
+                );
+
+                hquote! {
+                    if reader.is_dangling_slash() {
+                        ::submillisecond::Application::merge_params(&mut req, &mut params);
+
+                        return #middleware_expanded;
                     }
                 }
             }
@@ -422,41 +425,48 @@ impl<'r> RouterTrie<'r> {
                     ItemHandler::SubRouter(_) => unreachable!(),
                 };
 
-                let middleware_expanded = Self::expand_middleware(middleware);
+                let middleware_expanded = Self::expand_middleware(
+                    middleware,
+                    hquote! {
+                        #handler(req, params, reader)
+                    },
+                );
 
                 hquote! {
                     ::submillisecond::Application::merge_params(&mut req, &mut params);
 
-                    #middleware_expanded
-
-                    return #handler(req, params, reader);
+                    return #middleware_expanded;
                 }
             }
             ItemHandler::SubRouter(subrouter) => {
                 let subrouter_expanded = subrouter.expand();
 
-                let middleware_expanded = Self::expand_middleware(middleware);
+                let middleware_expanded = Self::expand_middleware(
+                    middleware,
+                    hquote! {
+                        (#subrouter_expanded)(req, params, reader)
+                    },
+                );
 
                 hquote! {
-                    #middleware_expanded
-
-                    return (#subrouter_expanded)(req, params, reader)
+                    return #middleware_expanded
                 }
             }
         }
     }
 
     /// Expand middleware to inject into local static middleware vec.
-    fn expand_middleware(middleware: &[&'r ItemUseMiddleware]) -> TokenStream {
-        let all_middleware = middleware
+    fn expand_middleware(middleware: &[&'r ItemUseMiddleware], inner: TokenStream) -> TokenStream {
+        middleware
             .iter()
-            .flat_map(|middleware| middleware.tree.items());
-
-        hquote! {
-            #(
-                ::submillisecond::request_context::inject_middleware(Box::new(<#all_middleware as Default>::default()));
-            )*
-        }
+            .flat_map(|middleware| middleware.tree.items())
+            .fold(inner, |acc, middleware| {
+                hquote! {
+                    ::submillisecond::Middleware::apply(&#middleware, req, move |req| {
+                        #acc
+                    })
+                }
+            })
     }
 
     /// Insert a subrouter. A subrouter is any handler which is not prefixed with a http method.

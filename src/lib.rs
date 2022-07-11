@@ -26,7 +26,6 @@ pub mod handler;
 #[cfg(feature = "json")]
 pub mod json;
 pub mod params;
-pub mod request_context;
 pub mod response;
 #[cfg(feature = "template")]
 pub mod template;
@@ -107,8 +106,18 @@ impl Application {
 }
 
 pub trait Middleware {
-    fn before(&mut self, req: &mut Request);
-    fn after(&self, res: &mut Response);
+    fn apply(&self, req: Request, next: impl NextFn) -> Result<Response, RouteError>;
+}
+
+/// Convenience trait alias for `FnOnce(Request) -> Result<Response, RouteError>`.
+pub trait NextFn: FnOnce(Request) -> Result<Response, RouteError> {
+    fn next(self, req: Request) -> Result<Response, RouteError>;
+}
+
+impl<T: FnOnce(Request) -> Result<Response, RouteError>> NextFn for T {
+    fn next(self, req: Request) -> Result<Response, RouteError> {
+        self(req)
+    }
 }
 
 #[derive(Debug)]
