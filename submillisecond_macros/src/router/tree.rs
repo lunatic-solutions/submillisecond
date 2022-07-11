@@ -1,6 +1,8 @@
+pub mod method;
+
+mod item_catch_all;
 mod item_route;
 mod item_use_middleware;
-pub mod method;
 mod router_trie;
 mod trie;
 
@@ -13,14 +15,15 @@ use syn::{
 use crate::hquote;
 
 use self::{
-    item_route::ItemRoute, item_use_middleware::ItemUseMiddleware, method::Method,
-    router_trie::RouterTrie,
+    item_catch_all::ItemCatchAll, item_route::ItemRoute, item_use_middleware::ItemUseMiddleware,
+    method::Method, router_trie::RouterTrie,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RouterTree {
     pub middleware: Vec<ItemUseMiddleware>,
     pub routes: Vec<ItemRoute>,
+    pub catch_all: Option<ItemCatchAll>,
 }
 
 impl RouterTree {
@@ -54,7 +57,13 @@ impl Parse for RouterTree {
             routes.push(input.parse()?);
         }
 
-        Ok(RouterTree { middleware, routes })
+        let catch_all = input.peek(Token![_]).then(|| input.parse()).transpose()?;
+
+        Ok(RouterTree {
+            middleware,
+            routes,
+            catch_all,
+        })
     }
 }
 

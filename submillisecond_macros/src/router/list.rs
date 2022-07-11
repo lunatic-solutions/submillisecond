@@ -7,7 +7,7 @@ use syn::{
 
 use crate::hquote;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RouterList {
     pub handlers: Punctuated<Path, Token![,]>,
 }
