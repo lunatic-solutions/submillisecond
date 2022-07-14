@@ -16,7 +16,7 @@ use super::{item_use_middleware::ItemUseMiddleware, method::Method};
 /// `GET "/abc" if guard => handler`
 /// `GET "/abc" use middleware => handler`
 /// `GET "/abc" if guard use middleware => handler`
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ItemRoute {
     pub method: Option<Method>,
     pub path: LitStr,
@@ -62,7 +62,7 @@ impl Parse for ItemRoute {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ItemGuard {
     pub if_token: Token![if],
     pub guard: Box<Expr>,
@@ -100,7 +100,7 @@ fn expand_guard_struct(guard: &syn::Expr) -> TokenStream {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ItemHandler {
     Fn(Path),
     Macro(Macro),

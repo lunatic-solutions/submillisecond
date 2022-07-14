@@ -12,7 +12,7 @@ use self::{
     tree::{method::Method, RouterTree},
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Router {
     List(RouterList), // [a, b, c]
     Tree(RouterTree), // { "/" => ... }
