@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use http::Method;
-use submillisecond::{core::UriReader, params::Params, router, Request};
+use submillisecond::{router, Handler};
 
 fn handler() {}
 
@@ -11,15 +11,14 @@ fn router_benchmark_simple(c: &mut Criterion) {
 
     c.bench_function("simple router", |b| {
         b.iter(|| {
-            let params = Params::new();
-            let reader = UriReader::new("/simple".to_string());
-            let request = Request::builder()
+            let req = http::Request::builder()
                 .method(Method::GET)
                 .uri("/simple")
                 .body(Vec::new())
                 .unwrap();
 
-            router(request, params, reader).unwrap();
+            let res = Handler::handle(router, req.into());
+            assert!(res.is_ok());
         })
     });
 }
@@ -83,15 +82,14 @@ fn router_benchmark_nested(c: &mut Criterion) {
 
     c.bench_function("nested router", |b| {
         b.iter(|| {
-            let params = Params::new();
-            let reader = UriReader::new("/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/one/two/three/four/five/six/seven/eight/nine/ten".to_string());
-            let request = Request::builder()
+            let req = http::Request::builder()
                 .method(Method::GET)
                 .uri("/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/one/two/three/four/five/six/seven/eight/nine/ten")
                 .body(Vec::new())
                 .unwrap();
 
-            router(request, params, reader).unwrap();
+            let res = Handler::handle(router, req.into());
+            assert!(res.is_ok());
         })
     });
 }
@@ -155,15 +153,14 @@ fn router_benchmark_params(c: &mut Criterion) {
 
     c.bench_function("params router", |b| {
         b.iter(|| {
-            let params = Params::new();
-            let reader = UriReader::new("/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/one/two/three/four/five/six/seven/eight/nine/ten".to_string());
-            let request = Request::builder()
+            let req = http::Request::builder()
                 .method(Method::GET)
                 .uri("/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/one/two/three/four/five/six/seven/eight/nine/ten")
                 .body(Vec::new())
                 .unwrap();
 
-            router(request, params, reader).unwrap();
+            let res = Handler::handle(router, req.into());
+            assert!(res.is_ok());
         })
     });
 }

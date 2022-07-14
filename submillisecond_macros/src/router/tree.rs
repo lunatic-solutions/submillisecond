@@ -29,9 +29,7 @@ impl RouterTree {
         let inner = trie.expand();
 
         hquote! {
-            (|mut req: ::submillisecond::Request,
-                mut params: ::submillisecond::params::Params,
-                mut reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
+            (|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
                 #inner
             }) as ::submillisecond::Router
         }

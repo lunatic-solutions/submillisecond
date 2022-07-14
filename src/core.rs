@@ -6,7 +6,7 @@ use std::{
     mem::MaybeUninit,
 };
 
-use crate::{response::IntoResponse, Request, Response};
+use crate::{response::IntoResponse, Response, RouteError};
 
 const MAX_HEADERS: usize = 96;
 const REQUEST_BUFFER_SIZE: usize = 1024 * 8;
@@ -33,7 +33,7 @@ pub fn write_response(mut stream: TcpStream, response: Response) -> IoResult<()>
     Ok(())
 }
 
-pub fn parse_request(stream: TcpStream) -> Result<Request, ParseRequestError> {
+pub fn parse_request(stream: TcpStream) -> Result<http::Request<Vec<u8>>, ParseRequestError> {
     let mut reader = BufReader::new(stream);
     let mut raw_request = Vec::with_capacity(REQUEST_BUFFER_SIZE);
     let mut buf = [0_u8; REQUEST_BUFFER_SIZE];
@@ -58,7 +58,7 @@ pub fn parse_request(stream: TcpStream) -> Result<Request, ParseRequestError> {
                     http::Method::try_from(req.method.ok_or(ParseRequestError::MissingMethod)?)
                         .map_err(|_| ParseRequestError::UnknownMethod)?;
 
-                let mut request = Request::builder().method(method);
+                let mut request = http::Request::builder().method(method);
 
                 if let Some(path) = req.path {
                     request = request.uri(path);
@@ -107,7 +107,7 @@ pub enum ParseRequestError {
 }
 
 impl IntoResponse for ParseRequestError {
-    fn into_response(self) -> Response {
+    fn into_response(self) -> Result<Response, RouteError> {
         match self {
             ParseRequestError::MissingMethod | ParseRequestError::UnknownMethod => {
                 (StatusCode::METHOD_NOT_ALLOWED, ()).into_response()
@@ -164,13 +164,17 @@ impl UriReader {
         self.cursor = 0;
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.uri.len() <= self.cursor
+    pub fn is_empty(&self, allow_trailing_slash: bool) -> bool {
+        if allow_trailing_slash {
+            self.uri.len() <= self.cursor || &self.uri[self.cursor..] == "/"
+        } else {
+            self.uri.len() <= self.cursor
+        }
     }
 
     pub fn read_param(&mut self) -> Result<&str, UriReadError> {
         let initial_cursor = self.cursor;
-        while !self.is_empty() {
+        while !self.is_empty(false) {
             if self.peek(1) != "/" {
                 self.read(1);
             } else {

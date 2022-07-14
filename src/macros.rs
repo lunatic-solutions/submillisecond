@@ -11,7 +11,7 @@ macro_rules! define_rejection {
         pub struct $name;
 
         impl $crate::response::IntoResponse for $name {
-            fn into_response(self) -> $crate::response::Response {
+            fn into_response(self) -> Result<$crate::response::Response, RouteError> {
                 (http::StatusCode::$status, $body).into_response()
             }
         }
@@ -51,7 +51,7 @@ macro_rules! define_rejection {
         }
 
         impl crate::response::IntoResponse for $name {
-            fn into_response(self) -> $crate::response::Response {
+            fn into_response(self) -> Result<$crate::response::Response, $crate::RouteError> {
                 (
                     http::StatusCode::$status,
                     format!(concat!($body, ": {}"), self.0),
@@ -92,7 +92,7 @@ macro_rules! composite_rejection {
         }
 
         impl $crate::response::IntoResponse for $name {
-            fn into_response(self) -> $crate::response::Response {
+            fn into_response(self) -> Result<$crate::response::Response, $crate::RouteError> {
                 match self {
                     $(
                         Self::$variant(inner) => inner.into_response(),

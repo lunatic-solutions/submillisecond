@@ -3,7 +3,7 @@ use serde::{ser, Serialize};
 
 use crate::{
     response::{IntoResponse, Response},
-    Request,
+    Request, RouteError,
 };
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -13,7 +13,7 @@ impl<T> IntoResponse for Json<T>
 where
     T: Serialize,
 {
-    fn into_response(self) -> Response {
+    fn into_response(self) -> Result<Response, RouteError> {
         match serde_json::to_vec(&self.0) {
             Ok(bytes) => (
                 [(
@@ -40,9 +40,15 @@ pub fn from_json<T>(req: Request) -> serde_json::Result<Request>
 where
     T: ser::Serialize,
 {
-    let (parts, body) = req.into_parts();
+    let params = req.params.clone();
+    let reader = req.reader.clone();
+    let (parts, body) = req.request.into_parts();
     let body = serde_json::to_vec(&body)?;
-    Ok(Request::from_parts(parts, body))
+    Ok(Request {
+        request: http::Request::from_parts(parts, body),
+        params,
+        reader,
+    })
 }
 
 pub fn to_json(res: Response) -> serde_json::Result<Response> {
