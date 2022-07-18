@@ -1,12 +1,16 @@
-use super::{IntoResponse, Response};
-use http::{
-    header::{HeaderMap, HeaderName, HeaderValue},
-    Extensions, StatusCode,
-};
 use std::{
     convert::{Infallible, TryInto},
     fmt,
 };
+
+use http::{
+    header::{HeaderMap, HeaderName, HeaderValue},
+    Extensions, StatusCode,
+};
+
+use crate::RouteError;
+
+use super::{IntoResponse, Response};
 
 /// Trait for adding headers and extensions to a response.
 pub trait IntoResponseParts {
@@ -124,7 +128,7 @@ where
     K: fmt::Display,
     V: fmt::Display,
 {
-    fn into_response(self) -> Response {
+    fn into_response(self) -> Result<Response, RouteError> {
         match self.kind {
             TryIntoHeaderErrorKind::Key(inner) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, inner.to_string()).into_response()
@@ -167,7 +171,7 @@ macro_rules! impl_into_response_parts {
         where
             $( $ty: IntoResponseParts, )*
         {
-            type Error = Response;
+            type Error = Result<Response, RouteError>;
 
             fn into_response_parts(self, res: ResponseParts) -> Result<ResponseParts, Self::Error> {
                 let ($($ty,)*) = self;

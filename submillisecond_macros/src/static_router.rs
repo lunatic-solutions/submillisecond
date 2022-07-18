@@ -19,16 +19,12 @@ impl StaticRouter {
         let match_arms = self.expand_match_arms();
 
         hquote! {
-            (|
-                mut req: ::submillisecond::Request,
-                mut params: ::submillisecond::params::Params,
-                mut reader: ::submillisecond::core::UriReader
-            | -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
+            (|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
                 if *req.method() != ::submillisecond::http::Method::GET {
                     return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req));
                 }
 
-                match reader.read_to_end() {
+                match req.reader.read_to_end() {
                     #match_arms
                     _ => ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req)),
                 }
@@ -46,7 +42,7 @@ impl StaticRouter {
                 #path => {
                     let mut headers = ::submillisecond::http::header::HeaderMap::new();
                     headers.insert(::submillisecond::http::header::CONTENT_TYPE, #mime.parse().unwrap());
-                    ::std::result::Result::Ok(::submillisecond::response::IntoResponse::into_response((headers, #bytes as &'static [u8])))
+                    ::submillisecond::IntoResponse::into_response((headers, #bytes as &'static [u8]))
                 }
             }
         });

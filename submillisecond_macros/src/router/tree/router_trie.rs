@@ -60,10 +60,10 @@ macro_rules! quote_reader_fallback {($($tt:tt)*) => {{
     let _span = proc_macro2::Span::mixed_site();
     quote::quote_each_token_spanned!{ _s _span $($tt)* }
     hquote! {
-        let cursor = reader.cursor;
+        let cursor = req.reader.cursor;
         {#_s}
         #[allow(unreachable_code)]
-        { reader.cursor = cursor; }
+        { req.reader.cursor = cursor; }
     }
 }}}
 
@@ -100,7 +100,7 @@ impl<'r> RouterTrie<'r> {
         let mut subrouters_expanded = self.expand_nodes("", self.subrouters.children());
         if !subrouters_expanded.is_empty() {
             subrouters_expanded.append_all(hquote! {
-                reader.reset();
+                req.reader.reset();
             })
         }
         subrouters_expanded
@@ -174,8 +174,8 @@ impl<'r> RouterTrie<'r> {
                 None => self.expand_static_node(prefix, value, child_nodes_expanded),
             },
             None if !child_nodes_expanded.is_empty() => quote_reader_fallback! {
-                if reader.peek(#prefix_len) == #prefix {
-                    reader.read(#prefix_len);
+                if req.reader.peek(#prefix_len) == #prefix {
+                    req.reader.read(#prefix_len);
                     #child_nodes_expanded
                 }
             },
@@ -192,16 +192,15 @@ impl<'r> RouterTrie<'r> {
     ) -> TokenStream {
         let prefix_len = prefix.len();
 
-        let ensure_next_slash_expanded = if prefix.len() > 1 && prefix.ends_with('/') {
-            let catch_all_expanded = self.expand_catch_all();
+        let child_nodes_expanded = if prefix.len() > 1 && prefix.ends_with('/') {
             hquote! {
                 // since path continues there has to be a separator
-                if !reader.ensure_next_slash() {
-                    #catch_all_expanded
+                if req.reader.ensure_next_slash() {
+                    #child_nodes_expanded
                 }
             }
         } else {
-            hquote! {}
+            child_nodes_expanded
         };
 
         let ExpandedNodeParts {
@@ -210,14 +209,12 @@ impl<'r> RouterTrie<'r> {
         } = Self::expand_node_parts(prefix, value);
 
         quote_reader_fallback! {
-            if reader.peek(#prefix_len) == #prefix #guards_expanded {
-                reader.read(#prefix_len);
-
-                #handler_expanded
-
-                #ensure_next_slash_expanded
+            if req.reader.peek(#prefix_len) == #prefix #guards_expanded {
+                req.reader.read(#prefix_len);
 
                 #child_nodes_expanded
+
+                #handler_expanded
             }
         }
     }
@@ -243,7 +240,7 @@ impl<'r> RouterTrie<'r> {
                     } = Self::expand_node_parts(prefix, value);
 
                     expanded.append_all(hquote! {
-                        if reader.is_dangling_slash() #guards_expanded {
+                        if req.reader.is_dangling_slash() #guards_expanded {
                             #handler_expanded
                         }
                     });
@@ -255,8 +252,8 @@ impl<'r> RouterTrie<'r> {
                         expanded.append_all(recur);
                     } else {
                         expanded.append_all(quote_reader_fallback! {
-                            if reader.peek(#suffix_len) == #suffix {
-                                reader.read(#suffix_len);
+                            if req.reader.peek(#suffix_len) == #suffix {
+                                req.reader.read(#suffix_len);
                                 #recur
                             }
                         });
@@ -282,8 +279,8 @@ impl<'r> RouterTrie<'r> {
                         } = Self::expand_node_parts(suffix, value);
 
                         expanded.append_all(quote_reader_fallback! {
-                            if reader.peek(#suffix_len) == #suffix #guards_expanded {
-                                reader.read(#suffix_len);
+                            if req.reader.peek(#suffix_len) == #suffix #guards_expanded {
+                                req.reader.read(#suffix_len);
                                 #handler_expanded
                             }
                         });
@@ -298,10 +295,10 @@ impl<'r> RouterTrie<'r> {
                         } = Self::expand_node_parts(suffix, value);
 
                         expanded.append_all(quote_reader_fallback! {
-                            if reader.peek(#suffix_len) == #suffix #guards_expanded {
-                                reader.read(#suffix_len);
-                                #handler_expanded
+                            if req.reader.peek(#suffix_len) == #suffix #guards_expanded {
+                                req.reader.read(#suffix_len);
                                 #recur
+                                #handler_expanded
                             }
                         });
                     } else {
@@ -313,9 +310,9 @@ impl<'r> RouterTrie<'r> {
 
         // now we insert parsing of param
         expanded = quote_reader_fallback! {
-            let param = reader.read_param();
+            let param = req.reader.read_param();
             if let Ok(value) = param {
-                params.push(#param.to_string(), value.to_string());
+                req.params.push(#param.to_string(), value.to_string());
                 #expanded
             }
         };
@@ -324,8 +321,8 @@ impl<'r> RouterTrie<'r> {
         let prefix_len = prefix.len();
         if !prefix.is_empty() {
             expanded = quote_reader_fallback! {
-                if reader.peek(#prefix_len) == #prefix {
-                    reader.read(#prefix_len);
+                if req.reader.peek(#prefix_len) == #prefix {
+                    req.reader.read(#prefix_len);
                     #expanded
                 }
             }
@@ -355,7 +352,7 @@ impl<'r> RouterTrie<'r> {
                 let expanded = Self::expand_subrouter(handler, middleware);
                 if prefix.ends_with('/') {
                     quote_reader_fallback! {
-                        reader.read_back(1);
+                        req.reader.read_back(1);
 
                         #expanded
                     }
@@ -388,26 +385,14 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(
                     middleware,
                     hquote! {
-                        ::std::result::Result::Ok(
-                            ::submillisecond::response::IntoResponse::into_response(
-                                ::submillisecond::handler::Handler::handle(
-                                    #handler
-                                        as ::submillisecond::handler::FnPtr<
-                                            _,
-                                            _,
-                                            { ::submillisecond::handler::arity(&#handler) },
-                                        >,
-                                    req
-                                ),
-                            )
+                        ::submillisecond::IntoResponse::into_response(
+                            ::submillisecond::Handler::handle(#handler, req)
                         )
                     },
                 );
 
                 hquote! {
-                    if reader.is_dangling_slash() {
-                        ::submillisecond::Application::merge_params(&mut req, &mut params);
-
+                    if req.reader.is_dangling_slash() {
                         return #middleware_expanded;
                     }
                 }
@@ -418,7 +403,9 @@ impl<'r> RouterTrie<'r> {
         match method {
             Some(method) => hquote! {
                 let _ = ::http::Method::#method;
-                #expanded
+                if req.reader.is_empty(true) {
+                    #expanded
+                }
             },
             None => expanded,
         }
@@ -440,13 +427,13 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(
                     middleware,
                     hquote! {
-                        #handler(req, params, reader)
+                        ::submillisecond::IntoResponse::into_response(
+                            ::submillisecond::Handler::handle(#handler, req)
+                        )
                     },
                 );
 
                 hquote! {
-                    ::submillisecond::Application::merge_params(&mut req, &mut params);
-
                     return #middleware_expanded;
                 }
             }
@@ -456,12 +443,15 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(
                     middleware,
                     hquote! {
-                        (#subrouter_expanded)(req, params, reader)
+                        let subrouter = #subrouter_expanded;
+                        ::submillisecond::IntoResponse::into_response(
+                            ::submillisecond::Handler::handle(subrouter, req)
+                        )
                     },
                 );
 
                 hquote! {
-                    return #middleware_expanded
+                    return #middleware_expanded;
                 }
             }
         }
@@ -472,7 +462,7 @@ impl<'r> RouterTrie<'r> {
         middleware
             .iter()
             .flat_map(|middleware| middleware.tree.items())
-            .fold(inner, |acc, middleware| {
+            .fold(hquote! {{ #inner }}, |acc, middleware| {
                 hquote! {
                     ::submillisecond::Middleware::apply(&#middleware, req, move |req| {
                         #acc
@@ -493,18 +483,8 @@ impl<'r> RouterTrie<'r> {
                     };
 
                     hquote! {
-                        return ::std::result::Result::Ok(
-                            ::submillisecond::response::IntoResponse::into_response(
-                                ::submillisecond::handler::Handler::handle(
-                                    #handler
-                                        as ::submillisecond::handler::FnPtr<
-                                            _,
-                                            _,
-                                            { ::submillisecond::handler::arity(&#handler) },
-                                        >,
-                                    req
-                                ),
-                            )
+                        return ::submillisecond::IntoResponse::into_response(
+                            ::submillisecond::Handler::handle(#handler, req)
                         );
                     }
                 }
@@ -512,18 +492,8 @@ impl<'r> RouterTrie<'r> {
                     let handler = subrouter.expand();
 
                     hquote! {
-                        return ::std::result::Result::Ok(
-                            ::submillisecond::response::IntoResponse::into_response(
-                                ::submillisecond::handler::Handler::handle(
-                                    #handler
-                                        as ::submillisecond::handler::FnPtr<
-                                            _,
-                                            _,
-                                            { ::submillisecond::handler::arity(&#handler) },
-                                        >,
-                                    req
-                                ),
-                            )
+                        return ::submillisecond::IntoResponse::into_response(
+                            ::submillisecond::Handler::handle(#handler, req)
                         );
                     }
                 }

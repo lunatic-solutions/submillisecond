@@ -4,11 +4,23 @@ use crate::Request;
 
 use super::FromRequest;
 
-impl FromRequest for Request<Vec<u8>> {
+impl FromRequest for Request {
     type Rejection = Infallible;
 
     fn from_request(req: &mut Request) -> Result<Self, Self::Rejection> {
-        let mut req_builder = Request::builder();
+        Ok(Request {
+            request: FromRequest::from_request(req).unwrap(),
+            params: req.params.clone(),
+            reader: req.reader.clone(),
+        })
+    }
+}
+
+impl FromRequest for http::Request<Vec<u8>> {
+    type Rejection = Infallible;
+
+    fn from_request(req: &mut Request) -> Result<Self, Self::Rejection> {
+        let mut req_builder = http::Request::builder();
 
         for (key, value) in req.headers() {
             req_builder = req_builder.header(key, value);

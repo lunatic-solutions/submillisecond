@@ -1,30 +1,30 @@
 use http::Method;
 use lunatic_test::test;
-use submillisecond::{core::UriReader, params::Params, router, Request, RouteError};
+use submillisecond::{http, router, Handler, Request, RouteError};
 
 macro_rules! build_request {
     ($method: ident, $uri: literal) => {
         build_request!($method, $uri, Vec::new())
     };
     ($method: ident, $uri: literal, $body: expr) => {
-        Request::builder()
-            .method(Method::$method)
-            .uri($uri)
-            .body($body.to_vec())
-            .unwrap()
+        Request::from(
+            http::Request::builder()
+                .method(Method::$method)
+                .uri($uri)
+                .body($body.to_vec())
+                .unwrap(),
+        )
     };
 }
 
 macro_rules! handle_request {
     ($router: ident, $method: ident, $uri: literal) => {{
         let req = build_request!($method, $uri);
-        let reader = UriReader::new(req.uri().path().to_string());
-        $router(req, Params::new(), reader)
+        Handler::handle($router, req)
     }};
     ($router: ident, $method: ident, $uri: literal, $body: expr) => {{
         let req = build_request!($method, $uri, $body);
-        let reader = UriReader::new(req.uri().path().to_string());
-        $router(req, Params::new(), reader)
+        Handler::handle($router, req)
     }};
 }
 
@@ -42,7 +42,8 @@ macro_rules! assert_404 {
     ($res: expr) => {
         assert!(
             matches!($res, Err(RouteError::RouteNotMatch(_))),
-            "response wasn't 404"
+            "response wasn't 404, but was:\n{:?}",
+            $res
         )
     };
 }

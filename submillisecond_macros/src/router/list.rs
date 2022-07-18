@@ -17,9 +17,7 @@ impl RouterList {
         let inner = self.expand_inner(&[]);
 
         hquote! {
-            (|mut req: ::submillisecond::Request,
-                mut params: ::submillisecond::params::Params,
-                mut reader: ::submillisecond::core::UriReader| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
+            (|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
                 #inner
             }) as ::submillisecond::Router
         }
@@ -40,7 +38,10 @@ impl RouterList {
             #( #middlewares_expanded )*
 
             for handler in HANDLERS {
-                match handler(req, params.clone(), reader.clone()) {
+                let res = ::submillisecond::IntoResponse::into_response(
+                    ::submillisecond::Handler::handle(handler, req)
+                );
+                match res {
                     ::std::result::Result::Ok(resp) => {
                         return ::std::result::Result::Ok(resp)
                     }

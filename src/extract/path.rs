@@ -11,7 +11,7 @@ use crate::{
     extract::{rejection::*, FromRequest},
     params::Params,
     response::IntoResponse,
-    Request, Response,
+    Request, Response, RouteError,
 };
 
 use self::de::PercentDecodedStr;
@@ -257,7 +257,7 @@ impl FailedToDeserializePathParams {
 }
 
 impl IntoResponse for FailedToDeserializePathParams {
-    fn into_response(self) -> Response {
+    fn into_response(self) -> Result<Response, RouteError> {
         let (status, body) = match self.0.kind {
             ErrorKind::Message(_)
             | ErrorKind::InvalidUtf8InPathParam { .. }
