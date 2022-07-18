@@ -1,41 +1,40 @@
 use std::io;
 
-use submillisecond::{router, Application, Middleware, Router};
+use submillisecond::{
+    router, Application, Middleware, NextFn, Request, Response, RouteError, Router,
+};
 
 #[derive(Default)]
 struct LoggingMiddleware;
 
 impl Middleware for LoggingMiddleware {
-    fn before(&mut self, req: &mut submillisecond::Request) {
+    fn apply(&self, req: Request, next: impl NextFn) -> Result<Response, RouteError> {
         println!("[ENTRY] {} {}", req.method(), req.uri().path());
-    }
-
-    fn after(&self, _res: &mut submillisecond::Response) {
+        let res = next(req);
         println!("[EXIT]");
+        res
     }
 }
 
 #[derive(Default)]
 struct FooMiddleware;
 impl Middleware for FooMiddleware {
-    fn before(&mut self, req: &mut submillisecond::Request) {
+    fn apply(&self, req: Request, next: impl NextFn) -> Result<Response, RouteError> {
         println!("[FOO ENTRY] {} {}", req.method(), req.uri().path());
-    }
-
-    fn after(&self, _res: &mut submillisecond::Response) {
+        let res = next(req);
         println!("[FOO EXIT]");
+        res
     }
 }
 
 #[derive(Default)]
 struct BazMiddleware;
 impl Middleware for BazMiddleware {
-    fn before(&mut self, req: &mut submillisecond::Request) {
+    fn apply(&self, req: Request, next: impl NextFn) -> Result<Response, RouteError> {
         println!("[BAZ ENTRY] {} {}", req.method(), req.uri().path());
-    }
-
-    fn after(&self, _res: &mut submillisecond::Response) {
+        let res = next(req);
         println!("[BAZ EXIT]");
+        res
     }
 }
 

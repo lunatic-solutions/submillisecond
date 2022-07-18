@@ -1,17 +1,19 @@
 use std::io;
 
-use submillisecond::{guard::Guard, params::Params, router, Application, Middleware};
+use submillisecond::{
+    guard::Guard, params::Params, router, Application, Middleware, NextFn, Request, Response,
+    RouteError,
+};
 
 #[derive(Default)]
 struct GlobalMiddleware;
 
 impl Middleware for GlobalMiddleware {
-    fn before(&mut self, _req: &mut submillisecond::Request) {
+    fn apply(&self, req: Request, next: impl NextFn) -> Result<Response, RouteError> {
         println!("[GLOBAL] ENTRY");
-    }
-
-    fn after(&self, _res: &mut submillisecond::Response) {
+        let res = next(req);
         println!("[GLOBAL] EXIT");
+        res
     }
 }
 
@@ -19,14 +21,11 @@ impl Middleware for GlobalMiddleware {
 struct LoggingMiddleware;
 
 impl Middleware for LoggingMiddleware {
-    fn before(&mut self, req: &mut submillisecond::Request) {
+    fn apply(&self, req: Request, next: impl NextFn) -> Result<Response, RouteError> {
         println!("{} {}", req.method(), req.uri().path());
-
-        // LoggingMiddleware
-    }
-
-    fn after(&self, _res: &mut submillisecond::Response) {
+        let res = next(req);
         println!("[EXIT]");
+        res
     }
 }
 
@@ -45,14 +44,14 @@ fn bar_handler() -> &'static str {
 
 struct BarGuard;
 impl Guard for BarGuard {
-    fn check(&self, _: &submillisecond::Request) -> bool {
+    fn check(&self, _: &Request) -> bool {
         true
     }
 }
 
 struct FooGuard;
 impl Guard for FooGuard {
-    fn check(&self, _: &submillisecond::Request) -> bool {
+    fn check(&self, _: &Request) -> bool {
         true
     }
 }
