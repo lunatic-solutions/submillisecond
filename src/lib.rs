@@ -71,8 +71,6 @@ impl Application {
                     };
                     let http_version = request.version();
 
-                    // REQUEST.set(Request::from(request));
-
                     let mut response =
                         Handler::handle(handler, Request::from(request)).into_final_response();
 
