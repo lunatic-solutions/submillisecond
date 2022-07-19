@@ -12,33 +12,27 @@ use lunatic::{
 };
 use serde::{Deserialize, Serialize};
 use submillisecond::{
-    json::Json, params::Params, router, Application, Middleware, NextFn, Response, RouteError,
-    Router,
+    json::Json, params::Params, router, Application, Next, Response, RouteError, Router,
 };
 use uuid::Uuid;
 
 // =====================================
 // Middleware for requests
 // =====================================
-struct LoggingMiddleware;
-
-impl Middleware for LoggingMiddleware {
-    fn apply(
-        &self,
-        req: submillisecond::Request,
-        next: impl NextFn,
-    ) -> Result<Response, RouteError> {
-        let request_id = req
-            .headers()
-            .get("x-request-id")
-            .and_then(|req_id| req_id.to_str().ok())
-            .map(|req_id| req_id.to_string())
-            .unwrap_or_else(|| "DEFAULT_REQUEST_ID".to_string());
-        println!("[ENTER] request {request_id}");
-        let res = next(req);
-        println!("[EXIT] request {request_id}");
-        res
-    }
+fn logging_middleware(
+    req: submillisecond::Request,
+    next: impl Next,
+) -> Result<Response, RouteError> {
+    let request_id = req
+        .headers()
+        .get("x-request-id")
+        .and_then(|req_id| req_id.to_str().ok())
+        .map(|req_id| req_id.to_string())
+        .unwrap_or_else(|| "DEFAULT_REQUEST_ID".to_string());
+    println!("[ENTER] request {request_id}");
+    let res = next(req);
+    println!("[EXIT] request {request_id}");
+    res
 }
 
 // =====================================
@@ -330,7 +324,7 @@ const MGMT_ROUTER: Router = router! {
 };
 
 const ROUTER: Router = router! {
-    use LoggingMiddleware;
+    use logging_middleware;
 
     "/api/users" => {
         POST "/" => create_user

@@ -7,15 +7,16 @@ pub use path::Path;
 pub use query::Query;
 pub use typed_header::TypedHeader;
 
+pub mod path;
+pub mod rejection;
+
 mod header_map;
 #[cfg(feature = "json")]
 mod json;
 mod method;
 mod params;
-pub mod path;
 #[cfg(feature = "query")]
 mod query;
-pub mod rejection;
 mod request;
 mod route;
 mod string;

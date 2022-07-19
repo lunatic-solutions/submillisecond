@@ -121,7 +121,7 @@ pub enum UriReadError {
     EmptyOnExpectedParam,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct UriReader {
     uri: String,
     pub cursor: usize,
