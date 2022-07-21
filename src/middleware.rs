@@ -1,3 +1,5 @@
+pub mod cookies;
+
 use crate::{extract::FromRequest, IntoResponse, Request, Response, RouteError};
 
 /// Convenience trait alias for `FnOnce(Request) -> Result<Response, RouteError>`.

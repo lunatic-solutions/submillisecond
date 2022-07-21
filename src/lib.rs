@@ -30,6 +30,7 @@ pub mod template;
 mod error;
 mod handler;
 mod middleware;
+mod process_local;
 mod request;
 mod response;
 
