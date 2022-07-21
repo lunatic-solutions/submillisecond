@@ -20,7 +20,7 @@ macro_rules! impl_middleware {
         impl<N, F, $( $args, )* R> Middleware<N, ($( $args, )*), R> for F
         where
             N: Next,
-            F: Fn(Request, N, $( $args, )*) -> R,
+            F: FnOnce(Request, N, $( $args, )*) -> R,
             $( $args: FromRequest, )*
             R: IntoResponse,
         {

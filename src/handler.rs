@@ -8,7 +8,7 @@ macro_rules! impl_handler {
     ( $( $args: ident ),* ) => {
         impl<F, $( $args, )* R> Handler<($( $args, )*), R> for F
         where
-            F: Fn($( $args, )*) -> R,
+            F: FnOnce($( $args, )*) -> R,
             $( $args: FromRequest, )*
             R: IntoResponse,
         {
