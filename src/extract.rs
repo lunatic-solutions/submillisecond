@@ -33,6 +33,8 @@ pub trait FromRequest: Sized {
     /// Perform the extraction.
     fn from_request(req: &mut Request) -> Result<Self, Self::Rejection>;
 
+    /// Extract from an owned instance of the request.
+    /// The first extractor in handlers will use this method, and can help avoid cloning in many cases.
     fn from_owned_request(mut req: Request) -> Result<Self, Self::Rejection> {
         Self::from_request(&mut req)
     }
