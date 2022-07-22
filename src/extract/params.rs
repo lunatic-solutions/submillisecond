@@ -10,4 +10,8 @@ impl FromRequest for Params {
     fn from_request(req: &mut Request) -> Result<Self, Self::Rejection> {
         Ok(req.params.clone())
     }
+
+    fn from_owned_request(req: Request) -> Result<Self, Self::Rejection> {
+        Ok(req.params)
+    }
 }

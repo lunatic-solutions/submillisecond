@@ -150,7 +150,7 @@ impl UriReader {
 
     pub fn read_matching(&mut self, s: &str) -> bool {
         let read_to = self.cursor + s.len();
-        if read_to >= self.uri.len() {
+        if read_to > self.uri.len() {
             return false;
         }
 

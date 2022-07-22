@@ -11,4 +11,8 @@ impl FromRequest for Vec<u8> {
         let body = mem::take(req.body_mut());
         Ok(body)
     }
+
+    fn from_owned_request(req: Request) -> Result<Self, Self::Rejection> {
+        Ok(req.request.into_body())
+    }
 }

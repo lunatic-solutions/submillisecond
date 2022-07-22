@@ -48,6 +48,7 @@ where
         request: http::Request::from_parts(parts, body),
         params,
         reader,
+        next: req.next,
     })
 }
 

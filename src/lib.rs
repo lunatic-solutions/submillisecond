@@ -10,7 +10,6 @@ pub use submillisecond_macros::*;
 
 pub use crate::error::*;
 pub use crate::handler::*;
-pub use crate::middleware::*;
 pub use crate::request::*;
 pub use crate::response::*;
 
@@ -29,7 +28,6 @@ pub mod template;
 
 mod error;
 mod handler;
-mod middleware;
 mod request;
 mod response;
 

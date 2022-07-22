@@ -1,17 +1,17 @@
 use std::io;
 
-use submillisecond::{guard::Guard, params::Params, router, Application, Next, Request, Response};
+use submillisecond::{guard::Guard, params::Params, router, Application, Request, Response};
 
-fn global_middleware(req: Request, next: impl Next) -> Response {
+fn global_middleware(req: Request) -> Response {
     println!("[GLOBAL] ENTRY");
-    let res = next(req);
+    let res = req.next();
     println!("[GLOBAL] EXIT");
     res
 }
 
-fn logging_middleware(req: Request, next: impl Next) -> Response {
+fn logging_middleware(req: Request) -> Response {
     println!("{} {}", req.method(), req.uri().path());
-    let res = next(req);
+    let res = req.next();
     println!("[EXIT]");
     res
 }
@@ -47,7 +47,9 @@ fn main() -> io::Result<()> {
     Application::new(router! {
         use global_middleware;
 
-        "/foo" if FooGuard use logging_middleware => {
+        "/foo" if FooGuard => {
+            use logging_middleware;
+
             GET "/bar" if BarGuard => foo_bar_handler
         }
         GET "/bar" if BarGuard use logging_middleware => bar_handler

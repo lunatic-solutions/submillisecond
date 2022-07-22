@@ -453,11 +453,12 @@ impl<'r> RouterTrie<'r> {
             .flat_map(|middleware| middleware.tree.items())
             .rev()
             .fold(hquote! {{ #inner }}, |acc, middleware| {
-                hquote! {
-                    ::submillisecond::Middleware::apply(&#middleware, req, move |mut req: ::submillisecond::Request| {
+                hquote! {{
+                    req.next = Some(|mut req: ::submillisecond::Request| {
                         #acc
-                    })
-                }
+                    });
+                    ::submillisecond::Handler::handle(&#middleware, req)
+                }}
             })
     }
 

@@ -1,13 +1,23 @@
 use std::{convert, ops};
 
-use crate::{core::UriReader, params::Params};
+use crate::{core::UriReader, params::Params, Response};
 
 /// Wrapper for [`http::Request`] containing params and cursor.
-#[derive(Debug)]
 pub struct Request {
     pub request: http::Request<Vec<u8>>,
     pub params: Params,
     pub reader: UriReader,
+    pub next: Option<fn(Request) -> Response>,
+}
+
+impl Request {
+    pub fn next(mut self) -> Response {
+        if let Some(next) = self.next.take() {
+            next(self)
+        } else {
+            panic!("no next handler")
+        }
+    }
 }
 
 impl convert::AsRef<http::Request<Vec<u8>>> for Request {
@@ -37,6 +47,7 @@ impl From<http::Request<Vec<u8>>> for Request {
             request,
             params: Params::default(),
             reader: UriReader::new(path),
+            next: None,
         }
     }
 }

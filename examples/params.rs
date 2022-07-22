@@ -1,10 +1,10 @@
 use std::io;
 
 use submillisecond::{
-    extract::Path, guard::Guard, params::Params, router, Application, Next, Request, Response,
+    extract::Path, guard::Guard, params::Params, router, Application, Request, Response,
 };
 
-fn logging_middleware(req: Request, next: impl Next) -> Response {
+fn logging_middleware(req: Request) -> Response {
     let request_id = req
         .headers()
         .get("x-request-id")
@@ -12,7 +12,7 @@ fn logging_middleware(req: Request, next: impl Next) -> Response {
         .map(|req_id| req_id.to_string())
         .unwrap_or_else(|| "unknown".to_string());
     println!("[ENTER] request {request_id}");
-    let res = next(req);
+    let res = req.next();
     println!("[EXIT] request {request_id}");
     res
 }

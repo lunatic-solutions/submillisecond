@@ -12,7 +12,12 @@ impl FromRequest for Request {
             request: FromRequest::from_request(req).unwrap(),
             params: req.params.clone(),
             reader: req.reader.clone(),
+            next: req.next,
         })
+    }
+
+    fn from_owned_request(req: Request) -> Result<Self, Self::Rejection> {
+        Ok(req)
     }
 }
 
