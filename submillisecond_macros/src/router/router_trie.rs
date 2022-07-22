@@ -3,7 +3,7 @@ use proc_macro2::TokenStream;
 use quote::TokenStreamExt;
 use regex::Regex;
 
-use crate::{hquote, router::Router};
+use crate::hquote;
 
 use super::{
     item_catch_all::ItemCatchAll,
@@ -11,7 +11,7 @@ use super::{
     item_use_middleware::ItemUseMiddleware,
     method::Method,
     trie::{Node, Trie},
-    RouterTree,
+    Router,
 };
 
 lazy_static! {
@@ -69,7 +69,7 @@ macro_rules! quote_reader_fallback {($($tt:tt)*) => {{
 
 impl<'r> RouterTrie<'r> {
     /// Create a new [`RouterTrie`] from an instance of [`RouterTree`].
-    pub fn new(router_tree: &'r RouterTree) -> Self {
+    pub fn new(router_tree: &'r Router) -> Self {
         let mut trie = RouterTrie {
             catch_all: router_tree.catch_all.as_ref(),
             ..Default::default()
@@ -375,9 +375,9 @@ impl<'r> RouterTrie<'r> {
         middleware: &[&'r ItemUseMiddleware],
     ) -> TokenStream {
         let expanded = match handler {
-            ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
+            ItemHandler::Expr(_) | ItemHandler::Macro(_) => {
                 let handler = match handler {
-                    ItemHandler::Fn(handler) => hquote! { #handler },
+                    ItemHandler::Expr(handler) => hquote! { #handler },
                     ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
                     ItemHandler::SubRouter(_) => unreachable!(),
                 };
@@ -417,9 +417,9 @@ impl<'r> RouterTrie<'r> {
         middleware: &[&'r ItemUseMiddleware],
     ) -> TokenStream {
         match handler {
-            ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
+            ItemHandler::Expr(_) | ItemHandler::Macro(_) => {
                 let handler = match handler {
-                    ItemHandler::Fn(handler) => hquote! { #handler },
+                    ItemHandler::Expr(handler) => hquote! { #handler },
                     ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
                     ItemHandler::SubRouter(_) => unreachable!(),
                 };
@@ -472,36 +472,14 @@ impl<'r> RouterTrie<'r> {
             })
     }
 
-    /// Expand catch all handler, or if not present, return `RouteError::RouteNotMatch`.
+    /// Expand catch all handler, or if not present, return default 404.
     fn expand_catch_all(&self) -> TokenStream {
-        match self.catch_all {
-            Some(catch_all) => match &*catch_all.handler {
-                ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
-                    let handler = match &*catch_all.handler {
-                        ItemHandler::Fn(handler) => hquote! { #handler },
-                        ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
-                        ItemHandler::SubRouter(_) => unreachable!(),
-                    };
+        let catch_all_expanded = ItemCatchAll::expand_catch_all_handler(
+            self.catch_all.map(|catch_all| catch_all.handler.as_ref()),
+        );
 
-                    hquote! {
-                        return ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(#handler, req)
-                        );
-                    }
-                }
-                ItemHandler::SubRouter(subrouter) => {
-                    let handler = subrouter.expand();
-
-                    hquote! {
-                        return ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(#handler, req)
-                        );
-                    }
-                }
-            },
-            None => {
-                hquote! { return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req)); }
-            }
+        hquote! {
+            return #catch_all_expanded;
         }
     }
 
@@ -557,13 +535,13 @@ impl<'r> RouterTrie<'r> {
             }
 
             match handler {
-                ItemHandler::SubRouter(Router::Tree(tree)) if catch_all.is_none() => {
+                ItemHandler::SubRouter(router) if catch_all.is_none() => {
                     self.collect_tries(
                         Some(new_path),
-                        &tree.routes,
+                        &router.routes,
                         all_middleware,
                         all_guards,
-                        &tree.catch_all,
+                        &router.catch_all,
                     );
                 }
                 _ => {

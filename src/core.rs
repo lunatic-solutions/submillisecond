@@ -6,7 +6,7 @@ use std::{
     mem::MaybeUninit,
 };
 
-use crate::{response::IntoResponse, Response, RouteError};
+use crate::{response::IntoResponse, Response};
 
 const MAX_HEADERS: usize = 96;
 const REQUEST_BUFFER_SIZE: usize = 1024 * 8;
@@ -107,7 +107,7 @@ pub enum ParseRequestError {
 }
 
 impl IntoResponse for ParseRequestError {
-    fn into_response(self) -> Result<Response, RouteError> {
+    fn into_response(self) -> Response {
         match self {
             ParseRequestError::MissingMethod | ParseRequestError::UnknownMethod => {
                 (StatusCode::METHOD_NOT_ALLOWED, ()).into_response()

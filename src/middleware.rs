@@ -1,18 +1,18 @@
-use crate::{extract::FromRequest, IntoResponse, Request, Response, RouteError};
+use crate::{extract::FromRequest, IntoResponse, Request, Response};
 
-/// Convenience trait alias for `FnOnce(Request) -> Result<Response, RouteError>`.
-pub trait Next: FnOnce(Request) -> Result<Response, RouteError> {
-    fn next(self, req: Request) -> Result<Response, RouteError>;
+/// Convenience trait alias for `FnOnce(Request) -> Response`.
+pub trait Next: FnOnce(Request) -> Response {
+    fn next(self, req: Request) -> Response;
 }
 
-impl<T: FnOnce(Request) -> Result<Response, RouteError>> Next for T {
-    fn next(self, req: Request) -> Result<Response, RouteError> {
+impl<T: FnOnce(Request) -> Response> Next for T {
+    fn next(self, req: Request) -> Response {
         self(req)
     }
 }
 
-pub trait Middleware<N: Next, Arg = (), Ret = ()> {
-    fn apply(this: Self, req: Request, next: N) -> Result<Response, RouteError>;
+pub trait Middleware<N: Next, Arg = (), Ret = Response> {
+    fn apply(this: Self, req: Request, next: N) -> Response;
 }
 
 macro_rules! impl_middleware {
@@ -26,7 +26,7 @@ macro_rules! impl_middleware {
         {
 
             #[allow(unused_mut, unused_variables)]
-            fn apply(this: Self, mut req: Request, next: N) -> Result<Response, RouteError> {
+            fn apply(this: Self, mut req: Request, next: N) -> Response {
                 paste::paste! {
                     $(
                         let [< $args:lower >] = match <$args as FromRequest>::from_request(&mut req) {

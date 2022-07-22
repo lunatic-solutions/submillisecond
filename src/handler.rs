@@ -1,7 +1,7 @@
 use crate::{extract::FromRequest, response::IntoResponse, Request, Response};
 
 pub trait Handler<Arg = (), Ret = ()> {
-    fn handle(this: Self, req: Request) -> Result<Response, RouteError>;
+    fn handle(this: Self, req: Request) -> Response;
 }
 
 macro_rules! impl_handler {
@@ -14,7 +14,7 @@ macro_rules! impl_handler {
         {
 
             #[allow(unused_mut, unused_variables)]
-            fn handle(this: Self, mut req: Request) -> Result<Response, RouteError> {
+            fn handle(this: Self, mut req: Request) -> Response {
                 paste::paste! {
                     $(
                         let [< $args:lower >] = match <$args as FromRequest>::from_request(&mut req) {
@@ -31,15 +31,3 @@ macro_rules! impl_handler {
 
 impl_handler!();
 all_the_tuples!(impl_handler);
-
-#[derive(Debug)]
-pub enum RouteError {
-    ExtractorError(Response),
-    RouteNotMatch(Request),
-}
-
-impl IntoResponse for RouteError {
-    fn into_response(self) -> Result<Response, RouteError> {
-        Err(self)
-    }
-}

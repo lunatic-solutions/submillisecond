@@ -1,5 +1,16 @@
-mod list;
-mod tree;
+pub use item_catch_all::*;
+pub use item_route::*;
+pub use item_use_middleware::*;
+pub use method::*;
+pub use router_trie::*;
+pub use trie::*;
+
+mod item_catch_all;
+mod item_route;
+mod item_use_middleware;
+mod method;
+mod router_trie;
+mod trie;
 
 use proc_macro2::TokenStream;
 use syn::{
@@ -7,48 +18,50 @@ use syn::{
     LitStr, Token,
 };
 
-use self::{
-    list::RouterList,
-    tree::{method::Method, RouterTree},
-};
+use crate::hquote;
 
 #[derive(Clone, Debug)]
-pub enum Router {
-    List(RouterList), // [a, b, c]
-    Tree(RouterTree), // { "/" => ... }
+pub struct Router {
+    pub middleware: Vec<ItemUseMiddleware>,
+    pub routes: Vec<ItemRoute>,
+    pub catch_all: Option<ItemCatchAll>,
 }
 
 impl Router {
     pub fn expand(&self) -> TokenStream {
-        match self {
-            Router::List(router_list) => router_list.expand(),
-            Router::Tree(router_tree) => router_tree.expand(),
+        let trie = RouterTrie::new(self);
+        let inner = trie.expand();
+
+        hquote! {
+            (|mut req: ::submillisecond::Request| -> ::submillisecond::Response{
+                #inner
+            }) as ::submillisecond::Router
         }
     }
 }
 
 impl Parse for Router {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if input.is_empty() {
-            return Ok(Router::List(RouterList::default()));
+        let mut middleware = Vec::new();
+        while input.peek(Token![use]) {
+            middleware.push(input.parse()?);
+            let _: Token![;] = input.parse()?;
         }
 
-        if input.peek(LitStr) || Method::peek(input) || input.peek(Token![use]) {
-            return Ok(Router::Tree(input.parse()?));
+        let mut routes: Vec<ItemRoute> = Vec::new();
+        while Method::peek(input)
+            || input.peek(LitStr)
+            || (!routes.is_empty() && input.peek(Token![,]))
+        {
+            routes.push(input.parse()?);
         }
 
-        Ok(Router::List(input.parse()?))
-    }
-}
+        let catch_all = input.peek(Token![_]).then(|| input.parse()).transpose()?;
 
-#[cfg(test)]
-mod tests {
-    use syn::parse_quote;
-
-    use super::Router;
-
-    #[test]
-    fn parse_router() {
-        let _: Router = parse_quote! {foo};
+        Ok(Router {
+            middleware,
+            routes,
+            catch_all,
+        })
     }
 }

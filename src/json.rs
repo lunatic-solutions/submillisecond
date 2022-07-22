@@ -3,7 +3,7 @@ use serde::{ser, Serialize};
 
 use crate::{
     response::{IntoResponse, Response},
-    Request, RouteError,
+    Request,
 };
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -13,7 +13,7 @@ impl<T> IntoResponse for Json<T>
 where
     T: Serialize,
 {
-    fn into_response(self) -> Result<Response, RouteError> {
+    fn into_response(self) -> Response {
         match serde_json::to_vec(&self.0) {
             Ok(bytes) => (
                 [(

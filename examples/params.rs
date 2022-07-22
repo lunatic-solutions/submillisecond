@@ -2,10 +2,9 @@ use std::io;
 
 use submillisecond::{
     extract::Path, guard::Guard, params::Params, router, Application, Next, Request, Response,
-    RouteError,
 };
 
-fn logging_middleware(req: Request, next: impl Next) -> Result<Response, RouteError> {
+fn logging_middleware(req: Request, next: impl Next) -> Response {
     let request_id = req
         .headers()
         .get("x-request-id")

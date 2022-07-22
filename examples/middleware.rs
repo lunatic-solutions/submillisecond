@@ -1,17 +1,15 @@
 use std::io;
 
-use submillisecond::{
-    guard::Guard, params::Params, router, Application, Next, Request, Response, RouteError,
-};
+use submillisecond::{guard::Guard, params::Params, router, Application, Next, Request, Response};
 
-fn global_middleware(req: Request, next: impl Next) -> Result<Response, RouteError> {
+fn global_middleware(req: Request, next: impl Next) -> Response {
     println!("[GLOBAL] ENTRY");
     let res = next(req);
     println!("[GLOBAL] EXIT");
     res
 }
 
-fn logging_middleware(req: Request, next: impl Next) -> Result<Response, RouteError> {
+fn logging_middleware(req: Request, next: impl Next) -> Response {
     println!("{} {}", req.method(), req.uri().path());
     let res = next(req);
     println!("[EXIT]");

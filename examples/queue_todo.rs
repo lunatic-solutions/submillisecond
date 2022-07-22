@@ -11,18 +11,13 @@ use lunatic::{
     supervisor::Supervisor,
 };
 use serde::{Deserialize, Serialize};
-use submillisecond::{
-    json::Json, params::Params, router, Application, Next, Response, RouteError, Router,
-};
+use submillisecond::{json::Json, params::Params, router, Application, Next, Response, Router};
 use uuid::Uuid;
 
 // =====================================
 // Middleware for requests
 // =====================================
-fn logging_middleware(
-    req: submillisecond::Request,
-    next: impl Next,
-) -> Result<Response, RouteError> {
+fn logging_middleware(req: submillisecond::Request, next: impl Next) -> Response {
     let request_id = req
         .headers()
         .get("x-request-id")
