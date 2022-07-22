@@ -1,6 +1,6 @@
-use crate::{extract::FromRequest, response::IntoResponse, Request, Response, RouteError};
+use crate::{extract::FromRequest, response::IntoResponse, Request, Response};
 
-pub trait Handler<_Arg = (), _Ret = ()> {
+pub trait Handler<Arg = (), Ret = ()> {
     fn handle(this: Self, req: Request) -> Result<Response, RouteError>;
 }
 
@@ -8,7 +8,7 @@ macro_rules! impl_handler {
     ( $( $args: ident ),* ) => {
         impl<F, $( $args, )* R> Handler<($( $args, )*), R> for F
         where
-            F: Fn($( $args, )*) -> R,
+            F: FnOnce($( $args, )*) -> R,
             $( $args: FromRequest, )*
             R: IntoResponse,
         {
@@ -31,3 +31,15 @@ macro_rules! impl_handler {
 
 impl_handler!();
 all_the_tuples!(impl_handler);
+
+#[derive(Debug)]
+pub enum RouteError {
+    ExtractorError(Response),
+    RouteNotMatch(Request),
+}
+
+impl IntoResponse for RouteError {
+    fn into_response(self) -> Result<Response, RouteError> {
+        Err(self)
+    }
+}

@@ -5,7 +5,7 @@ use http::{
     Extensions, HeaderMap, HeaderValue, StatusCode,
 };
 
-use crate::RouteError;
+use crate::{defaults, RouteError};
 
 use super::{IntoResponseParts, Response, ResponseParts};
 
@@ -20,7 +20,8 @@ pub trait IntoResponse: Sized {
     fn into_final_response(self) -> Response {
         match self.into_response() {
             Ok(res) => res,
-            Err(err) => err.into_response(),
+            Err(RouteError::ExtractorError(resp)) => resp,
+            Err(RouteError::RouteNotMatch(_)) => defaults::err_404(),
         }
     }
 }

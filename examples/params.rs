@@ -1,26 +1,21 @@
 use std::io;
 
 use submillisecond::{
-    extract::Path, guard::Guard, params::Params, router, Application, Middleware, NextFn, Request,
-    Response, RouteError,
+    extract::Path, guard::Guard, params::Params, router, Application, Next, Request, Response,
+    RouteError,
 };
 
-#[derive(Default)]
-struct LoggingMiddleware;
-
-impl Middleware for LoggingMiddleware {
-    fn apply(&self, req: Request, next: impl NextFn) -> Result<Response, RouteError> {
-        let request_id = req
-            .headers()
-            .get("x-request-id")
-            .and_then(|req_id| req_id.to_str().ok())
-            .map(|req_id| req_id.to_string())
-            .unwrap_or_else(|| "unknown".to_string());
-        println!("[ENTER] request {request_id}");
-        let res = next(req);
-        println!("[EXIT] request {request_id}");
-        res
-    }
+fn logging_middleware(req: Request, next: impl Next) -> Result<Response, RouteError> {
+    let request_id = req
+        .headers()
+        .get("x-request-id")
+        .and_then(|req_id| req_id.to_str().ok())
+        .map(|req_id| req_id.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    println!("[ENTER] request {request_id}");
+    let res = next(req);
+    println!("[EXIT] request {request_id}");
+    res
 }
 
 fn foo_handler(params: Params) -> &'static str {
@@ -52,7 +47,7 @@ fn main() -> io::Result<()> {
     Application::new(router! {
         "/:a" if FakeGuard => {
             "/:b" => {
-                GET "/:c" if BarGuard use LoggingMiddleware => bar_handler
+                GET "/:c" if BarGuard use logging_middleware => bar_handler
             }
         }
         GET "/hello/:x/:y/:z" if BarGuard => foo_handler

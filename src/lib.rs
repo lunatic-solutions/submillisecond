@@ -8,10 +8,11 @@ use lunatic::{
 };
 pub use submillisecond_macros::*;
 
-pub use crate::error::{BoxError, Error};
-pub use crate::handler::Handler;
-pub use crate::request::Request;
-pub use crate::response::{IntoResponse, IntoResponseParts, Response};
+pub use crate::error::*;
+pub use crate::handler::*;
+pub use crate::middleware::*;
+pub use crate::request::*;
+pub use crate::response::*;
 
 #[macro_use]
 pub(crate) mod macros;
@@ -28,6 +29,7 @@ pub mod template;
 
 mod error;
 mod handler;
+mod middleware;
 mod request;
 mod response;
 
@@ -67,10 +69,10 @@ impl Application {
                             return;
                         }
                     };
-
                     let http_version = request.version();
+
                     let mut response =
-                        Handler::handle(handler, request.into()).into_final_response();
+                        Handler::handle(handler, Request::from(request)).into_final_response();
 
                     let content_length = response.body().len();
                     *response.version_mut() = http_version;
@@ -86,48 +88,5 @@ impl Application {
         }
 
         Ok(())
-    }
-}
-
-pub trait Middleware {
-    fn apply(&self, req: Request, next: impl NextFn) -> Result<Response, RouteError>;
-}
-
-/// Convenience trait alias for `FnOnce(Request) -> Result<Response, RouteError>`.
-pub trait NextFn: FnOnce(Request) -> Result<Response, RouteError> {
-    fn next(self, req: Request) -> Result<Response, RouteError>;
-}
-
-impl<T: FnOnce(Request) -> Result<Response, RouteError>> NextFn for T {
-    fn next(self, req: Request) -> Result<Response, RouteError> {
-        self(req)
-    }
-}
-
-#[derive(Debug)]
-pub enum RouteError {
-    ExtractorError(Response),
-    RouteNotMatch(Request),
-}
-
-impl RouteError {
-    fn into_response(self) -> Response {
-        match self {
-            RouteError::ExtractorError(resp) => resp,
-            RouteError::RouteNotMatch(_) => defaults::err_404(),
-        }
-    }
-}
-
-impl IntoResponse for RouteError {
-    fn into_response(self) -> Result<Response, RouteError> {
-        Err(self)
-    }
-
-    fn into_final_response(self) -> Response {
-        match self {
-            RouteError::ExtractorError(resp) => resp,
-            RouteError::RouteNotMatch(_) => defaults::err_404(),
-        }
     }
 }
