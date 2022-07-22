@@ -148,16 +148,26 @@ impl UriReader {
         self.cursor += len;
     }
 
+    pub fn read_matching(&mut self, s: &str) -> bool {
+        let read_to = self.cursor + s.len();
+        if read_to >= self.uri.len() {
+            return false;
+        }
+
+        if &self.uri[self.cursor..read_to] == s {
+            self.cursor = read_to;
+            return true;
+        }
+
+        false
+    }
+
     pub fn read_back(&mut self, len: usize) {
         self.cursor -= len;
     }
 
     pub fn ensure_next_slash(&mut self) -> bool {
-        if self.peek(1) == "/" {
-            self.read(1);
-            return true;
-        }
-        false
+        self.read_matching("/")
     }
 
     pub fn reset(&mut self) {
