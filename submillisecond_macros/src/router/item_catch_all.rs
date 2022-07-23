@@ -28,18 +28,14 @@ impl ItemCatchAll {
                     };
 
                     hquote! {
-                        ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(#handler, req)
-                        )
+                        ::submillisecond::Handler::handle(#handler, req)
                     }
                 }
                 ItemHandler::SubRouter(subrouter) => {
                     let handler = subrouter.expand();
 
                     hquote! {
-                        ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(#handler, req)
-                        )
+                        ::submillisecond::Handler::handle(#handler, req)
                     }
                 }
             },

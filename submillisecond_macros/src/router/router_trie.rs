@@ -374,9 +374,7 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(
                     &middleware.iter().collect::<Vec<_>>(),
                     hquote! {
-                        ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(#handler, req)
-                        )
+                        ::submillisecond::Handler::handle(#handler, req)
                     },
                 );
 
@@ -416,9 +414,7 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(
                     &middleware.iter().collect::<Vec<_>>(),
                     hquote! {
-                        ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(#handler, req)
-                        )
+                        ::submillisecond::Handler::handle(#handler, req)
                     },
                 );
 
@@ -433,9 +429,7 @@ impl<'r> RouterTrie<'r> {
                     &middleware.iter().collect::<Vec<_>>(),
                     hquote! {
                         let subrouter = #subrouter_expanded;
-                        ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(subrouter, req)
-                        )
+                        ::submillisecond::Handler::handle(subrouter, req)
                     },
                 );
 
