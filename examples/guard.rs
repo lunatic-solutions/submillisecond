@@ -1,11 +1,11 @@
 use std::io;
 
-use submillisecond::{guard::Guard, router, Application};
+use submillisecond::{guard::Guard, router, Application, RequestContext};
 
 struct ContentLengthGuard(u64);
 
 impl Guard for ContentLengthGuard {
-    fn check(&self, req: &submillisecond::Request) -> bool {
+    fn check(&self, req: &RequestContext) -> bool {
         let content_length_header = req
             .headers()
             .get("content-length")

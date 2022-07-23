@@ -5,7 +5,7 @@ use headers::HeaderMapExt;
 use crate::{
     extract::FromRequest,
     response::{IntoResponse, IntoResponseParts, ResponseParts},
-    Request, Response, RouteError,
+    RequestContext, Response,
 };
 
 use super::rejection::{TypedHeaderRejection, TypedHeaderRejectionReason};
@@ -19,7 +19,7 @@ where
 {
     type Rejection = TypedHeaderRejection;
 
-    fn from_request(req: &mut Request) -> Result<Self, Self::Rejection> {
+    fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
         match req.headers().typed_try_get::<T>() {
             Ok(Some(value)) => Ok(Self(value)),
             Ok(None) => Err(TypedHeaderRejection {
@@ -58,10 +58,9 @@ impl<T> IntoResponse for TypedHeader<T>
 where
     T: headers::Header,
 {
-    fn into_response(self) -> Result<Response, RouteError> {
-        ().into_response().map(|mut res| {
-            res.headers_mut().typed_insert(self.0);
-            res
-        })
+    fn into_response(self) -> Response {
+        let mut res = ().into_response();
+        res.headers_mut().typed_insert(self.0);
+        res
     }
 }

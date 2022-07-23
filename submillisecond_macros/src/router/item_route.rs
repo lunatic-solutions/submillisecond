@@ -1,10 +1,10 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, TokenStreamExt};
 use syn::{
-    braced, bracketed,
+    braced,
     parse::{Parse, ParseStream},
     spanned::Spanned,
-    token, Expr, LitStr, Macro, Path, Token,
+    token, Expr, LitStr, Path, Token,
 };
 
 use crate::{hquote, router::Router};
@@ -102,8 +102,7 @@ fn expand_guard_struct(guard: &syn::Expr) -> TokenStream {
 
 #[derive(Clone, Debug)]
 pub enum ItemHandler {
-    Fn(Path),
-    Macro(Macro),
+    Expr(Box<Expr>),
     SubRouter(Router),
 }
 
@@ -112,21 +111,11 @@ impl Parse for ItemHandler {
         if input.peek(token::Brace) {
             let content;
             braced!(content in input);
-            return Ok(ItemHandler::SubRouter(Router::Tree(content.parse()?)));
-        }
-
-        if input.peek(token::Bracket) {
-            let content;
-            bracketed!(content in input);
-            return Ok(ItemHandler::SubRouter(Router::List(content.parse()?)));
+            return Ok(ItemHandler::SubRouter(content.parse()?));
         }
 
         let fork = input.fork();
         let _: Path = fork.parse()?;
-        if fork.peek(Token![!]) {
-            Ok(ItemHandler::Macro(input.parse()?))
-        } else {
-            Ok(ItemHandler::Fn(input.parse()?))
-        }
+        Ok(ItemHandler::Expr(input.parse()?))
     }
 }

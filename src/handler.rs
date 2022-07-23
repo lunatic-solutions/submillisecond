@@ -1,45 +1,52 @@
-use crate::{extract::FromRequest, response::IntoResponse, Request, Response};
+use crate::{
+    extract::{FromOwnedRequest, FromRequest},
+    response::IntoResponse,
+    RequestContext, Response,
+};
 
 pub trait Handler<Arg = (), Ret = ()> {
-    fn handle(this: Self, req: Request) -> Result<Response, RouteError>;
+    fn handle(this: Self, req: RequestContext) -> Response;
+}
+
+impl<F, R> Handler<(), R> for F
+where
+    F: FnOnce() -> R,
+    R: IntoResponse,
+{
+    fn handle(this: Self, _req: RequestContext) -> Response {
+        this().into_response()
+    }
 }
 
 macro_rules! impl_handler {
-    ( $( $args: ident ),* ) => {
-        impl<F, $( $args, )* R> Handler<($( $args, )*), R> for F
+    ( $arg1: ident $(, $( $args: ident ),*)? ) => {
+        #[allow(unused_parens)]
+        impl<F, $arg1, $( $( $args, )*)? R> Handler<($arg1$(, $( $args, )*)?), R> for F
         where
-            F: FnOnce($( $args, )*) -> R,
-            $( $args: FromRequest, )*
+            F: FnOnce($arg1$(, $( $args, )*)?) -> R,
+            $arg1: FromOwnedRequest,
+            $( $( $args: FromRequest, )* )?
             R: IntoResponse,
         {
 
             #[allow(unused_mut, unused_variables)]
-            fn handle(this: Self, mut req: Request) -> Result<Response, RouteError> {
+            fn handle(this: Self, mut req: RequestContext) -> Response {
                 paste::paste! {
-                    $(
+                    $($(
                         let [< $args:lower >] = match <$args as FromRequest>::from_request(&mut req) {
                             Ok(e) => e,
                             Err(err) => return err.into_response(),
                         };
-                    )*
-                    this( $( [< $args:lower >] ),* ).into_response()
+                    )*)?
+                    let e1 = match <$arg1 as FromOwnedRequest>::from_owned_request(req) {
+                        Ok(e) => e,
+                        Err(err) => return err.into_response(),
+                    };
+                    this(e1 $(, $( [< $args:lower >] ),*)?).into_response()
                 }
             }
         }
     };
 }
 
-impl_handler!();
 all_the_tuples!(impl_handler);
-
-#[derive(Debug)]
-pub enum RouteError {
-    ExtractorError(Response),
-    RouteNotMatch(Request),
-}
-
-impl IntoResponse for RouteError {
-    fn into_response(self) -> Result<Response, RouteError> {
-        Err(self)
-    }
-}

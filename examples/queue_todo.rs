@@ -12,17 +12,14 @@ use lunatic::{
 };
 use serde::{Deserialize, Serialize};
 use submillisecond::{
-    json::Json, params::Params, router, Application, Next, Response, RouteError, Router,
+    json::Json, params::Params, router, Application, RequestContext, Response, Router,
 };
 use uuid::Uuid;
 
 // =====================================
 // Middleware for requests
 // =====================================
-fn logging_middleware(
-    req: submillisecond::Request,
-    next: impl Next,
-) -> Result<Response, RouteError> {
+fn logging_middleware(req: RequestContext) -> Response {
     let request_id = req
         .headers()
         .get("x-request-id")
@@ -30,7 +27,7 @@ fn logging_middleware(
         .map(|req_id| req_id.to_string())
         .unwrap_or_else(|| "DEFAULT_REQUEST_ID".to_string());
     println!("[ENTER] request {request_id}");
-    let res = next(req);
+    let res = req.next_handler();
     println!("[EXIT] request {request_id}");
     res
 }
@@ -284,14 +281,14 @@ fn list_todos(params: Params) -> Json<Vec<Todo>> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
     let user_id = params.get("user_id").unwrap();
     let todos = persistence.request(ListTodos(Uuid::from_str(user_id).unwrap()));
-    submillisecond::json::Json(todos)
+    Json(todos)
 }
 
 fn poll_todo(params: Params) -> Json<Todo> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
     let user_id = params.get("user_id").unwrap();
     if let Some(todo) = persistence.request(PollTodo(Uuid::from_str(user_id).unwrap())) {
-        return submillisecond::json::Json(todo);
+        return Json(todo);
     }
     panic!("Cannot poll todo {params:#?}");
 }
@@ -306,9 +303,9 @@ fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
         description: body.0.description,
     };
     if persistence.request(AddTodo(Uuid::from_str(user_id).unwrap(), todo.clone())) {
-        return submillisecond::json::Json(Some(todo));
+        return Json(Some(todo));
     }
-    submillisecond::json::Json(None)
+    Json(None)
 }
 
 fn liveness_check() -> &'static str {

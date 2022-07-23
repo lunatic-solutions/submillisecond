@@ -2,14 +2,14 @@ use std::convert::Infallible;
 
 use http::HeaderMap;
 
-use crate::Request;
+use crate::RequestContext;
 
 use super::FromRequest;
 
 impl FromRequest for HeaderMap {
     type Rejection = Infallible;
 
-    fn from_request(req: &mut Request) -> Result<Self, Self::Rejection> {
+    fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
         Ok(req.headers().clone())
     }
 }

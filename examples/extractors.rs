@@ -6,7 +6,7 @@ use serde::Deserialize;
 use submillisecond::{
     extract::{Path, Query, TypedHeader},
     json::Json,
-    router, Application, NamedParam, Request,
+    router, Application, NamedParam,
 };
 
 fn index() -> &'static str {
@@ -62,14 +62,11 @@ fn named_param2(NamedParamStruct { name, age }: NamedParamStruct) -> String {
     format!("Hi {name}, you are {age} years old")
 }
 
-fn string(req: Request, body: String) -> String {
-    assert!(req.body().is_empty()); // Taking body with `String` extractor should leave the request body empty
+fn string(body: String) -> String {
     body
 }
 
-fn vec(req: Request, body: Vec<u8>) -> Vec<u8> {
-    println!("{}", body.len());
-    assert!(req.body().is_empty()); // Taking body with `Vec<u8>` extractor should leave the request body empty
+fn vec(body: Vec<u8>) -> Vec<u8> {
     body
 }
 

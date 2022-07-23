@@ -1,5 +1,5 @@
-use crate::Request;
+use crate::RequestContext;
 
 pub trait Guard {
-    fn check(&self, req: &Request) -> bool;
+    fn check(&self, req: &RequestContext) -> bool;
 }

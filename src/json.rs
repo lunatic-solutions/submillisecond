@@ -3,7 +3,7 @@ use serde::{ser, Serialize};
 
 use crate::{
     response::{IntoResponse, Response},
-    Request, RouteError,
+    RequestContext,
 };
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -13,7 +13,7 @@ impl<T> IntoResponse for Json<T>
 where
     T: Serialize,
 {
-    fn into_response(self) -> Result<Response, RouteError> {
+    fn into_response(self) -> Response {
         match serde_json::to_vec(&self.0) {
             Ok(bytes) => (
                 [(
@@ -36,7 +36,7 @@ where
     }
 }
 
-pub fn from_json<T>(req: Request) -> serde_json::Result<Request>
+pub fn from_json<T>(req: RequestContext) -> serde_json::Result<RequestContext>
 where
     T: ser::Serialize,
 {
@@ -44,10 +44,11 @@ where
     let reader = req.reader.clone();
     let (parts, body) = req.request.into_parts();
     let body = serde_json::to_vec(&body)?;
-    Ok(Request {
+    Ok(RequestContext {
         request: http::Request::from_parts(parts, body),
         params,
         reader,
+        next: req.next,
     })
 }
 
@@ -57,7 +58,7 @@ pub fn to_json(res: Response) -> serde_json::Result<Response> {
     Ok(http::Response::from_parts(parts, body))
 }
 
-pub(crate) fn json_content_type(req: &Request) -> bool {
+pub(crate) fn json_content_type(req: &RequestContext) -> bool {
     let content_type = if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
         content_type
     } else {

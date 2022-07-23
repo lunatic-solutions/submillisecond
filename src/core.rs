@@ -6,7 +6,7 @@ use std::{
     mem::MaybeUninit,
 };
 
-use crate::{response::IntoResponse, Response, RouteError};
+use crate::{response::IntoResponse, Response};
 
 const MAX_HEADERS: usize = 96;
 const REQUEST_BUFFER_SIZE: usize = 1024 * 8;
@@ -107,7 +107,7 @@ pub enum ParseRequestError {
 }
 
 impl IntoResponse for ParseRequestError {
-    fn into_response(self) -> Result<Response, RouteError> {
+    fn into_response(self) -> Response {
         match self {
             ParseRequestError::MissingMethod | ParseRequestError::UnknownMethod => {
                 (StatusCode::METHOD_NOT_ALLOWED, ()).into_response()
@@ -148,16 +148,26 @@ impl UriReader {
         self.cursor += len;
     }
 
+    pub fn read_matching(&mut self, s: &str) -> bool {
+        let read_to = self.cursor + s.len();
+        if read_to > self.uri.len() {
+            return false;
+        }
+
+        if &self.uri[self.cursor..read_to] == s {
+            self.cursor = read_to;
+            return true;
+        }
+
+        false
+    }
+
     pub fn read_back(&mut self, len: usize) {
         self.cursor -= len;
     }
 
     pub fn ensure_next_slash(&mut self) -> bool {
-        if self.peek(1) == "/" {
-            self.read(1);
-            return true;
-        }
-        false
+        self.read_matching("/")
     }
 
     pub fn reset(&mut self) {

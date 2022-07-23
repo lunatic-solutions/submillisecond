@@ -1,4 +1,4 @@
-use crate::{response::IntoResponse, Response, RouteError};
+use crate::{response::IntoResponse, Response};
 #[cfg(feature = "query")]
 use crate::{BoxError, Error};
 
@@ -49,7 +49,7 @@ impl FailedToDeserializeQueryString {
 
 #[cfg(feature = "query")]
 impl IntoResponse for FailedToDeserializeQueryString {
-    fn into_response(self) -> Result<Response, RouteError> {
+    fn into_response(self) -> Response {
         (http::StatusCode::UNPROCESSABLE_ENTITY, self.to_string()).into_response()
     }
 }
@@ -173,7 +173,7 @@ pub enum TypedHeaderRejectionReason {
 }
 
 impl IntoResponse for TypedHeaderRejection {
-    fn into_response(self) -> Result<Response, RouteError> {
+    fn into_response(self) -> Response {
         (http::StatusCode::BAD_REQUEST, self.to_string()).into_response()
     }
 }
