@@ -20,13 +20,7 @@ impl ItemCatchAll {
     pub fn expand_catch_all_handler(handler: Option<&ItemHandler>) -> TokenStream {
         match handler {
             Some(handler) => match handler {
-                ItemHandler::Expr(_) | ItemHandler::Macro(_) => {
-                    let handler = match handler {
-                        ItemHandler::Expr(handler) => hquote! { #handler },
-                        ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
-                        ItemHandler::SubRouter(_) => unreachable!(),
-                    };
-
+                ItemHandler::Expr(handler) => {
                     hquote! {
                         ::submillisecond::Handler::handle(#handler, req)
                     }

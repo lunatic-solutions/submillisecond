@@ -364,13 +364,7 @@ impl<'r> RouterTrie<'r> {
         middleware: &'r Option<ItemUseMiddleware>,
     ) -> TokenStream {
         let expanded = match handler {
-            ItemHandler::Expr(_) | ItemHandler::Macro(_) => {
-                let handler = match handler {
-                    ItemHandler::Expr(handler) => hquote! { #handler },
-                    ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
-                    ItemHandler::SubRouter(_) => unreachable!(),
-                };
-
+            ItemHandler::Expr(handler) => {
                 let middleware_expanded = Self::expand_middleware(
                     &middleware.iter().collect::<Vec<_>>(),
                     hquote! {
@@ -404,13 +398,7 @@ impl<'r> RouterTrie<'r> {
         middleware: &'r Option<ItemUseMiddleware>,
     ) -> TokenStream {
         match handler {
-            ItemHandler::Expr(_) | ItemHandler::Macro(_) => {
-                let handler = match handler {
-                    ItemHandler::Expr(handler) => hquote! { #handler },
-                    ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
-                    ItemHandler::SubRouter(_) => unreachable!(),
-                };
-
+            ItemHandler::Expr(handler) => {
                 let middleware_expanded = Self::expand_middleware(
                     &middleware.iter().collect::<Vec<_>>(),
                     hquote! {

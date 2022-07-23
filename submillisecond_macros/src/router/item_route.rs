@@ -4,7 +4,7 @@ use syn::{
     braced,
     parse::{Parse, ParseStream},
     spanned::Spanned,
-    token, Expr, LitStr, Macro, Path, Token,
+    token, Expr, LitStr, Path, Token,
 };
 
 use crate::{hquote, router::Router};
@@ -102,8 +102,7 @@ fn expand_guard_struct(guard: &syn::Expr) -> TokenStream {
 
 #[derive(Clone, Debug)]
 pub enum ItemHandler {
-    Expr(Expr),
-    Macro(Macro),
+    Expr(Box<Expr>),
     SubRouter(Router),
 }
 
@@ -117,10 +116,6 @@ impl Parse for ItemHandler {
 
         let fork = input.fork();
         let _: Path = fork.parse()?;
-        if fork.peek(Token![!]) {
-            Ok(ItemHandler::Macro(input.parse()?))
-        } else {
-            Ok(ItemHandler::Expr(input.parse()?))
-        }
+        Ok(ItemHandler::Expr(input.parse()?))
     }
 }
