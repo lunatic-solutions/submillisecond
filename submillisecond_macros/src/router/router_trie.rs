@@ -454,7 +454,7 @@ impl<'r> RouterTrie<'r> {
             .rev()
             .fold(hquote! {{ #inner }}, |acc, middleware| {
                 hquote! {{
-                    req.next = Some(|mut req: ::submillisecond::Request| {
+                    req.set_next_handler(|mut req: ::submillisecond::RequestContext| {
                         #acc
                     });
                     ::submillisecond::Handler::handle(&#middleware, req)

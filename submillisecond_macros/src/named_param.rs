@@ -123,7 +123,7 @@ impl NamedParam {
                 type Rejection = ::submillisecond::extract::rejection::PathRejection;
 
                 fn from_request(
-                    req: &mut ::submillisecond::Request,
+                    req: &mut ::submillisecond::RequestContext,
                 ) -> ::std::result::Result<Self, Self::Rejection> {
                     #content
                 }

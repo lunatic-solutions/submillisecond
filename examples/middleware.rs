@@ -1,17 +1,17 @@
 use std::io;
 
-use submillisecond::{guard::Guard, params::Params, router, Application, Request, Response};
+use submillisecond::{guard::Guard, params::Params, router, Application, RequestContext, Response};
 
-fn global_middleware(req: Request) -> Response {
+fn global_middleware(req: RequestContext) -> Response {
     println!("[GLOBAL] ENTRY");
-    let res = req.next();
+    let res = req.next_handler();
     println!("[GLOBAL] EXIT");
     res
 }
 
-fn logging_middleware(req: Request) -> Response {
+fn logging_middleware(req: RequestContext) -> Response {
     println!("{} {}", req.method(), req.uri().path());
-    let res = req.next();
+    let res = req.next_handler();
     println!("[EXIT]");
     res
 }
@@ -31,14 +31,14 @@ fn bar_handler() -> &'static str {
 
 struct BarGuard;
 impl Guard for BarGuard {
-    fn check(&self, _: &Request) -> bool {
+    fn check(&self, _: &RequestContext) -> bool {
         true
     }
 }
 
 struct FooGuard;
 impl Guard for FooGuard {
-    fn check(&self, _: &Request) -> bool {
+    fn check(&self, _: &RequestContext) -> bool {
         true
     }
 }

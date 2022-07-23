@@ -1,17 +1,13 @@
 use std::convert::Infallible;
 
-use crate::{params::Params, Request};
+use crate::{params::Params, RequestContext};
 
-use super::FromRequest;
+use super::FromOwnedRequest;
 
-impl FromRequest for Params {
+impl FromOwnedRequest for Params {
     type Rejection = Infallible;
 
-    fn from_request(req: &mut Request) -> Result<Self, Self::Rejection> {
-        Ok(req.params.clone())
-    }
-
-    fn from_owned_request(req: Request) -> Result<Self, Self::Rejection> {
+    fn from_owned_request(req: RequestContext) -> Result<Self, Self::Rejection> {
         Ok(req.params)
     }
 }

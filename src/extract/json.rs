@@ -4,7 +4,7 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     json::{json_content_type, Json},
-    Request,
+    RequestContext,
 };
 
 use super::{
@@ -18,7 +18,7 @@ where
 {
     type Rejection = JsonRejection;
 
-    fn from_request(req: &mut Request) -> Result<Self, Self::Rejection> {
+    fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
         if !json_content_type(req) {
             return Err(MissingJsonContentType.into());
         }

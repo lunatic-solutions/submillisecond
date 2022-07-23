@@ -33,7 +33,7 @@ impl Router {
         let inner = trie.expand();
 
         hquote! {
-            (|mut req: ::submillisecond::Request| -> ::submillisecond::Response{
+            (|mut req: ::submillisecond::RequestContext| -> ::submillisecond::Response{
                 #inner
             }) as ::submillisecond::Router
         }

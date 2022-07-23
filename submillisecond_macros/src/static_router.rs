@@ -24,7 +24,7 @@ impl StaticRouter {
         let match_arms = self.expand_match_arms();
 
         hquote! {
-            (|mut req: ::submillisecond::Request| -> ::submillisecond::Response {
+            (|mut req: ::submillisecond::RequestContext| -> ::submillisecond::Response {
                 if *req.method() != ::submillisecond::http::Method::GET {
                     return #catch_all_expanded;
                 }

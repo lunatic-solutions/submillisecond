@@ -1,10 +1,10 @@
 use std::io;
 
 use submillisecond::{
-    extract::Path, guard::Guard, params::Params, router, Application, Request, Response,
+    extract::Path, guard::Guard, params::Params, router, Application, RequestContext, Response,
 };
 
-fn logging_middleware(req: Request) -> Response {
+fn logging_middleware(req: RequestContext) -> Response {
     let request_id = req
         .headers()
         .get("x-request-id")
@@ -12,7 +12,7 @@ fn logging_middleware(req: Request) -> Response {
         .map(|req_id| req_id.to_string())
         .unwrap_or_else(|| "unknown".to_string());
     println!("[ENTER] request {request_id}");
-    let res = req.next();
+    let res = req.next_handler();
     println!("[EXIT] request {request_id}");
     res
 }
@@ -30,14 +30,14 @@ fn bar_handler(Path((a, b, c)): Path<(String, String, String)>) -> &'static str 
 struct FakeGuard;
 
 impl Guard for FakeGuard {
-    fn check(&self, _: &submillisecond::Request) -> bool {
+    fn check(&self, _: &submillisecond::RequestContext) -> bool {
         true
     }
 }
 
 struct BarGuard;
 impl Guard for BarGuard {
-    fn check(&self, _: &submillisecond::Request) -> bool {
+    fn check(&self, _: &submillisecond::RequestContext) -> bool {
         true
     }
 }
