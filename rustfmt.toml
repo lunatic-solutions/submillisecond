@@ -1,0 +1,10 @@
+# Stable
+newline_style = "Unix"
+use_field_init_shorthand = true
+
+# Unstable
+unstable_features = true
+version = "Two"
+group_imports = "StdExternalCrate"
+imports_granularity = "Module"
+wrap_comments = true

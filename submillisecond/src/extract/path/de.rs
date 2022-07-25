@@ -1,9 +1,11 @@
-use std::{any::type_name, ops, sync::Arc};
+use std::any::type_name;
+use std::ops;
+use std::sync::Arc;
 
-use serde::{
-    de::{self, DeserializeSeed, EnumAccess, Error, MapAccess, SeqAccess, VariantAccess, Visitor},
-    forward_to_deserialize_any, Deserializer,
+use serde::de::{
+    self, DeserializeSeed, EnumAccess, Error, MapAccess, SeqAccess, VariantAccess, Visitor,
 };
+use serde::{forward_to_deserialize_any, Deserializer};
 
 use super::{ErrorKind, PathDeserializationError};
 
@@ -639,9 +641,11 @@ enum KeyOrIdx {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use serde::Deserialize;
     use std::collections::HashMap;
+
+    use serde::Deserialize;
+
+    use super::*;
 
     #[derive(Debug, Deserialize, Eq, PartialEq)]
     enum MyEnum {

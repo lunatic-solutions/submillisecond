@@ -1,7 +1,8 @@
 use better_bae::{FromAttributes, TryFromAttributes};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{spanned::Spanned, Data, DeriveInput, Ident, Index, LitStr};
+use syn::spanned::Spanned;
+use syn::{Data, DeriveInput, Ident, Index, LitStr};
 
 #[derive(Debug, Eq, PartialEq, FromAttributes)]
 #[bae("param")]
@@ -142,7 +143,7 @@ impl TryFrom<DeriveInput> for NamedParam {
                 return Err(syn::Error::new(
                     span,
                     "enum is not supported with NamedParam",
-                ))
+                ));
             }
             Data::Struct(data_struct) => match data_struct.fields {
                 syn::Fields::Named(fields_named) => {
@@ -191,14 +192,14 @@ impl TryFrom<DeriveInput> for NamedParam {
                     return Err(syn::Error::new(
                         span,
                         "unit struct is not supported with NamedParam",
-                    ))
+                    ));
                 }
             },
             Data::Union(_) => {
                 return Err(syn::Error::new(
                     span,
                     "union is not supported with NamedParam",
-                ))
+                ));
             }
         };
 

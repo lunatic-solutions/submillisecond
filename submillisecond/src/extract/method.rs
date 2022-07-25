@@ -2,9 +2,8 @@ use std::convert::Infallible;
 
 use http::Method;
 
-use crate::RequestContext;
-
 use super::FromRequest;
+use crate::RequestContext;
 
 impl FromRequest for Method {
     type Rejection = Infallible;

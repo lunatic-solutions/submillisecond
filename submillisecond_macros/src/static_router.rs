@@ -1,16 +1,13 @@
-use std::{fs, io, path::Path};
+use std::path::Path;
+use std::{fs, io};
 
 use mime_guess::{mime, Mime};
 use proc_macro2::TokenStream;
-use syn::{
-    parse::{Parse, ParseStream},
-    LitStr, Token,
-};
+use syn::parse::{Parse, ParseStream};
+use syn::{LitStr, Token};
 
-use crate::{
-    hquote,
-    router::{ItemCatchAll, ItemHandler},
-};
+use crate::hquote;
+use crate::router::{ItemCatchAll, ItemHandler};
 
 #[derive(Debug)]
 pub struct StaticRouter {

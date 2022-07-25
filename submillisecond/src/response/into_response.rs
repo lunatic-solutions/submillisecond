@@ -1,9 +1,9 @@
-use std::{borrow::Cow, convert::Infallible, fmt};
+use std::borrow::Cow;
+use std::convert::Infallible;
+use std::fmt;
 
-use http::{
-    header::{self, HeaderName},
-    Extensions, HeaderMap, HeaderValue, StatusCode,
-};
+use http::header::{self, HeaderName};
+use http::{Extensions, HeaderMap, HeaderValue, StatusCode};
 
 use super::{IntoResponseParts, Response, ResponseParts};
 

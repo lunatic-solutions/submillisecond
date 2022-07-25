@@ -2,10 +2,8 @@ use std::{io, mem};
 
 pub use http;
 use http::{header, HeaderValue};
-use lunatic::{
-    net::{TcpListener, TcpStream, ToSocketAddrs},
-    Mailbox, Process,
-};
+use lunatic::net::{TcpListener, TcpStream, ToSocketAddrs};
+use lunatic::{Mailbox, Process};
 pub use submillisecond_macros::*;
 
 pub use crate::error::*;

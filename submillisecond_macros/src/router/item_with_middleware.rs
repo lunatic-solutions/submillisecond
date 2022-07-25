@@ -1,11 +1,8 @@
 use proc_macro2::TokenStream;
-use syn::{
-    braced, custom_keyword,
-    ext::IdentExt,
-    parse::{Parse, ParseStream},
-    punctuated::Punctuated,
-    token, Ident, Token,
-};
+use syn::ext::IdentExt;
+use syn::parse::{Parse, ParseStream};
+use syn::punctuated::Punctuated;
+use syn::{braced, custom_keyword, token, Ident, Token};
 
 use crate::hquote;
 

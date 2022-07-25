@@ -23,7 +23,8 @@ mod string;
 mod typed_header;
 mod vec;
 
-use crate::{response::IntoResponse, RequestContext};
+use crate::response::IntoResponse;
+use crate::RequestContext;
 
 pub trait FromRequest: Sized {
     /// If the extractor fails it'll use this "rejection" type. A rejection is
@@ -40,7 +41,8 @@ pub trait FromOwnedRequest: Sized {
     type Rejection: IntoResponse;
 
     /// Extract from an owned instance of the request.
-    /// The first extractor in handlers will use this method, and can help avoid cloning in many cases.
+    /// The first extractor in handlers will use this method, and can help avoid
+    /// cloning in many cases.
     fn from_owned_request(req: RequestContext) -> Result<Self, Self::Rejection>;
 }
 

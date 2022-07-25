@@ -1,8 +1,8 @@
-use crate::{response::IntoResponse, Response};
+use super::path::FailedToDeserializePathParams;
+use crate::response::IntoResponse;
+use crate::Response;
 #[cfg(feature = "query")]
 use crate::{BoxError, Error};
-
-use super::path::FailedToDeserializePathParams;
 
 define_rejection! {
     #[status = INTERNAL_SERVER_ERROR]

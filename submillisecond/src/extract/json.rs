@@ -2,15 +2,10 @@ use std::fmt::Debug;
 
 use serde::de::DeserializeOwned;
 
-use crate::{
-    json::{json_content_type, Json},
-    RequestContext,
-};
-
-use super::{
-    rejection::{JsonDataError, JsonRejection, JsonSyntaxError, MissingJsonContentType},
-    FromRequest,
-};
+use super::rejection::{JsonDataError, JsonRejection, JsonSyntaxError, MissingJsonContentType};
+use super::FromRequest;
+use crate::json::{json_content_type, Json};
+use crate::RequestContext;
 
 impl<T> FromRequest for Json<T>
 where

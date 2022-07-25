@@ -1,10 +1,8 @@
 use http::{header, HeaderValue, StatusCode};
 use serde::{ser, Serialize};
 
-use crate::{
-    response::{IntoResponse, Response},
-    RequestContext,
-};
+use crate::response::{IntoResponse, Response};
+use crate::RequestContext;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Json<T>(pub T);

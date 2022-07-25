@@ -1,12 +1,12 @@
+use std::io::{BufReader, Read, Result as IoResult, Write};
+use std::mem::MaybeUninit;
+
 use http::{header, StatusCode};
 use httparse::{self, Status};
 use lunatic::net::TcpStream;
-use std::{
-    io::{BufReader, Read, Result as IoResult, Write},
-    mem::MaybeUninit,
-};
 
-use crate::{response::IntoResponse, Response};
+use crate::response::IntoResponse;
+use crate::Response;
 
 const MAX_HEADERS: usize = 96;
 const REQUEST_BUFFER_SIZE: usize = 1024 * 8;

@@ -2,12 +2,9 @@ use std::ops::Deref;
 
 use serde::de::DeserializeOwned;
 
+use super::rejection::{FailedToDeserializeQueryString, QueryRejection};
+use super::FromRequest;
 use crate::RequestContext;
-
-use super::{
-    rejection::{FailedToDeserializeQueryString, QueryRejection},
-    FromRequest,
-};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Query<T>(pub T);

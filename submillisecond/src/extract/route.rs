@@ -1,8 +1,7 @@
 use std::convert::Infallible;
 
-use crate::RequestContext;
-
 use super::FromRequest;
+use crate::RequestContext;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd)]
 pub struct Route(pub String);

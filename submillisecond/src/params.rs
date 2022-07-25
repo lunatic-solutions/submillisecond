@@ -1,6 +1,4 @@
-use std::iter;
-use std::mem;
-use std::slice;
+use std::{iter, mem, slice};
 
 /// A single URL parameter, consisting of a key and a value.
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Default, Clone)]
@@ -33,7 +31,8 @@ pub struct Params {
     kind: ParamsKind,
 }
 
-// most routes have 1-3 dynamic parameters, so we can avoid a heap allocation in common cases.
+// most routes have 1-3 dynamic parameters, so we can avoid a heap allocation in
+// common cases.
 const SMALL: usize = 3;
 
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Clone)]

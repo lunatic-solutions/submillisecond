@@ -1,20 +1,16 @@
-use std::{
-    fmt,
-    ops::{Deref, DerefMut},
-    sync::Arc,
-};
+use std::fmt;
+use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 
 use http::StatusCode;
 use serde::de::DeserializeOwned;
 
-use crate::{
-    extract::{rejection::*, FromRequest},
-    params::Params,
-    response::IntoResponse,
-    RequestContext, Response,
-};
-
 use self::de::PercentDecodedStr;
+use crate::extract::rejection::*;
+use crate::extract::FromRequest;
+use crate::params::Params;
+use crate::response::IntoResponse;
+use crate::{RequestContext, Response};
 
 pub mod de;
 
@@ -70,8 +66,9 @@ where
     }
 }
 
-// this wrapper type is used as the deserializer error to hide the `serde::de::Error` impl which
-// would otherwise be public if we used `ErrorKind` as the error directly
+// this wrapper type is used as the deserializer error to hide the
+// `serde::de::Error` impl which would otherwise be public if we used
+// `ErrorKind` as the error directly
 #[derive(Debug)]
 pub struct PathDeserializationError {
     pub(super) kind: ErrorKind,
@@ -133,8 +130,8 @@ impl std::error::Error for PathDeserializationError {}
 
 /// The kinds of errors that can happen we deserializing into a [`Path`].
 ///
-/// This type is obtained through [`FailedToDeserializePathParams::into_kind`] and is useful for building
-/// more precise error messages.
+/// This type is obtained through [`FailedToDeserializePathParams::into_kind`]
+/// and is useful for building more precise error messages.
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ErrorKind {
@@ -148,7 +145,8 @@ pub enum ErrorKind {
 
     /// Failed to parse the value at a specific key into the expected type.
     ///
-    /// This variant is used when deserializing into types that have named fields, such as structs.
+    /// This variant is used when deserializing into types that have named
+    /// fields, such as structs.
     ParseErrorAtKey {
         /// The key at which the value was located.
         key: String,
@@ -160,7 +158,8 @@ pub enum ErrorKind {
 
     /// Failed to parse the value at a specific index into the expected type.
     ///
-    /// This variant is used when deserializing into sequence types, such as tuples.
+    /// This variant is used when deserializing into sequence types, such as
+    /// tuples.
     ParseErrorAtIndex {
         /// The index at which the value was located.
         index: usize,
@@ -172,7 +171,8 @@ pub enum ErrorKind {
 
     /// Failed to parse a value into the expected type.
     ///
-    /// This variant is used when deserializing into a primitive type (such as `String` and `u32`).
+    /// This variant is used when deserializing into a primitive type (such as
+    /// `String` and `u32`).
     ParseError {
         /// The value from the URI.
         value: String,
@@ -180,7 +180,8 @@ pub enum ErrorKind {
         expected_type: &'static str,
     },
 
-    /// A parameter contained text that, once percent decoded, wasn't valid UTF-8.
+    /// A parameter contained text that, once percent decoded, wasn't valid
+    /// UTF-8.
     InvalidUtf8InPathParam {
         /// The key at which the invalid value was located.
         key: String,
@@ -188,8 +189,8 @@ pub enum ErrorKind {
 
     /// Tried to serialize into an unsupported type such as nested maps.
     ///
-    /// This error kind is caused by programmer errors and thus gets converted into a `500 Internal
-    /// Server Error` response.
+    /// This error kind is caused by programmer errors and thus gets converted
+    /// into a `500 Internal Server Error` response.
     UnsupportedType {
         /// The name of the unsupported type.
         name: &'static str,
@@ -212,7 +213,10 @@ impl fmt::Display for ErrorKind {
                 )?;
 
                 if *expected == 1 {
-                    write!(f, ". Note that multiple parameters must be extracted with a tuple `Path<(_, _)>` or a struct `Path<YourParams>`")?;
+                    write!(
+                        f,
+                        ". Note that multiple parameters must be extracted with a tuple `Path<(_, _)>` or a struct `Path<YourParams>`"
+                    )?;
                 }
 
                 Ok(())
@@ -244,8 +248,8 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-/// Rejection type for [`Path`](super::Path) if the captured routes params couldn't be deserialized
-/// into the expected type.
+/// Rejection type for [`Path`](super::Path) if the captured routes params
+/// couldn't be deserialized into the expected type.
 #[derive(Debug)]
 pub struct FailedToDeserializePathParams(pub PathDeserializationError);
 
