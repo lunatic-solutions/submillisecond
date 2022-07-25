@@ -1,12 +1,9 @@
 use proc_macro2::TokenStream;
-use syn::{
-    parse::{Parse, ParseStream},
-    Token,
-};
-
-use crate::hquote;
+use syn::parse::{Parse, ParseStream};
+use syn::Token;
 
 use super::item_route::ItemHandler;
+use crate::hquote;
 
 /// _ => handler
 #[derive(Clone, Debug)]

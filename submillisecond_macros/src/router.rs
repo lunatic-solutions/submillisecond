@@ -13,10 +13,8 @@ mod router_trie;
 mod trie;
 
 use proc_macro2::TokenStream;
-use syn::{
-    parse::{Parse, ParseStream},
-    LitStr, Token,
-};
+use syn::parse::{Parse, ParseStream};
+use syn::{LitStr, Token};
 
 use crate::hquote;
 

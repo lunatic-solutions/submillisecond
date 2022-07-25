@@ -1,15 +1,14 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, TokenStreamExt};
-use syn::{
-    braced,
-    parse::{Parse, ParseStream},
-    spanned::Spanned,
-    token, Expr, LitStr, Path, Token,
-};
+use syn::parse::{Parse, ParseStream};
+use syn::spanned::Spanned;
+use syn::{braced, token, Expr, LitStr, Path, Token};
 
-use crate::{hquote, router::Router};
-
-use super::{item_with_middleware::ItemUseMiddleware, method::Method, with};
+use super::item_with_middleware::ItemUseMiddleware;
+use super::method::Method;
+use super::with;
+use crate::hquote;
+use crate::router::Router;
 
 /// `"/abc" => sub_router`
 /// `GET "/abc" => handler`

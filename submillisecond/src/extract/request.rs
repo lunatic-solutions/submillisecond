@@ -1,8 +1,7 @@
 use std::convert::Infallible;
 
-use crate::RequestContext;
-
 use super::FromOwnedRequest;
+use crate::RequestContext;
 
 impl FromOwnedRequest for RequestContext {
     type Rejection = Infallible;

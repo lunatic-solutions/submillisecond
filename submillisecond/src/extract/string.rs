@@ -1,9 +1,6 @@
+use super::rejection::{InvalidUtf8, StringRejection};
+use super::FromOwnedRequest;
 use crate::RequestContext;
-
-use super::{
-    rejection::{InvalidUtf8, StringRejection},
-    FromOwnedRequest,
-};
 
 impl FromOwnedRequest for String {
     type Rejection = StringRejection;

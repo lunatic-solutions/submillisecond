@@ -1,12 +1,8 @@
-use std::{
-    convert::{Infallible, TryInto},
-    fmt,
-};
+use std::convert::{Infallible, TryInto};
+use std::fmt;
 
-use http::{
-    header::{HeaderMap, HeaderName, HeaderValue},
-    Extensions, StatusCode,
-};
+use http::header::{HeaderMap, HeaderName, HeaderValue};
+use http::{Extensions, StatusCode};
 
 use super::{IntoResponse, Response};
 

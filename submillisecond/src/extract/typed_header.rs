@@ -1,14 +1,12 @@
-use std::{convert::Infallible, ops::Deref};
+use std::convert::Infallible;
+use std::ops::Deref;
 
 use headers::HeaderMapExt;
 
-use crate::{
-    extract::FromRequest,
-    response::{IntoResponse, IntoResponseParts, ResponseParts},
-    RequestContext, Response,
-};
-
 use super::rejection::{TypedHeaderRejection, TypedHeaderRejectionReason};
+use crate::extract::FromRequest;
+use crate::response::{IntoResponse, IntoResponseParts, ResponseParts};
+use crate::{RequestContext, Response};
 
 #[derive(Debug, Clone, Copy)]
 pub struct TypedHeader<T>(pub T);

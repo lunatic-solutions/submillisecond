@@ -3,16 +3,13 @@ use proc_macro2::TokenStream;
 use quote::TokenStreamExt;
 use regex::Regex;
 
+use super::item_catch_all::ItemCatchAll;
+use super::item_route::{ItemGuard, ItemHandler, ItemRoute};
+use super::item_with_middleware::ItemUseMiddleware;
+use super::method::Method;
+use super::trie::{Node, Trie};
+use super::Router;
 use crate::hquote;
-
-use super::{
-    item_catch_all::ItemCatchAll,
-    item_route::{ItemGuard, ItemHandler, ItemRoute},
-    item_with_middleware::ItemUseMiddleware,
-    method::Method,
-    trie::{Node, Trie},
-    Router,
-};
 
 lazy_static! {
     static ref RE: Regex =
@@ -455,7 +452,8 @@ impl<'r> RouterTrie<'r> {
         }
     }
 
-    /// Insert a subrouter. A subrouter is any handler which is not prefixed with a http method.
+    /// Insert a subrouter. A subrouter is any handler which is not prefixed
+    /// with a http method.
     fn insert_subrouter(&mut self, key: String, value: TrieValue<'r>) {
         self.subrouters.insert(key, value);
     }

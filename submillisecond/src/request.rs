@@ -1,6 +1,8 @@
 use std::{convert, ops};
 
-use crate::{core::UriReader, params::Params, Response};
+use crate::core::UriReader;
+use crate::params::Params;
+use crate::Response;
 
 /// Wrapper for [`http::Request`] containing params and cursor.
 pub struct RequestContext {

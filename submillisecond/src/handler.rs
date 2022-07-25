@@ -1,8 +1,6 @@
-use crate::{
-    extract::{FromOwnedRequest, FromRequest},
-    response::IntoResponse,
-    RequestContext, Response,
-};
+use crate::extract::{FromOwnedRequest, FromRequest};
+use crate::response::IntoResponse;
+use crate::{RequestContext, Response};
 
 pub trait Handler<Arg = (), Ret = ()> {
     fn handle(this: Self, req: RequestContext) -> Response;
