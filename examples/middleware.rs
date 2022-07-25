@@ -1,6 +1,8 @@
 use std::io;
 
-use submillisecond::{guard::Guard, params::Params, router, Application, RequestContext, Response};
+use submillisecond::params::Params;
+use submillisecond::response::Response;
+use submillisecond::{router, Application, Guard, Handler, RequestContext};
 
 fn global_middleware(req: RequestContext) -> Response {
     println!("[GLOBAL] ENTRY");
@@ -9,11 +11,27 @@ fn global_middleware(req: RequestContext) -> Response {
     res
 }
 
-fn logging_middleware(req: RequestContext) -> Response {
-    println!("{} {}", req.method(), req.uri().path());
-    let res = req.next_handler();
-    println!("[EXIT]");
-    res
+struct LoggingMiddleware {
+    level: u8,
+}
+
+impl LoggingMiddleware {
+    const fn new(level: u8) -> Self {
+        LoggingMiddleware { level }
+    }
+}
+
+impl Handler for LoggingMiddleware {
+    fn handle(&self, req: RequestContext) -> Response {
+        if self.level == 0 {
+            return req.next_handler();
+        }
+
+        println!("{} {}", req.method(), req.uri().path());
+        let res = req.next_handler();
+        println!("[EXIT]");
+        res
+    }
 }
 
 fn foo_bar_handler() -> &'static str {
@@ -44,16 +62,18 @@ impl Guard for FooGuard {
 }
 
 fn main() -> io::Result<()> {
+    const LOGGER: LoggingMiddleware = LoggingMiddleware::new(1);
+
     Application::new(router! {
         with global_middleware;
 
         "/foo" if FooGuard => {
-            with logging_middleware;
+            with LOGGER;
 
             GET "/bar" if BarGuard => foo_bar_handler
         }
-        GET "/bar" if BarGuard with logging_middleware => bar_handler
-        POST "/foo" with logging_middleware => foo_handler
+        GET "/bar" if BarGuard with LOGGER => bar_handler
+        POST "/foo" with LOGGER => foo_handler
     })
     .serve("0.0.0.0:3000")
 }

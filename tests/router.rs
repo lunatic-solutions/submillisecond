@@ -20,11 +20,11 @@ macro_rules! build_request {
 macro_rules! handle_request {
     ($router: ident, $method: ident, $uri: literal) => {{
         let req = build_request!($method, $uri);
-        Handler::handle($router, req)
+        Handler::handle(&$router, req)
     }};
     ($router: ident, $method: ident, $uri: literal, $body: expr) => {{
         let req = build_request!($method, $uri, $body);
-        Handler::handle($router, req)
+        Handler::handle(&$router, req)
     }};
 }
 

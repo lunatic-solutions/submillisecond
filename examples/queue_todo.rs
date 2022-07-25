@@ -1,19 +1,16 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    fs::{DirBuilder, File},
-    io::{self, Write},
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::collections::{HashMap, VecDeque};
+use std::fs::{DirBuilder, File};
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
-use lunatic::{
-    process::{AbstractProcess, ProcessRef, ProcessRequest, Request, StartProcess},
-    supervisor::Supervisor,
-};
+use lunatic::process::{AbstractProcess, ProcessRef, ProcessRequest, Request, StartProcess};
+use lunatic::supervisor::Supervisor;
 use serde::{Deserialize, Serialize};
-use submillisecond::{
-    json::Json, params::Params, router, Application, RequestContext, Response, Router,
-};
+use submillisecond::json::Json;
+use submillisecond::params::Params;
+use submillisecond::response::Response;
+use submillisecond::{router, Application, RequestContext, Router};
 use uuid::Uuid;
 
 // =====================================
@@ -120,7 +117,8 @@ impl Supervisor for PersistenceSup {
     type Children = PersistenceProcess;
 
     fn init(config: &mut lunatic::supervisor::SupervisorConfig<Self>, name: Self::Arg) {
-        // Always register the `PersistenceProcess` under the name passed to the supervisor.
+        // Always register the `PersistenceProcess` under the name passed to the
+        // supervisor.
         config.children_args(((), Some(name)))
     }
 }
@@ -136,7 +134,8 @@ impl AbstractProcess for PersistenceProcess {
     type State = Self;
 
     fn init(_: ProcessRef<Self>, _: Self::Arg) -> Self::State {
-        // Coordinator shouldn't die when a client dies. This makes the link one-directional.
+        // Coordinator shouldn't die when a client dies. This makes the link
+        // one-directional.
         unsafe { lunatic::host::api::process::die_when_link_dies(0) };
         PersistenceProcess {
             users: HashMap::new(),

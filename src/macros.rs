@@ -50,7 +50,7 @@ macro_rules! define_rejection {
             }
         }
 
-        impl crate::IntoResponse for $name {
+        impl crate::response::IntoResponse for $name {
             fn into_response(self) -> $crate::Response {
                 (
                     http::StatusCode::$status,
