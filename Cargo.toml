@@ -1,2 +1,47 @@
+[package]
+name = "submillisecond"
+version = "0.1.0"
+edition = "2021"
+description = "A lunatic web framework for Rust."
+keywords = ["http", "web", "framework"]
+categories = ["network-programming", "web-programming"]
+license = "Apache-2.0/MIT"
+readme = "Readme.md"
+repository = "https://github.com/lunatic-solutions/submillisecond"
+
 [workspace]
-members = ["submillisecond", "submillisecond_macros"]
+members = ["submillisecond_macros"]
+
+[features]
+default = []
+json = ["serde_json"]
+query = ["serde_urlencoded"]
+template = ["askama"]
+
+[dependencies]
+headers = "0.3"
+http = "0.2.7"
+httparse = "1.7.1"
+lunatic = "0.9.1"
+mime = "0.3.16"
+paste = "1.0"
+percent-encoding = "2.1"
+serde = { version = "1.0.132", features = ["derive"] }
+submillisecond_macros = { version = "0.1", path = "submillisecond_macros" }
+
+# optional dependencies
+askama = { version = "0.11", optional = true }
+serde_json = { version = "1.0", optional = true }
+serde_urlencoded = { version = "0.7", optional = true }
+
+[dev-dependencies]
+base64 = "0.13.0"
+criterion = { git = "https://github.com/bheisler/criterion.rs", branch = "version-0.4", default-features = false }
+lunatic-test = "0.9"
+submillisecond = { path = ".", features = ["json", "query"] }                                                      # for examples
+ron = "0.7"
+uuid = { version = "1.0.0", features = ["v4", "serde"] }
+
+[[bench]]
+harness = false
+name = "router"
