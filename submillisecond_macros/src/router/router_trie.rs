@@ -5,7 +5,7 @@ use regex::Regex;
 
 use super::item_catch_all::ItemCatchAll;
 use super::item_route::{ItemGuard, ItemHandler, ItemRoute};
-use super::item_with_middleware::ItemUseMiddleware;
+use super::item_with_middleware::ItemWithMiddleware;
 use super::method::Method;
 use super::trie::{Node, Trie};
 use super::Router;
@@ -19,7 +19,7 @@ lazy_static! {
 #[derive(Debug, Default)]
 pub struct RouterTrie<'r> {
     catch_all: Option<&'r ItemCatchAll>,
-    middleware: Vec<&'r ItemUseMiddleware>,
+    middleware: Option<&'r ItemWithMiddleware>,
     // trie to collect subrouters
     subrouters: Trie<TrieValue<'r>>,
     // tries to collect
@@ -37,7 +37,7 @@ struct TrieValue<'r> {
     guards: Vec<&'r ItemGuard>,
     handler: &'r ItemHandler,
     method: &'r Option<Method>,
-    middleware: &'r Option<ItemUseMiddleware>,
+    middleware: &'r Option<ItemWithMiddleware>,
     node_type: NodeType,
 }
 
@@ -70,7 +70,7 @@ impl<'r> RouterTrie<'r> {
     pub fn new(router_tree: &'r Router) -> Self {
         let mut trie = RouterTrie {
             catch_all: router_tree.catch_all.as_ref(),
-            middleware: router_tree.middleware.iter().collect(),
+            middleware: router_tree.middleware.as_ref(),
             ..Default::default()
         };
         trie.collect_tries(None, &router_tree.routes, Vec::new());
@@ -86,10 +86,10 @@ impl<'r> RouterTrie<'r> {
             #handlers_expanded
         };
 
-        if self.middleware.is_empty() {
+        if self.middleware.is_none() {
             expanded
         } else {
-            Self::expand_middleware(&self.middleware, expanded)
+            Self::expand_middleware(self.middleware, expanded)
         }
     }
 
@@ -358,12 +358,12 @@ impl<'r> RouterTrie<'r> {
     fn expand_handler(
         method: &'r Option<Method>,
         handler: &ItemHandler,
-        middleware: &'r Option<ItemUseMiddleware>,
+        middleware: &'r Option<ItemWithMiddleware>,
     ) -> TokenStream {
         let expanded = match handler {
             ItemHandler::Expr(handler) => {
                 let middleware_expanded = Self::expand_middleware(
-                    &middleware.iter().collect::<Vec<_>>(),
+                    middleware.as_ref(),
                     hquote! {
                         ::submillisecond::Handler::handle(#handler, req)
                     },
@@ -392,12 +392,12 @@ impl<'r> RouterTrie<'r> {
     /// Expand a subrouter.
     fn expand_subrouter(
         handler: &ItemHandler,
-        middleware: &'r Option<ItemUseMiddleware>,
+        middleware: &'r Option<ItemWithMiddleware>,
     ) -> TokenStream {
         match handler {
             ItemHandler::Expr(handler) => {
                 let middleware_expanded = Self::expand_middleware(
-                    &middleware.iter().collect::<Vec<_>>(),
+                    middleware.as_ref(),
                     hquote! {
                         ::submillisecond::Handler::handle(#handler, req)
                     },
@@ -411,7 +411,7 @@ impl<'r> RouterTrie<'r> {
                 let subrouter_expanded = subrouter.expand();
 
                 let middleware_expanded = Self::expand_middleware(
-                    &middleware.iter().collect::<Vec<_>>(),
+                    middleware.as_ref(),
                     hquote! {
                         let subrouter = #subrouter_expanded;
                         ::submillisecond::Handler::handle(subrouter, req)
@@ -426,10 +426,13 @@ impl<'r> RouterTrie<'r> {
     }
 
     /// Expand middleware to inject into local static middleware vec.
-    fn expand_middleware(middleware: &[&'r ItemUseMiddleware], inner: TokenStream) -> TokenStream {
+    fn expand_middleware(
+        middleware: Option<&'r ItemWithMiddleware>,
+        inner: TokenStream,
+    ) -> TokenStream {
         middleware
             .iter()
-            .flat_map(|middleware| middleware.tree.items())
+            .flat_map(|middleware| &middleware.items)
             .rev()
             .fold(hquote! {{ #inner }}, |acc, middleware| {
                 hquote! {{

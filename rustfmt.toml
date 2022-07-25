@@ -4,7 +4,7 @@ use_field_init_shorthand = true
 
 # Unstable
 unstable_features = true
-version = "Two"
+version = "One"
 group_imports = "StdExternalCrate"
 imports_granularity = "Module"
 wrap_comments = true

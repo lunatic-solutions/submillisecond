@@ -1,126 +1,51 @@
-use proc_macro2::TokenStream;
-use syn::ext::IdentExt;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{braced, custom_keyword, token, Ident, Token};
-
-use crate::hquote;
+use syn::{bracketed, custom_keyword, token, Expr, Token};
 
 custom_keyword!(with);
 
 #[derive(Clone, Debug)]
-pub struct ItemUseMiddleware {
-    pub use_token: with,
-    pub leading_colon: Option<Token![::]>,
-    pub tree: UseMiddlewareTree,
+pub struct ItemWithMiddleware {
+    pub with_token: with,
+    pub items: Punctuated<Expr, Token![,]>,
 }
 
-impl Parse for ItemUseMiddleware {
+impl Parse for ItemWithMiddleware {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(ItemUseMiddleware {
-            use_token: input.parse()?,
-            leading_colon: input.parse()?,
-            tree: input.parse()?,
-        })
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum UseMiddlewareTree {
-    Path(UseMiddlewarePath),
-    Name(UseMiddlewareName),
-    Group(UseMiddlewareGroup),
-}
-
-impl UseMiddlewareTree {
-    pub fn items(&self) -> Vec<TokenStream> {
-        match self {
-            UseMiddlewareTree::Path(UseMiddlewarePath { ident, tree, .. }) => tree
-                .items()
-                .into_iter()
-                .map(|item| hquote! { #ident::#item })
-                .collect(),
-            UseMiddlewareTree::Name(UseMiddlewareName { ident }) => {
-                vec![hquote! { #ident }]
-            }
-            UseMiddlewareTree::Group(UseMiddlewareGroup { items, .. }) => {
-                items.iter().flat_map(UseMiddlewareTree::items).collect()
-            }
-        }
-    }
-}
-
-impl Parse for UseMiddlewareTree {
-    #[allow(clippy::eval_order_dependence)]
-    fn parse(input: ParseStream) -> syn::Result<UseMiddlewareTree> {
-        let lookahead = input.lookahead1();
-        if lookahead.peek(Ident)
-            || lookahead.peek(Token![self])
-            || lookahead.peek(Token![super])
-            || lookahead.peek(Token![crate])
-        {
-            let ident = input.call(Ident::parse_any)?;
-            if input.peek(Token![::]) {
-                Ok(UseMiddlewareTree::Path(UseMiddlewarePath {
-                    ident,
-                    colon2_token: input.parse()?,
-                    tree: Box::new(input.parse()?),
-                }))
-            } else if input.peek(Token![as]) {
-                Err(input.error("use as is not supported"))
-            } else {
-                Ok(UseMiddlewareTree::Name(UseMiddlewareName { ident }))
-            }
-        } else if lookahead.peek(Token![*]) {
-            Err(input.error("use * is not supported"))
-        } else if lookahead.peek(token::Brace) {
+        let with_token = input.parse()?;
+        let items = if input.peek(token::Bracket) {
             let content;
-            Ok(UseMiddlewareTree::Group(UseMiddlewareGroup {
-                brace_token: braced!(content in input),
-                items: content.parse_terminated(UseMiddlewareTree::parse)?,
-            }))
+            bracketed!(content in input);
+            Punctuated::parse_separated_nonempty(&content)?
         } else {
-            Err(lookahead.error())
-        }
+            let mut items = Punctuated::new();
+            items.push(input.parse()?);
+            items
+        };
+
+        Ok(ItemWithMiddleware { with_token, items })
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct UseMiddlewarePath {
-    pub ident: Ident,
-    pub colon2_token: Token![::],
-    pub tree: Box<UseMiddlewareTree>,
-}
-
-#[derive(Clone, Debug)]
-pub struct UseMiddlewareName {
-    pub ident: Ident,
-}
-
-#[derive(Clone, Debug)]
-pub struct UseMiddlewareGroup {
-    pub brace_token: token::Brace,
-    pub items: Punctuated<UseMiddlewareTree, Token![,]>,
 }
 
 #[cfg(test)]
 mod tests {
+    use quote::ToTokens;
     use syn::parse_quote;
 
-    use super::ItemUseMiddleware;
+    use super::ItemWithMiddleware;
 
     #[test]
     fn item_with_items() {
-        let item_use: ItemUseMiddleware = parse_quote! {
-            with ::a::b::c::{logger, foo}
+        let item_use: ItemWithMiddleware = parse_quote! {
+            with [global, logger(warn)]
         };
-        let items = item_use.tree.items();
+        let items = item_use.items;
         assert_eq!(
             items
                 .iter()
-                .map(|list| list.to_string().replace(' ', ""))
+                .map(|list| list.to_token_stream().to_string().replace(' ', ""))
                 .collect::<Vec<_>>(),
-            ["a::b::c::logger", "a::b::c::foo"]
+            ["global", "logger(warn)"]
         );
     }
 }
