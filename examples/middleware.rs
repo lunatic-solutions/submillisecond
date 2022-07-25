@@ -45,15 +45,15 @@ impl Guard for FooGuard {
 
 fn main() -> io::Result<()> {
     Application::new(router! {
-        use global_middleware;
+        with global_middleware;
 
         "/foo" if FooGuard => {
-            use logging_middleware;
+            with logging_middleware;
 
             GET "/bar" if BarGuard => foo_bar_handler
         }
-        GET "/bar" if BarGuard use logging_middleware => bar_handler
-        POST "/foo" use logging_middleware => foo_handler
+        GET "/bar" if BarGuard with logging_middleware => bar_handler
+        POST "/foo" with logging_middleware => foo_handler
     })
     .serve("0.0.0.0:3000")
 }
