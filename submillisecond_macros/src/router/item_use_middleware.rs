@@ -108,22 +108,12 @@ pub struct UseMiddlewareGroup {
 mod tests {
     use syn::parse_quote;
 
-    use crate::router::Router;
-
     use super::ItemUseMiddleware;
-
-    #[test]
-    fn parse_router_tree() {
-        let router_tree: Router = parse_quote! {
-            use ::a::b::c::{logger};
-        };
-        println!("{:#?}", router_tree);
-    }
 
     #[test]
     fn item_use_items() {
         let item_use: ItemUseMiddleware = parse_quote! {
-            use ::a::b::c::{logger, foo};
+            use ::a::b::c::{logger, foo}
         };
         let items = item_use.tree.items();
         assert_eq!(
