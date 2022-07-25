@@ -9,7 +9,7 @@ use syn::{
 
 use crate::{hquote, router::Router};
 
-use super::{item_use_middleware::ItemUseMiddleware, method::Method};
+use super::{item_with_middleware::ItemUseMiddleware, method::Method, with};
 
 /// `"/abc" => sub_router`
 /// `GET "/abc" => handler`
@@ -40,7 +40,7 @@ impl Parse for ItemRoute {
             } else {
                 None
             },
-            middleware: if input.peek(Token![use]) {
+            middleware: if input.peek(with) {
                 Some(input.parse()?)
             } else {
                 None

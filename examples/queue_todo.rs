@@ -321,7 +321,7 @@ const MGMT_ROUTER: Router = router! {
 };
 
 const ROUTER: Router = router! {
-    use logging_middleware;
+    with logging_middleware;
 
     "/api/users" => {
         POST "/" => create_user
