@@ -113,9 +113,9 @@ mod tests {
     use super::ItemUseMiddleware;
 
     #[test]
-    fn item_use_items() {
+    fn item_with_items() {
         let item_use: ItemUseMiddleware = parse_quote! {
-            use ::a::b::c::{logger, foo}
+            with ::a::b::c::{logger, foo}
         };
         let items = item_use.tree.items();
         assert_eq!(
