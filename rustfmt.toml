@@ -7,5 +7,4 @@ unstable_features = true
 version = "Two"
 group_imports = "StdExternalCrate"
 imports_granularity = "Module"
-hex_literal_case = "Upper"
 wrap_comments = true
