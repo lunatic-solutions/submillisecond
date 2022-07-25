@@ -46,7 +46,7 @@ fn main() -> io::Result<()> {
     Application::new(router! {
         "/:a" if FakeGuard => {
             "/:b" => {
-                GET "/:c" if BarGuard use logging_middleware => bar_handler
+                GET "/:c" if BarGuard with logging_middleware => bar_handler
             }
         }
         GET "/hello/:x/:y/:z" if BarGuard => foo_handler

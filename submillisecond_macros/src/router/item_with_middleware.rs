@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use syn::{
-    braced,
+    braced, custom_keyword,
     ext::IdentExt,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
@@ -9,9 +9,11 @@ use syn::{
 
 use crate::hquote;
 
+custom_keyword!(with);
+
 #[derive(Clone, Debug)]
 pub struct ItemUseMiddleware {
-    pub use_token: Token![use],
+    pub use_token: with,
     pub leading_colon: Option<Token![::]>,
     pub tree: UseMiddlewareTree,
 }

@@ -1,13 +1,13 @@
 pub use item_catch_all::*;
 pub use item_route::*;
-pub use item_use_middleware::*;
+pub use item_with_middleware::*;
 pub use method::*;
 pub use router_trie::*;
 pub use trie::*;
 
 mod item_catch_all;
 mod item_route;
-mod item_use_middleware;
+mod item_with_middleware;
 mod method;
 mod router_trie;
 mod trie;
@@ -43,7 +43,7 @@ impl Router {
 impl Parse for Router {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut middleware = Vec::new();
-        while input.peek(Token![use]) {
+        while input.peek(with) {
             middleware.push(input.parse()?);
             let _: Token![;] = input.parse()?;
         }

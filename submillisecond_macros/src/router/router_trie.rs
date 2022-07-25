@@ -8,7 +8,7 @@ use crate::hquote;
 use super::{
     item_catch_all::ItemCatchAll,
     item_route::{ItemGuard, ItemHandler, ItemRoute},
-    item_use_middleware::ItemUseMiddleware,
+    item_with_middleware::ItemUseMiddleware,
     method::Method,
     trie::{Node, Trie},
     Router,
