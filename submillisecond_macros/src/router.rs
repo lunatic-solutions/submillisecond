@@ -20,7 +20,7 @@ use crate::hquote;
 
 #[derive(Clone, Debug)]
 pub struct Router {
-    pub middleware: Vec<ItemUseMiddleware>,
+    pub middleware: Option<ItemWithMiddleware>,
     pub routes: Vec<ItemRoute>,
     pub catch_all: Option<ItemCatchAll>,
 }
@@ -40,11 +40,13 @@ impl Router {
 
 impl Parse for Router {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut middleware = Vec::new();
-        while input.peek(with) {
-            middleware.push(input.parse()?);
+        let middleware = if input.peek(with) {
+            let middleware = input.parse()?;
             let _: Token![;] = input.parse()?;
-        }
+            Some(middleware)
+        } else {
+            None
+        };
 
         let mut routes: Vec<ItemRoute> = Vec::new();
         while Method::peek(input)
