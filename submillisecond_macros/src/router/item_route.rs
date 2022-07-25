@@ -4,7 +4,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{braced, token, Expr, LitStr, Path, Token};
 
-use super::item_with_middleware::ItemUseMiddleware;
+use super::item_with_middleware::ItemWithMiddleware;
 use super::method::Method;
 use super::with;
 use crate::hquote;
@@ -20,7 +20,7 @@ pub struct ItemRoute {
     pub method: Option<Method>,
     pub path: LitStr,
     pub guard: Option<ItemGuard>,
-    pub middleware: Option<ItemUseMiddleware>,
+    pub middleware: Option<ItemWithMiddleware>,
     pub fat_arrow_token: Token![=>],
     pub handler: ItemHandler,
 }
