@@ -1,6 +1,8 @@
 use std::io;
 
-use submillisecond::{guard::Guard, params::Params, router, Application, RequestContext, Response};
+use submillisecond::guard::Guard;
+use submillisecond::params::Params;
+use submillisecond::{router, Application, RequestContext, Response};
 
 fn global_middleware(req: RequestContext) -> Response {
     println!("[GLOBAL] ENTRY");
