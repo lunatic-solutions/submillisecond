@@ -299,7 +299,7 @@ impl<'r> RouterTrie<'r> {
         // now we insert parsing of param
         expanded = quote_reader_fallback! {
             let param = req.reader.read_param();
-            if let Ok(value) = param {
+            if let Some(value) = param {
                 req.params.push(#param, value.to_string());
                 #expanded
             }
