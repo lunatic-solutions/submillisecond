@@ -1,13 +1,12 @@
-use std::{collections::HashMap, io};
+use std::collections::HashMap;
+use std::io;
 
 use headers::Host;
 use http::HeaderMap;
 use serde::Deserialize;
-use submillisecond::{
-    extract::{Path, Query, TypedHeader},
-    json::Json,
-    router, Application, NamedParam,
-};
+use submillisecond::extract::{Path, Query, TypedHeader};
+use submillisecond::json::Json;
+use submillisecond::{router, Application, NamedParam};
 
 fn index() -> &'static str {
     "Hello :)"

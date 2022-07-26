@@ -11,7 +11,7 @@ pub struct Error {
 
 impl Error {
     /// Create a new `Error` from a boxable error.
-    pub fn new(error: impl Into<BoxError>) -> Self {
+    pub fn new(error: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Self {
         Self {
             inner: error.into(),
         }

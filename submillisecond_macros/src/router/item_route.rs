@@ -95,7 +95,7 @@ fn expand_guard_struct(guard: &syn::Expr) -> TokenStream {
             let expr = expand_guard_struct(&expr_paren.expr);
             hquote! { (#expr) }
         }
-        expr => hquote! { ::submillisecond::guard::Guard::check(&#expr, &req) },
+        expr => hquote! { ::submillisecond::Guard::check(&#expr, &req) },
     }
 }
 
