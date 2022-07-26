@@ -1,6 +1,6 @@
 use std::io;
 
-use submillisecond::{guard::Guard, router, Application, RequestContext};
+use submillisecond::{router, Application, Guard, RequestContext};
 
 struct ContentLengthGuard(u64);
 

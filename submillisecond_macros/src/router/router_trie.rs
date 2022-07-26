@@ -365,7 +365,7 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(
                     middleware.as_ref(),
                     hquote! {
-                        ::submillisecond::Handler::handle(#handler, req)
+                        ::submillisecond::Handler::handle(&#handler, req)
                     },
                 );
 
@@ -399,7 +399,7 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(
                     middleware.as_ref(),
                     hquote! {
-                        ::submillisecond::Handler::handle(#handler, req)
+                        ::submillisecond::Handler::handle(&#handler, req)
                     },
                 );
 
@@ -414,7 +414,7 @@ impl<'r> RouterTrie<'r> {
                     middleware.as_ref(),
                     hquote! {
                         let subrouter = #subrouter_expanded;
-                        ::submillisecond::Handler::handle(subrouter, req)
+                        ::submillisecond::Handler::handle(&subrouter, req)
                     },
                 );
 
