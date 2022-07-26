@@ -9,7 +9,8 @@ use lunatic::supervisor::Supervisor;
 use serde::{Deserialize, Serialize};
 use submillisecond::json::Json;
 use submillisecond::params::Params;
-use submillisecond::{router, Application, RequestContext, Response, Router};
+use submillisecond::response::Response;
+use submillisecond::{router, Application, RequestContext, Router};
 use uuid::Uuid;
 
 // =====================================

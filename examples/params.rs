@@ -1,9 +1,9 @@
 use std::io;
 
 use submillisecond::extract::Path;
-use submillisecond::guard::Guard;
 use submillisecond::params::Params;
-use submillisecond::{router, Application, RequestContext, Response};
+use submillisecond::response::Response;
+use submillisecond::{router, Application, Guard, RequestContext};
 
 fn logging_middleware(req: RequestContext) -> Response {
     let request_id = req

@@ -19,14 +19,14 @@ impl ItemCatchAll {
             Some(handler) => match handler {
                 ItemHandler::Expr(handler) => {
                     hquote! {
-                        ::submillisecond::Handler::handle(#handler, req)
+                        ::submillisecond::Handler::handle(&#handler, req)
                     }
                 }
                 ItemHandler::SubRouter(subrouter) => {
                     let handler = subrouter.expand();
 
                     hquote! {
-                        ::submillisecond::Handler::handle(#handler, req)
+                        ::submillisecond::Handler::handle(&#handler, req)
                     }
                 }
             },

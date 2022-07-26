@@ -299,8 +299,8 @@ impl<'r> RouterTrie<'r> {
         // now we insert parsing of param
         expanded = quote_reader_fallback! {
             let param = req.reader.read_param();
-            if let Ok(value) = param {
-                req.params.push(#param.to_string(), value.to_string());
+            if let Some(value) = param {
+                req.params.push(#param, value.to_string());
                 #expanded
             }
         };
@@ -365,7 +365,7 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(
                     middleware.as_ref(),
                     hquote! {
-                        ::submillisecond::Handler::handle(#handler, req)
+                        ::submillisecond::Handler::handle(&#handler, req)
                     },
                 );
 
@@ -399,7 +399,7 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(
                     middleware.as_ref(),
                     hquote! {
-                        ::submillisecond::Handler::handle(#handler, req)
+                        ::submillisecond::Handler::handle(&#handler, req)
                     },
                 );
 
@@ -414,7 +414,7 @@ impl<'r> RouterTrie<'r> {
                     middleware.as_ref(),
                     hquote! {
                         let subrouter = #subrouter_expanded;
-                        ::submillisecond::Handler::handle(subrouter, req)
+                        ::submillisecond::Handler::handle(&subrouter, req)
                     },
                 );
 
