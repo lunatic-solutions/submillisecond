@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use lunatic::process::{AbstractProcess, ProcessRef, ProcessRequest, Request, StartProcess};
+use lunatic::process::{AbstractProcess, ProcessRef, Request, RequestHandler, StartProcess};
 use lunatic::supervisor::Supervisor;
 use serde::{Deserialize, Serialize};
 use submillisecond::json::Json;
@@ -147,7 +147,7 @@ impl AbstractProcess for PersistenceProcess {
 
 #[derive(Serialize, Deserialize)]
 struct AddTodo(Uuid, Todo);
-impl ProcessRequest<AddTodo> for PersistenceProcess {
+impl RequestHandler<AddTodo> for PersistenceProcess {
     type Response = bool;
 
     fn handle(state: &mut Self::State, AddTodo(user_id, todo): AddTodo) -> bool {
@@ -160,7 +160,7 @@ impl ProcessRequest<AddTodo> for PersistenceProcess {
     }
 }
 
-impl ProcessRequest<CreateUserDto> for PersistenceProcess {
+impl RequestHandler<CreateUserDto> for PersistenceProcess {
     type Response = Option<Uuid>;
 
     fn handle(
@@ -187,7 +187,7 @@ impl ProcessRequest<CreateUserDto> for PersistenceProcess {
 
 #[derive(Serialize, Deserialize)]
 struct PollTodo(Uuid);
-impl ProcessRequest<PollTodo> for PersistenceProcess {
+impl RequestHandler<PollTodo> for PersistenceProcess {
     type Response = Option<Todo>;
 
     fn handle(state: &mut Self::State, PollTodo(user_id): PollTodo) -> Self::Response {
@@ -203,7 +203,7 @@ impl ProcessRequest<PollTodo> for PersistenceProcess {
 
 #[derive(Serialize, Deserialize)]
 struct PeekTodo(Uuid);
-impl ProcessRequest<PeekTodo> for PersistenceProcess {
+impl RequestHandler<PeekTodo> for PersistenceProcess {
     // send clone because it will be serialized anyway
     type Response = Option<Todo>;
 
@@ -219,7 +219,7 @@ impl ProcessRequest<PeekTodo> for PersistenceProcess {
 
 #[derive(Serialize, Deserialize)]
 struct ListTodos(Uuid);
-impl ProcessRequest<ListTodos> for PersistenceProcess {
+impl RequestHandler<ListTodos> for PersistenceProcess {
     type Response = Vec<Todo>;
 
     fn handle(state: &mut Self::State, ListTodos(user_id): ListTodos) -> Self::Response {
