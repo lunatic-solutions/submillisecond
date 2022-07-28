@@ -15,13 +15,13 @@ use crate::response::{IntoResponse, Response};
 #[macro_use]
 pub(crate) mod macros;
 
+#[cfg(feature = "cookie")]
+pub mod cookies;
 mod core;
 pub mod defaults;
 pub mod extract;
 #[cfg(feature = "json")]
 pub mod json;
-#[cfg(any(feature = "cookie"))]
-pub mod layers;
 pub mod params;
 pub mod reader;
 pub mod response;

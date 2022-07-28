@@ -1,6 +1,6 @@
 use std::io;
 
-use submillisecond::layers::cookies::{cookies_layer, Cookie, Cookies};
+use submillisecond::cookies::{cookies_layer, Cookie, Cookies};
 use submillisecond::{router, Application};
 
 fn index(mut cookies: Cookies) -> String {
