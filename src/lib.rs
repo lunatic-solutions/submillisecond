@@ -20,6 +20,8 @@ pub mod defaults;
 pub mod extract;
 #[cfg(feature = "json")]
 pub mod json;
+#[cfg(any(feature = "cookie"))]
+pub mod layers;
 pub mod params;
 pub mod reader;
 pub mod response;

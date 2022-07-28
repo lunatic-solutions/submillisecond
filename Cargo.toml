@@ -43,8 +43,12 @@ serde_urlencoded = { version = "0.7", optional = true }
 [dev-dependencies]
 base64 = "0.13.0"
 criterion = { git = "https://github.com/bheisler/criterion.rs", branch = "version-0.4", default-features = false }
-lunatic-test = "0.9"
-submillisecond = { path = ".", features = ["json", "query"] }                                                      # for examples
+lunatic-test = "0.10"
+submillisecond = { path = ".", features = [
+  "cookie",
+  "json",
+  "query",
+] } # for examples
 ron = "0.7"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 

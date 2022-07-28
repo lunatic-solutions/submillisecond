@@ -487,7 +487,7 @@ checksum = "3f67c37e924554d6d95bedfba00c983c0bf58e6d9a74c9d3e18d9d5b745f5f68"
 dependencies = [
  "bincode",
  "lunatic-macros",
- "lunatic-test 0.10.0",
+ "lunatic-test",
  "paste",
  "protobuf",
  "rmp-serde",
@@ -504,16 +504,6 @@ checksum = "b3797c0362a518a0f6e04e1a2c8067de56867071c53971fd1a95b1749a3ae673"
 dependencies = [
  "convert_case",
  "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "lunatic-test"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc7bb599e1f665a513db71a958640ef915575efc7712486be1bb0c43b59e105f"
-dependencies = [
  "quote",
  "syn",
 ]
@@ -886,7 +876,7 @@ dependencies = [
  "http",
  "httparse",
  "lunatic",
- "lunatic-test 0.9.0",
+ "lunatic-test",
  "mime",
  "paste",
  "percent-encoding",
