@@ -1,8 +1,8 @@
-use crate::{response::IntoResponse, Response, RouteError};
+use super::path::FailedToDeserializePathParams;
+use crate::response::IntoResponse;
+use crate::Response;
 #[cfg(feature = "query")]
 use crate::{BoxError, Error};
-
-use super::path::FailedToDeserializePathParams;
 
 define_rejection! {
     #[status = INTERNAL_SERVER_ERROR]
@@ -49,7 +49,7 @@ impl FailedToDeserializeQueryString {
 
 #[cfg(feature = "query")]
 impl IntoResponse for FailedToDeserializeQueryString {
-    fn into_response(self) -> Result<Response, RouteError> {
+    fn into_response(self) -> Response {
         (http::StatusCode::UNPROCESSABLE_ENTITY, self.to_string()).into_response()
     }
 }
@@ -173,7 +173,7 @@ pub enum TypedHeaderRejectionReason {
 }
 
 impl IntoResponse for TypedHeaderRejection {
-    fn into_response(self) -> Result<Response, RouteError> {
+    fn into_response(self) -> Response {
         (http::StatusCode::BAD_REQUEST, self.to_string()).into_response()
     }
 }

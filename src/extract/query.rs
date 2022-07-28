@@ -2,12 +2,9 @@ use std::ops::Deref;
 
 use serde::de::DeserializeOwned;
 
-use crate::Request;
-
-use super::{
-    rejection::{FailedToDeserializeQueryString, QueryRejection},
-    FromRequest,
-};
+use super::rejection::{FailedToDeserializeQueryString, QueryRejection};
+use super::FromRequest;
+use crate::RequestContext;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Query<T>(pub T);
@@ -18,7 +15,7 @@ where
 {
     type Rejection = QueryRejection;
 
-    fn from_request(req: &mut Request) -> Result<Self, Self::Rejection> {
+    fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
         let query = req.uri().query().unwrap_or_default();
         let value = serde_urlencoded::from_str(query)
             .map_err(FailedToDeserializeQueryString::__private_new::<T, _>)?;

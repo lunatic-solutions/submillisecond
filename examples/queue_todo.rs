@@ -1,28 +1,22 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    fs::{DirBuilder, File},
-    io::{self, Write},
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::collections::{HashMap, VecDeque};
+use std::fs::{DirBuilder, File};
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
-use lunatic::{
-    process::{AbstractProcess, ProcessRef, ProcessRequest, Request, StartProcess},
-    supervisor::Supervisor,
-};
+use lunatic::process::{AbstractProcess, ProcessRef, Request, RequestHandler, StartProcess};
+use lunatic::supervisor::Supervisor;
 use serde::{Deserialize, Serialize};
-use submillisecond::{
-    json::Json, params::Params, router, Application, Next, Response, RouteError, Router,
-};
+use submillisecond::json::Json;
+use submillisecond::params::Params;
+use submillisecond::response::Response;
+use submillisecond::{router, Application, RequestContext, Router};
 use uuid::Uuid;
 
 // =====================================
 // Middleware for requests
 // =====================================
-fn logging_middleware(
-    req: submillisecond::Request,
-    next: impl Next,
-) -> Result<Response, RouteError> {
+fn logging_middleware(req: RequestContext) -> Response {
     let request_id = req
         .headers()
         .get("x-request-id")
@@ -30,7 +24,7 @@ fn logging_middleware(
         .map(|req_id| req_id.to_string())
         .unwrap_or_else(|| "DEFAULT_REQUEST_ID".to_string());
     println!("[ENTER] request {request_id}");
-    let res = next(req);
+    let res = req.next_handler();
     println!("[EXIT] request {request_id}");
     res
 }
@@ -123,7 +117,8 @@ impl Supervisor for PersistenceSup {
     type Children = PersistenceProcess;
 
     fn init(config: &mut lunatic::supervisor::SupervisorConfig<Self>, name: Self::Arg) {
-        // Always register the `PersistenceProcess` under the name passed to the supervisor.
+        // Always register the `PersistenceProcess` under the name passed to the
+        // supervisor.
         config.children_args(((), Some(name)))
     }
 }
@@ -139,7 +134,8 @@ impl AbstractProcess for PersistenceProcess {
     type State = Self;
 
     fn init(_: ProcessRef<Self>, _: Self::Arg) -> Self::State {
-        // Coordinator shouldn't die when a client dies. This makes the link one-directional.
+        // Coordinator shouldn't die when a client dies. This makes the link
+        // one-directional.
         unsafe { lunatic::host::api::process::die_when_link_dies(0) };
         PersistenceProcess {
             users: HashMap::new(),
@@ -151,7 +147,7 @@ impl AbstractProcess for PersistenceProcess {
 
 #[derive(Serialize, Deserialize)]
 struct AddTodo(Uuid, Todo);
-impl ProcessRequest<AddTodo> for PersistenceProcess {
+impl RequestHandler<AddTodo> for PersistenceProcess {
     type Response = bool;
 
     fn handle(state: &mut Self::State, AddTodo(user_id, todo): AddTodo) -> bool {
@@ -164,7 +160,7 @@ impl ProcessRequest<AddTodo> for PersistenceProcess {
     }
 }
 
-impl ProcessRequest<CreateUserDto> for PersistenceProcess {
+impl RequestHandler<CreateUserDto> for PersistenceProcess {
     type Response = Option<Uuid>;
 
     fn handle(
@@ -191,7 +187,7 @@ impl ProcessRequest<CreateUserDto> for PersistenceProcess {
 
 #[derive(Serialize, Deserialize)]
 struct PollTodo(Uuid);
-impl ProcessRequest<PollTodo> for PersistenceProcess {
+impl RequestHandler<PollTodo> for PersistenceProcess {
     type Response = Option<Todo>;
 
     fn handle(state: &mut Self::State, PollTodo(user_id): PollTodo) -> Self::Response {
@@ -207,7 +203,7 @@ impl ProcessRequest<PollTodo> for PersistenceProcess {
 
 #[derive(Serialize, Deserialize)]
 struct PeekTodo(Uuid);
-impl ProcessRequest<PeekTodo> for PersistenceProcess {
+impl RequestHandler<PeekTodo> for PersistenceProcess {
     // send clone because it will be serialized anyway
     type Response = Option<Todo>;
 
@@ -223,7 +219,7 @@ impl ProcessRequest<PeekTodo> for PersistenceProcess {
 
 #[derive(Serialize, Deserialize)]
 struct ListTodos(Uuid);
-impl ProcessRequest<ListTodos> for PersistenceProcess {
+impl RequestHandler<ListTodos> for PersistenceProcess {
     type Response = Vec<Todo>;
 
     fn handle(state: &mut Self::State, ListTodos(user_id): ListTodos) -> Self::Response {
@@ -284,14 +280,14 @@ fn list_todos(params: Params) -> Json<Vec<Todo>> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
     let user_id = params.get("user_id").unwrap();
     let todos = persistence.request(ListTodos(Uuid::from_str(user_id).unwrap()));
-    submillisecond::json::Json(todos)
+    Json(todos)
 }
 
 fn poll_todo(params: Params) -> Json<Todo> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
     let user_id = params.get("user_id").unwrap();
     if let Some(todo) = persistence.request(PollTodo(Uuid::from_str(user_id).unwrap())) {
-        return submillisecond::json::Json(todo);
+        return Json(todo);
     }
     panic!("Cannot poll todo {params:#?}");
 }
@@ -306,9 +302,9 @@ fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
         description: body.0.description,
     };
     if persistence.request(AddTodo(Uuid::from_str(user_id).unwrap(), todo.clone())) {
-        return submillisecond::json::Json(Some(todo));
+        return Json(Some(todo));
     }
-    submillisecond::json::Json(None)
+    Json(None)
 }
 
 fn liveness_check() -> &'static str {
@@ -324,7 +320,7 @@ const MGMT_ROUTER: Router = router! {
 };
 
 const ROUTER: Router = router! {
-    use logging_middleware;
+    with logging_middleware;
 
     "/api/users" => {
         POST "/" => create_user

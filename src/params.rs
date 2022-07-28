@@ -1,11 +1,9 @@
-use std::iter;
-use std::mem;
-use std::slice;
+use std::{iter, mem, slice};
 
 /// A single URL parameter, consisting of a key and a value.
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Default, Clone)]
 pub struct Param {
-    pub key: String,
+    pub key: &'static str,
     pub value: String,
 }
 
@@ -33,7 +31,8 @@ pub struct Params {
     kind: ParamsKind,
 }
 
-// most routes have 1-3 dynamic parameters, so we can avoid a heap allocation in common cases.
+// most routes have 1-3 dynamic parameters, so we can avoid a heap allocation in
+// common cases.
 const SMALL: usize = 3;
 
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Clone)]
@@ -95,7 +94,7 @@ impl Params {
     }
 
     /// Inserts a key value parameter pair into the list.
-    pub fn push(&mut self, key: String, value: String) {
+    pub fn push(&mut self, key: &'static str, value: String) {
         #[cold]
         fn drain_to_vec<T: Default>(len: usize, elem: T, arr: &mut [T; SMALL]) -> Vec<T> {
             let mut vec = Vec::with_capacity(len + 1);
@@ -166,12 +165,8 @@ impl<'ps> Iterator for ParamsIter<'ps> {
     fn next(&mut self) -> Option<Self::Item> {
         match self.kind {
             ParamsIterKind::None => None,
-            ParamsIterKind::Small(ref mut iter) => {
-                iter.next().map(|p| (p.key.as_str(), p.value.as_str()))
-            }
-            ParamsIterKind::Large(ref mut iter) => {
-                iter.next().map(|p| (p.key.as_str(), p.value.as_str()))
-            }
+            ParamsIterKind::Small(ref mut iter) => iter.next().map(|p| (p.key, p.value.as_str())),
+            ParamsIterKind::Large(ref mut iter) => iter.next().map(|p| (p.key, p.value.as_str())),
         }
     }
 }
@@ -197,7 +192,7 @@ mod tests {
 
         let mut params = Params::new();
         for (key, value) in vec.clone() {
-            params.push(key.to_string(), value.to_string());
+            params.push(key, value.to_string());
             assert_eq!(params.get(key), Some(value));
         }
 
@@ -215,7 +210,7 @@ mod tests {
 
         let mut params = Params::new();
         for (key, value) in vec.clone() {
-            params.push(key.to_string(), value.to_string());
+            params.push(key, value.to_string());
             assert_eq!(params.get(key), Some(value));
         }
 

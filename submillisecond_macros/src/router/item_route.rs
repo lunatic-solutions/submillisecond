@@ -1,15 +1,14 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, TokenStreamExt};
-use syn::{
-    braced, bracketed,
-    parse::{Parse, ParseStream},
-    spanned::Spanned,
-    token, Expr, LitStr, Macro, Path, Token,
-};
+use syn::parse::{Parse, ParseStream};
+use syn::spanned::Spanned;
+use syn::{braced, token, Expr, LitStr, Path, Token};
 
-use crate::{hquote, router::Router};
-
-use super::{item_use_middleware::ItemUseMiddleware, method::Method};
+use super::item_with_middleware::ItemWithMiddleware;
+use super::method::Method;
+use super::with;
+use crate::hquote;
+use crate::router::Router;
 
 /// `"/abc" => sub_router`
 /// `GET "/abc" => handler`
@@ -21,7 +20,7 @@ pub struct ItemRoute {
     pub method: Option<Method>,
     pub path: LitStr,
     pub guard: Option<ItemGuard>,
-    pub middleware: Option<ItemUseMiddleware>,
+    pub middleware: Option<ItemWithMiddleware>,
     pub fat_arrow_token: Token![=>],
     pub handler: ItemHandler,
 }
@@ -40,7 +39,7 @@ impl Parse for ItemRoute {
             } else {
                 None
             },
-            middleware: if input.peek(Token![use]) {
+            middleware: if input.peek(with) {
                 Some(input.parse()?)
             } else {
                 None
@@ -96,14 +95,13 @@ fn expand_guard_struct(guard: &syn::Expr) -> TokenStream {
             let expr = expand_guard_struct(&expr_paren.expr);
             hquote! { (#expr) }
         }
-        expr => hquote! { ::submillisecond::guard::Guard::check(&#expr, &req) },
+        expr => hquote! { ::submillisecond::Guard::check(&#expr, &req) },
     }
 }
 
 #[derive(Clone, Debug)]
 pub enum ItemHandler {
-    Fn(Path),
-    Macro(Macro),
+    Expr(Box<Expr>),
     SubRouter(Router),
 }
 
@@ -112,21 +110,11 @@ impl Parse for ItemHandler {
         if input.peek(token::Brace) {
             let content;
             braced!(content in input);
-            return Ok(ItemHandler::SubRouter(Router::Tree(content.parse()?)));
-        }
-
-        if input.peek(token::Bracket) {
-            let content;
-            bracketed!(content in input);
-            return Ok(ItemHandler::SubRouter(Router::List(content.parse()?)));
+            return Ok(ItemHandler::SubRouter(content.parse()?));
         }
 
         let fork = input.fork();
         let _: Path = fork.parse()?;
-        if fork.peek(Token![!]) {
-            Ok(ItemHandler::Macro(input.parse()?))
-        } else {
-            Ok(ItemHandler::Fn(input.parse()?))
-        }
+        Ok(ItemHandler::Expr(input.parse()?))
     }
 }

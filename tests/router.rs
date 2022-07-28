@@ -1,13 +1,13 @@
 use http::Method;
 use lunatic_test::test;
-use submillisecond::{http, router, Handler, Request, RouteError};
+use submillisecond::{http, router, Handler, RequestContext};
 
 macro_rules! build_request {
     ($method: ident, $uri: literal) => {
         build_request!($method, $uri, Vec::new())
     };
     ($method: ident, $uri: literal, $body: expr) => {
-        Request::from(
+        RequestContext::from(
             http::Request::builder()
                 .method(Method::$method)
                 .uri($uri)
@@ -20,28 +20,28 @@ macro_rules! build_request {
 macro_rules! handle_request {
     ($router: ident, $method: ident, $uri: literal) => {{
         let req = build_request!($method, $uri);
-        Handler::handle($router, req)
+        Handler::handle(&$router, req)
     }};
     ($router: ident, $method: ident, $uri: literal, $body: expr) => {{
         let req = build_request!($method, $uri, $body);
-        Handler::handle($router, req)
+        Handler::handle(&$router, req)
     }};
 }
 
 macro_rules! assert_200 {
     ($res: expr) => {
-        assert!(res.is_ok(), "response wasn't 200");
+        assert!(res.status().is_success(), "response wasn't 200");
     };
     ($res: expr, $body: expr) => {
-        assert!($res.is_ok(), "response wasn't 200");
-        assert_eq!($body, $res.unwrap().into_body().as_slice());
+        assert!($res.status().is_success(), "response wasn't 200");
+        assert_eq!($body, $res.into_body().as_slice());
     };
 }
 
 macro_rules! assert_404 {
     ($res: expr) => {
         assert!(
-            matches!($res, Err(RouteError::RouteNotMatch(_))),
+            $res.status() == http::StatusCode::NOT_FOUND,
             "response wasn't 404, but was:\n{:?}",
             $res
         )
@@ -114,6 +114,30 @@ fn nested_router() {
     assert_404!(res);
 
     let res = handle_request!(router, POST, "/a/b/c");
+    assert_404!(res);
+}
+
+#[test]
+fn param_router() {
+    let router = router! {
+        "/:a" => {
+            "/:b" => {
+                "/:c" => {
+                    GET "/:one/:two/:three" => simple_handler
+                }
+            }
+        }
+    };
+
+    // 200
+    let res = handle_request!(router, GET, "/a/b/c/one/two/three");
+    assert_200!(res, b"OK");
+
+    // 404
+    let res = handle_request!(router, GET, "/a/b/c/one/two");
+    assert_404!(res);
+
+    let res = handle_request!(router, GET, "/a/b/c/one/two/three/four");
     assert_404!(res);
 }
 

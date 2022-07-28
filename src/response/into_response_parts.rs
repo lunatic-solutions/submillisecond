@@ -1,14 +1,8 @@
-use std::{
-    convert::{Infallible, TryInto},
-    fmt,
-};
+use std::convert::{Infallible, TryInto};
+use std::fmt;
 
-use http::{
-    header::{HeaderMap, HeaderName, HeaderValue},
-    Extensions, StatusCode,
-};
-
-use crate::RouteError;
+use http::header::{HeaderMap, HeaderName, HeaderValue};
+use http::{Extensions, StatusCode};
 
 use super::{IntoResponse, Response};
 
@@ -128,7 +122,7 @@ where
     K: fmt::Display,
     V: fmt::Display,
 {
-    fn into_response(self) -> Result<Response, RouteError> {
+    fn into_response(self) -> Response {
         match self.kind {
             TryIntoHeaderErrorKind::Key(inner) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, inner.to_string()).into_response()
@@ -171,7 +165,7 @@ macro_rules! impl_into_response_parts {
         where
             $( $ty: IntoResponseParts, )*
         {
-            type Error = Result<Response, RouteError>;
+            type Error = Response;
 
             fn into_response_parts(self, res: ResponseParts) -> Result<ResponseParts, Self::Error> {
                 let ($($ty,)*) = self;

@@ -1,13 +1,12 @@
-use std::{collections::HashMap, io};
+use std::collections::HashMap;
+use std::io;
 
 use headers::Host;
 use http::HeaderMap;
 use serde::Deserialize;
-use submillisecond::{
-    extract::{Path, Query, TypedHeader},
-    json::Json,
-    router, Application, NamedParam, Request,
-};
+use submillisecond::extract::{Path, Query, TypedHeader};
+use submillisecond::json::Json;
+use submillisecond::{router, Application, NamedParam};
 
 fn index() -> &'static str {
     "Hello :)"
@@ -62,14 +61,11 @@ fn named_param2(NamedParamStruct { name, age }: NamedParamStruct) -> String {
     format!("Hi {name}, you are {age} years old")
 }
 
-fn string(req: Request, body: String) -> String {
-    assert!(req.body().is_empty()); // Taking body with `String` extractor should leave the request body empty
+fn string(body: String) -> String {
     body
 }
 
-fn vec(req: Request, body: Vec<u8>) -> Vec<u8> {
-    println!("{}", body.len());
-    assert!(req.body().is_empty()); // Taking body with `Vec<u8>` extractor should leave the request body empty
+fn vec(body: Vec<u8>) -> Vec<u8> {
     body
 }
 

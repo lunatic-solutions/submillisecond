@@ -17,8 +17,8 @@ fn router_benchmark_simple(c: &mut Criterion) {
                 .body(Vec::new())
                 .unwrap();
 
-            let res = Handler::handle(router, req.into());
-            assert!(res.is_ok());
+            let res = Handler::handle(&router, req.into());
+            assert!(res.status().is_success());
         })
     });
 }
@@ -88,8 +88,8 @@ fn router_benchmark_nested(c: &mut Criterion) {
                 .body(Vec::new())
                 .unwrap();
 
-            let res = Handler::handle(router, req.into());
-            assert!(res.is_ok());
+            let res = Handler::handle(&router, req.into());
+            assert!(res.status().is_success());
         })
     });
 }
@@ -159,8 +159,8 @@ fn router_benchmark_params(c: &mut Criterion) {
                 .body(Vec::new())
                 .unwrap();
 
-            let res = Handler::handle(router, req.into());
-            assert!(res.is_ok());
+            let res = Handler::handle(&router, req.into());
+            assert!(res.status().is_success());
         })
     });
 }

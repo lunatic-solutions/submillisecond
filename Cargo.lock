@@ -219,6 +219,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "convert_case"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb4a24b1aaf0fd0ce8b45161144d6f42cd91677fd5940fd431183eb023b3a2b8"
+
+[[package]]
 name = "cookie"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -475,8 +481,9 @@ checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 
 [[package]]
 name = "lunatic"
-version = "0.10.0"
-source = "git+https://github.com/lunatic-solutions/lunatic-rs.git#d55b03447f470f8f83783581609ebc1e1ed7e1ba"
+version = "0.10.0-alpha.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f67c37e924554d6d95bedfba00c983c0bf58e6d9a74c9d3e18d9d5b745f5f68"
 dependencies = [
  "bincode",
  "lunatic-macros",
@@ -492,8 +499,11 @@ dependencies = [
 [[package]]
 name = "lunatic-macros"
 version = "0.10.0"
-source = "git+https://github.com/lunatic-solutions/lunatic-rs.git#d55b03447f470f8f83783581609ebc1e1ed7e1ba"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3797c0362a518a0f6e04e1a2c8067de56867071c53971fd1a95b1749a3ae673"
 dependencies = [
+ "convert_case",
+ "proc-macro2",
  "quote",
  "syn",
 ]
@@ -511,7 +521,8 @@ dependencies = [
 [[package]]
 name = "lunatic-test"
 version = "0.10.0"
-source = "git+https://github.com/lunatic-solutions/lunatic-rs.git#d55b03447f470f8f83783581609ebc1e1ed7e1ba"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3596fb01813a169313d0e32a8759bd4a0783a199989afe65eaff5738877fa9ad"
 dependencies = [
  "quote",
  "syn",

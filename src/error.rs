@@ -1,4 +1,5 @@
-use std::{error::Error as StdError, fmt};
+use std::error::Error as StdError;
+use std::fmt;
 
 /// Alias for a type-erased error type.
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
@@ -10,7 +11,7 @@ pub struct Error {
 
 impl Error {
     /// Create a new `Error` from a boxable error.
-    pub fn new(error: impl Into<BoxError>) -> Self {
+    pub fn new(error: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Self {
         Self {
             inner: error.into(),
         }

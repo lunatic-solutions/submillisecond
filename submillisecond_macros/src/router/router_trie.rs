@@ -3,16 +3,13 @@ use proc_macro2::TokenStream;
 use quote::TokenStreamExt;
 use regex::Regex;
 
-use crate::{hquote, router::Router};
-
-use super::{
-    item_catch_all::ItemCatchAll,
-    item_route::{ItemGuard, ItemHandler, ItemRoute},
-    item_use_middleware::ItemUseMiddleware,
-    method::Method,
-    trie::{Node, Trie},
-    RouterTree,
-};
+use super::item_catch_all::ItemCatchAll;
+use super::item_route::{ItemGuard, ItemHandler, ItemRoute};
+use super::item_with_middleware::ItemWithMiddleware;
+use super::method::Method;
+use super::trie::{Node, Trie};
+use super::Router;
+use crate::hquote;
 
 lazy_static! {
     static ref RE: Regex =
@@ -22,6 +19,7 @@ lazy_static! {
 #[derive(Debug, Default)]
 pub struct RouterTrie<'r> {
     catch_all: Option<&'r ItemCatchAll>,
+    middleware: Option<&'r ItemWithMiddleware>,
     // trie to collect subrouters
     subrouters: Trie<TrieValue<'r>>,
     // tries to collect
@@ -39,7 +37,7 @@ struct TrieValue<'r> {
     guards: Vec<&'r ItemGuard>,
     handler: &'r ItemHandler,
     method: &'r Option<Method>,
-    middleware: Vec<&'r ItemUseMiddleware>,
+    middleware: &'r Option<ItemWithMiddleware>,
     node_type: NodeType,
 }
 
@@ -69,18 +67,13 @@ macro_rules! quote_reader_fallback {($($tt:tt)*) => {{
 
 impl<'r> RouterTrie<'r> {
     /// Create a new [`RouterTrie`] from an instance of [`RouterTree`].
-    pub fn new(router_tree: &'r RouterTree) -> Self {
+    pub fn new(router_tree: &'r Router) -> Self {
         let mut trie = RouterTrie {
             catch_all: router_tree.catch_all.as_ref(),
+            middleware: router_tree.middleware.as_ref(),
             ..Default::default()
         };
-        trie.collect_tries(
-            None,
-            &router_tree.routes,
-            router_tree.middleware.iter().collect(),
-            Vec::new(),
-            &router_tree.catch_all,
-        );
+        trie.collect_tries(None, &router_tree.routes, Vec::new());
         trie
     }
 
@@ -88,10 +81,15 @@ impl<'r> RouterTrie<'r> {
     pub fn expand(&self) -> TokenStream {
         let subrouters_expanded = self.expand_subrouters();
         let handlers_expanded = self.expand_handlers();
-
-        hquote! {
+        let expanded = hquote! {
             #subrouters_expanded
             #handlers_expanded
+        };
+
+        if self.middleware.is_none() {
+            expanded
+        } else {
+            Self::expand_middleware(self.middleware, expanded)
         }
     }
 
@@ -164,7 +162,6 @@ impl<'r> RouterTrie<'r> {
         let full_path = format!("{full_path}{prefix}");
         let captures = Self::capture_param_parts(prefix);
         let child_nodes_expanded = self.expand_nodes(&full_path, children);
-        let prefix_len = prefix.len();
 
         match value {
             Some(value) => match captures {
@@ -174,8 +171,7 @@ impl<'r> RouterTrie<'r> {
                 None => self.expand_static_node(prefix, value, child_nodes_expanded),
             },
             None if !child_nodes_expanded.is_empty() => quote_reader_fallback! {
-                if req.reader.peek(#prefix_len) == #prefix {
-                    req.reader.read(#prefix_len);
+                if req.reader.read_matching(#prefix) {
                     #child_nodes_expanded
                 }
             },
@@ -190,8 +186,6 @@ impl<'r> RouterTrie<'r> {
         value: &TrieValue<'r>,
         child_nodes_expanded: TokenStream,
     ) -> TokenStream {
-        let prefix_len = prefix.len();
-
         let child_nodes_expanded = if prefix.len() > 1 && prefix.ends_with('/') {
             hquote! {
                 // since path continues there has to be a separator
@@ -206,12 +200,10 @@ impl<'r> RouterTrie<'r> {
         let ExpandedNodeParts {
             guards_expanded,
             handler_expanded,
-        } = Self::expand_node_parts(prefix, value);
+        } = Self::expand_node_parts(value);
 
         quote_reader_fallback! {
-            if req.reader.peek(#prefix_len) == #prefix #guards_expanded {
-                req.reader.read(#prefix_len);
-
+            if req.reader.read_matching(#prefix) #guards_expanded {
                 #child_nodes_expanded
 
                 #handler_expanded
@@ -228,7 +220,6 @@ impl<'r> RouterTrie<'r> {
         param: &str,
         suffix: &str,
     ) -> TokenStream {
-        let suffix_len = suffix.len();
         let mut expanded = hquote! {};
 
         match suffix {
@@ -237,7 +228,7 @@ impl<'r> RouterTrie<'r> {
                     let ExpandedNodeParts {
                         guards_expanded,
                         handler_expanded,
-                    } = Self::expand_node_parts(prefix, value);
+                    } = Self::expand_node_parts(value);
 
                     expanded.append_all(hquote! {
                         if req.reader.is_dangling_slash() #guards_expanded {
@@ -252,8 +243,7 @@ impl<'r> RouterTrie<'r> {
                         expanded.append_all(recur);
                     } else {
                         expanded.append_all(quote_reader_fallback! {
-                            if req.reader.peek(#suffix_len) == #suffix {
-                                req.reader.read(#suffix_len);
+                            if req.reader.read_matching(#suffix) {
                                 #recur
                             }
                         });
@@ -276,11 +266,10 @@ impl<'r> RouterTrie<'r> {
                         let ExpandedNodeParts {
                             guards_expanded,
                             handler_expanded,
-                        } = Self::expand_node_parts(suffix, value);
+                        } = Self::expand_node_parts(value);
 
                         expanded.append_all(quote_reader_fallback! {
-                            if req.reader.peek(#suffix_len) == #suffix #guards_expanded {
-                                req.reader.read(#suffix_len);
+                            if req.reader.read_matching(#suffix) #guards_expanded {
                                 #handler_expanded
                             }
                         });
@@ -292,11 +281,10 @@ impl<'r> RouterTrie<'r> {
                         let ExpandedNodeParts {
                             guards_expanded,
                             handler_expanded,
-                        } = Self::expand_node_parts(suffix, value);
+                        } = Self::expand_node_parts(value);
 
                         expanded.append_all(quote_reader_fallback! {
-                            if req.reader.peek(#suffix_len) == #suffix #guards_expanded {
-                                req.reader.read(#suffix_len);
+                            if req.reader.read_matching(#suffix) #guards_expanded {
                                 #recur
                                 #handler_expanded
                             }
@@ -311,18 +299,16 @@ impl<'r> RouterTrie<'r> {
         // now we insert parsing of param
         expanded = quote_reader_fallback! {
             let param = req.reader.read_param();
-            if let Ok(value) = param {
-                req.params.push(#param.to_string(), value.to_string());
+            if let Some(value) = param {
+                req.params.push(#param, value.to_string());
                 #expanded
             }
         };
 
         // now we wrap everything with matching the literal before
-        let prefix_len = prefix.len();
         if !prefix.is_empty() {
             expanded = quote_reader_fallback! {
-                if req.reader.peek(#prefix_len) == #prefix {
-                    req.reader.read(#prefix_len);
+                if req.reader.read_matching(#prefix) {
                     #expanded
                 }
             }
@@ -333,7 +319,6 @@ impl<'r> RouterTrie<'r> {
 
     /// Expand a node guards and handler.
     fn expand_node_parts(
-        prefix: &str,
         TrieValue {
             guards: guard,
             handler,
@@ -348,18 +333,7 @@ impl<'r> RouterTrie<'r> {
 
         let handler_expanded = match node_type {
             NodeType::Handler => Self::expand_handler(method, handler, middleware),
-            NodeType::Subrouter => {
-                let expanded = Self::expand_subrouter(handler, middleware);
-                if prefix.ends_with('/') {
-                    quote_reader_fallback! {
-                        req.reader.read_back(1);
-
-                        #expanded
-                    }
-                } else {
-                    expanded
-                }
-            }
+            NodeType::Subrouter => Self::expand_subrouter(handler, middleware),
         };
 
         ExpandedNodeParts {
@@ -372,22 +346,14 @@ impl<'r> RouterTrie<'r> {
     fn expand_handler(
         method: &'r Option<Method>,
         handler: &ItemHandler,
-        middleware: &[&'r ItemUseMiddleware],
+        middleware: &'r Option<ItemWithMiddleware>,
     ) -> TokenStream {
         let expanded = match handler {
-            ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
-                let handler = match handler {
-                    ItemHandler::Fn(handler) => hquote! { #handler },
-                    ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
-                    ItemHandler::SubRouter(_) => unreachable!(),
-                };
-
+            ItemHandler::Expr(handler) => {
                 let middleware_expanded = Self::expand_middleware(
-                    middleware,
+                    middleware.as_ref(),
                     hquote! {
-                        ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(#handler, req)
-                        )
+                        ::submillisecond::Handler::handle(&#handler, req)
                     },
                 );
 
@@ -414,22 +380,14 @@ impl<'r> RouterTrie<'r> {
     /// Expand a subrouter.
     fn expand_subrouter(
         handler: &ItemHandler,
-        middleware: &[&'r ItemUseMiddleware],
+        middleware: &'r Option<ItemWithMiddleware>,
     ) -> TokenStream {
         match handler {
-            ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
-                let handler = match handler {
-                    ItemHandler::Fn(handler) => hquote! { #handler },
-                    ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
-                    ItemHandler::SubRouter(_) => unreachable!(),
-                };
-
+            ItemHandler::Expr(handler) => {
                 let middleware_expanded = Self::expand_middleware(
-                    middleware,
+                    middleware.as_ref(),
                     hquote! {
-                        ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(#handler, req)
-                        )
+                        ::submillisecond::Handler::handle(&#handler, req)
                     },
                 );
 
@@ -441,12 +399,10 @@ impl<'r> RouterTrie<'r> {
                 let subrouter_expanded = subrouter.expand();
 
                 let middleware_expanded = Self::expand_middleware(
-                    middleware,
+                    middleware.as_ref(),
                     hquote! {
                         let subrouter = #subrouter_expanded;
-                        ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(subrouter, req)
-                        )
+                        ::submillisecond::Handler::handle(&subrouter, req)
                     },
                 );
 
@@ -458,54 +414,37 @@ impl<'r> RouterTrie<'r> {
     }
 
     /// Expand middleware to inject into local static middleware vec.
-    fn expand_middleware(middleware: &[&'r ItemUseMiddleware], inner: TokenStream) -> TokenStream {
+    fn expand_middleware(
+        middleware: Option<&'r ItemWithMiddleware>,
+        inner: TokenStream,
+    ) -> TokenStream {
         middleware
             .iter()
-            .flat_map(|middleware| middleware.tree.items())
+            .flat_map(|middleware| &middleware.items)
             .rev()
             .fold(hquote! {{ #inner }}, |acc, middleware| {
-                hquote! {
-                    ::submillisecond::Middleware::apply(&#middleware, req, move |req| {
+                hquote! {{
+                    req.set_next_handler(|mut req: ::submillisecond::RequestContext| {
                         #acc
-                    })
-                }
+                    });
+                    ::submillisecond::Handler::handle(&#middleware, req)
+                }}
             })
     }
 
-    /// Expand catch all handler, or if not present, return `RouteError::RouteNotMatch`.
+    /// Expand catch all handler, or if not present, return default 404.
     fn expand_catch_all(&self) -> TokenStream {
-        match self.catch_all {
-            Some(catch_all) => match &*catch_all.handler {
-                ItemHandler::Fn(_) | ItemHandler::Macro(_) => {
-                    let handler = match &*catch_all.handler {
-                        ItemHandler::Fn(handler) => hquote! { #handler },
-                        ItemHandler::Macro(item_macro) => hquote! { (#item_macro) },
-                        ItemHandler::SubRouter(_) => unreachable!(),
-                    };
+        let catch_all_expanded = ItemCatchAll::expand_catch_all_handler(
+            self.catch_all.map(|catch_all| catch_all.handler.as_ref()),
+        );
 
-                    hquote! {
-                        return ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(#handler, req)
-                        );
-                    }
-                }
-                ItemHandler::SubRouter(subrouter) => {
-                    let handler = subrouter.expand();
-
-                    hquote! {
-                        return ::submillisecond::IntoResponse::into_response(
-                            ::submillisecond::Handler::handle(#handler, req)
-                        );
-                    }
-                }
-            },
-            None => {
-                hquote! { return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req)); }
-            }
+        hquote! {
+            return #catch_all_expanded;
         }
     }
 
-    /// Insert a subrouter. A subrouter is any handler which is not prefixed with a http method.
+    /// Insert a subrouter. A subrouter is any handler which is not prefixed
+    /// with a http method.
     fn insert_subrouter(&mut self, key: String, value: TrieValue<'r>) {
         self.subrouters.insert(key, value);
     }
@@ -528,9 +467,7 @@ impl<'r> RouterTrie<'r> {
         &mut self,
         prefix: Option<String>,
         routes: &'r [ItemRoute],
-        all_middleware: Vec<&'r ItemUseMiddleware>,
         all_guards: Vec<&'r ItemGuard>,
-        catch_all: &'r Option<ItemCatchAll>,
     ) {
         for ItemRoute {
             method,
@@ -546,45 +483,27 @@ impl<'r> RouterTrie<'r> {
                 .map(|prefix| format!("{prefix}{}", path.value()))
                 .unwrap_or_else(|| path.value());
 
-            let mut all_middleware = all_middleware.clone();
-            if let Some(middleware) = middleware {
-                all_middleware.push(middleware);
-            }
-
             let mut all_guards = all_guards.clone();
             if let Some(guard) = guard {
                 all_guards.push(guard);
             }
 
-            match handler {
-                ItemHandler::SubRouter(Router::Tree(tree)) if catch_all.is_none() => {
-                    self.collect_tries(
-                        Some(new_path),
-                        &tree.routes,
-                        all_middleware,
-                        all_guards,
-                        &tree.catch_all,
-                    );
-                }
-                _ => {
-                    let value = TrieValue {
-                        guards: all_guards,
-                        handler,
-                        method,
-                        middleware: all_middleware,
-                        node_type: if method.is_some() {
-                            NodeType::Handler
-                        } else {
-                            NodeType::Subrouter
-                        },
-                    };
+            let value = TrieValue {
+                guards: all_guards,
+                handler,
+                method,
+                middleware,
+                node_type: if method.is_some() {
+                    NodeType::Handler
+                } else {
+                    NodeType::Subrouter
+                },
+            };
 
-                    if let Some(method) = *method {
-                        self.insert_handler(method, new_path, value);
-                    } else {
-                        self.insert_subrouter(new_path, value);
-                    }
-                }
+            if let Some(method) = *method {
+                self.insert_handler(method, new_path, value);
+            } else {
+                self.insert_subrouter(new_path, value);
             }
         }
     }

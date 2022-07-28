@@ -1,35 +1,41 @@
-use std::{fs, io, path::Path};
+use std::path::Path;
+use std::{fs, io};
 
 use mime_guess::{mime, Mime};
 use proc_macro2::TokenStream;
-use syn::{
-    parse::{Parse, ParseStream},
-    LitStr,
-};
+use syn::parse::{Parse, ParseStream};
+use syn::{LitStr, Token};
 
 use crate::hquote;
+use crate::router::{ItemCatchAll, ItemHandler};
 
 #[derive(Debug)]
 pub struct StaticRouter {
     files: Vec<StaticFile>,
+    catch_all: Option<ItemHandler>,
 }
 
 impl StaticRouter {
     pub fn expand(&self) -> TokenStream {
+        let catch_all_expanded = self.expand_catch_all();
         let match_arms = self.expand_match_arms();
 
         hquote! {
-            (|mut req: ::submillisecond::Request| -> ::std::result::Result<::submillisecond::Response, ::submillisecond::RouteError> {
+            (|mut req: ::submillisecond::RequestContext| -> ::submillisecond::response::Response {
                 if *req.method() != ::submillisecond::http::Method::GET {
-                    return ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req));
+                    return #catch_all_expanded;
                 }
 
                 match req.reader.read_to_end() {
                     #match_arms
-                    _ => ::std::result::Result::Err(::submillisecond::RouteError::RouteNotMatch(req)),
+                    _ => #catch_all_expanded,
                 }
             }) as ::submillisecond::Router
         }
+    }
+
+    fn expand_catch_all(&self) -> TokenStream {
+        ItemCatchAll::expand_catch_all_handler(self.catch_all.as_ref())
     }
 
     fn expand_match_arms(&self) -> TokenStream {
@@ -42,7 +48,7 @@ impl StaticRouter {
                 #path => {
                     let mut headers = ::submillisecond::http::header::HeaderMap::new();
                     headers.insert(::submillisecond::http::header::CONTENT_TYPE, #mime.parse().unwrap());
-                    ::submillisecond::IntoResponse::into_response((headers, #bytes as &'static [u8]))
+                    ::submillisecond::response::IntoResponse::into_response((headers, #bytes as &'static [u8]))
                 }
             }
         });
@@ -54,9 +60,15 @@ impl StaticRouter {
 impl Parse for StaticRouter {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let dir: LitStr = input.parse()?;
+        let catch_all = if input.peek(Token![,]) {
+            let _: Token![,] = input.parse()?;
+            Some(input.parse()?)
+        } else {
+            None
+        };
         let files = walk_dir(dir.value()).map_err(|err| syn::Error::new(dir.span(), err))?;
 
-        Ok(StaticRouter { files })
+        Ok(StaticRouter { files, catch_all })
     }
 }
 

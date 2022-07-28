@@ -1,4 +1,5 @@
-use std::{fmt::Debug, mem};
+use std::fmt::Debug;
+use std::mem;
 
 #[derive(Debug)]
 pub struct Trie<V> {

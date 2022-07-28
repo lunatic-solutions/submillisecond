@@ -1,21 +1,37 @@
 use std::io;
 
-use submillisecond::{
-    guard::Guard, params::Params, router, Application, Next, Request, Response, RouteError,
-};
+use submillisecond::params::Params;
+use submillisecond::response::Response;
+use submillisecond::{router, Application, Guard, Handler, RequestContext};
 
-fn global_middleware(req: Request, next: impl Next) -> Result<Response, RouteError> {
+fn global_middleware(req: RequestContext) -> Response {
     println!("[GLOBAL] ENTRY");
-    let res = next(req);
+    let res = req.next_handler();
     println!("[GLOBAL] EXIT");
     res
 }
 
-fn logging_middleware(req: Request, next: impl Next) -> Result<Response, RouteError> {
-    println!("{} {}", req.method(), req.uri().path());
-    let res = next(req);
-    println!("[EXIT]");
-    res
+struct LoggingMiddleware {
+    level: u8,
+}
+
+impl LoggingMiddleware {
+    const fn new(level: u8) -> Self {
+        LoggingMiddleware { level }
+    }
+}
+
+impl Handler for LoggingMiddleware {
+    fn handle(&self, req: RequestContext) -> Response {
+        if self.level == 0 {
+            return req.next_handler();
+        }
+
+        println!("{} {}", req.method(), req.uri().path());
+        let res = req.next_handler();
+        println!("[EXIT]");
+        res
+    }
 }
 
 fn foo_bar_handler() -> &'static str {
@@ -33,27 +49,31 @@ fn bar_handler() -> &'static str {
 
 struct BarGuard;
 impl Guard for BarGuard {
-    fn check(&self, _: &Request) -> bool {
+    fn check(&self, _: &RequestContext) -> bool {
         true
     }
 }
 
 struct FooGuard;
 impl Guard for FooGuard {
-    fn check(&self, _: &Request) -> bool {
+    fn check(&self, _: &RequestContext) -> bool {
         true
     }
 }
 
 fn main() -> io::Result<()> {
-    Application::new(router! {
-        use global_middleware;
+    const LOGGER: LoggingMiddleware = LoggingMiddleware::new(1);
 
-        "/foo" if FooGuard use logging_middleware => {
+    Application::new(router! {
+        with global_middleware;
+
+        "/foo" if FooGuard => {
+            with LOGGER;
+
             GET "/bar" if BarGuard => foo_bar_handler
         }
-        GET "/bar" if BarGuard use logging_middleware => bar_handler
-        POST "/foo" use logging_middleware => foo_handler
+        GET "/bar" if BarGuard with LOGGER => bar_handler
+        POST "/foo" with LOGGER => foo_handler
     })
     .serve("0.0.0.0:3000")
 }

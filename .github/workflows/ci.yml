@@ -22,7 +22,7 @@ jobs:
           override: true
           components: rustfmt, clippy
       - name: "Run tests"
-        run: cargo test
+        run: cargo test --workspace
       - name: "Run clippy"
         run: cargo clippy -- -D warnings
       - name: "Check formatting"

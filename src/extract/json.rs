@@ -2,15 +2,10 @@ use std::fmt::Debug;
 
 use serde::de::DeserializeOwned;
 
-use crate::{
-    json::{json_content_type, Json},
-    Request,
-};
-
-use super::{
-    rejection::{JsonDataError, JsonRejection, JsonSyntaxError, MissingJsonContentType},
-    FromRequest,
-};
+use super::rejection::{JsonDataError, JsonRejection, JsonSyntaxError, MissingJsonContentType};
+use super::FromRequest;
+use crate::json::{json_content_type, Json};
+use crate::RequestContext;
 
 impl<T> FromRequest for Json<T>
 where
@@ -18,7 +13,7 @@ where
 {
     type Rejection = JsonRejection;
 
-    fn from_request(req: &mut Request) -> Result<Self, Self::Rejection> {
+    fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
         if !json_content_type(req) {
             return Err(MissingJsonContentType.into());
         }
