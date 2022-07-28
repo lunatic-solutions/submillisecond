@@ -200,7 +200,7 @@ impl<'r> RouterTrie<'r> {
         let ExpandedNodeParts {
             guards_expanded,
             handler_expanded,
-        } = Self::expand_node_parts(prefix, value);
+        } = Self::expand_node_parts(value);
 
         quote_reader_fallback! {
             if req.reader.read_matching(#prefix) #guards_expanded {
@@ -228,7 +228,7 @@ impl<'r> RouterTrie<'r> {
                     let ExpandedNodeParts {
                         guards_expanded,
                         handler_expanded,
-                    } = Self::expand_node_parts(prefix, value);
+                    } = Self::expand_node_parts(value);
 
                     expanded.append_all(hquote! {
                         if req.reader.is_dangling_slash() #guards_expanded {
@@ -266,7 +266,7 @@ impl<'r> RouterTrie<'r> {
                         let ExpandedNodeParts {
                             guards_expanded,
                             handler_expanded,
-                        } = Self::expand_node_parts(suffix, value);
+                        } = Self::expand_node_parts(value);
 
                         expanded.append_all(quote_reader_fallback! {
                             if req.reader.read_matching(#suffix) #guards_expanded {
@@ -281,7 +281,7 @@ impl<'r> RouterTrie<'r> {
                         let ExpandedNodeParts {
                             guards_expanded,
                             handler_expanded,
-                        } = Self::expand_node_parts(suffix, value);
+                        } = Self::expand_node_parts(value);
 
                         expanded.append_all(quote_reader_fallback! {
                             if req.reader.read_matching(#suffix) #guards_expanded {
@@ -319,7 +319,6 @@ impl<'r> RouterTrie<'r> {
 
     /// Expand a node guards and handler.
     fn expand_node_parts(
-        prefix: &str,
         TrieValue {
             guards: guard,
             handler,
@@ -334,18 +333,7 @@ impl<'r> RouterTrie<'r> {
 
         let handler_expanded = match node_type {
             NodeType::Handler => Self::expand_handler(method, handler, middleware),
-            NodeType::Subrouter => {
-                let expanded = Self::expand_subrouter(handler, middleware);
-                if prefix.ends_with('/') {
-                    quote_reader_fallback! {
-                        req.reader.read_back(1);
-
-                        #expanded
-                    }
-                } else {
-                    expanded
-                }
-            }
+            NodeType::Subrouter => Self::expand_subrouter(handler, middleware),
         };
 
         ExpandedNodeParts {

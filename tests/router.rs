@@ -118,6 +118,30 @@ fn nested_router() {
 }
 
 #[test]
+fn param_router() {
+    let router = router! {
+        "/:a" => {
+            "/:b" => {
+                "/:c" => {
+                    GET "/:one/:two/:three" => simple_handler
+                }
+            }
+        }
+    };
+
+    // 200
+    let res = handle_request!(router, GET, "/a/b/c/one/two/three");
+    assert_200!(res, b"OK");
+
+    // 404
+    let res = handle_request!(router, GET, "/a/b/c/one/two");
+    assert_404!(res);
+
+    let res = handle_request!(router, GET, "/a/b/c/one/two/three/four");
+    assert_404!(res);
+}
+
+#[test]
 fn fallthrough_router() {
     let router = router! {
         GET "/a" => simple_handler

@@ -18,7 +18,7 @@ impl UriReader {
     }
 
     pub fn is_dangling_slash(&self) -> bool {
-        self.uri.len() == self.cursor || &self.uri[self.cursor..] == "/"
+        self.uri.len() == self.cursor || &self.uri[self.cursor..self.cursor + 1] == "/"
     }
 
     pub fn read(&mut self, len: usize) {
@@ -37,10 +37,6 @@ impl UriReader {
         }
 
         false
-    }
-
-    pub fn read_back(&mut self, len: usize) {
-        self.cursor -= len;
     }
 
     pub fn ensure_next_slash(&mut self) -> bool {
