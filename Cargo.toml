@@ -52,6 +52,10 @@ submillisecond = { path = ".", features = [
 ron = "0.7"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [[bench]]
 harness = false
 name = "router"
