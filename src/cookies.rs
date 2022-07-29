@@ -3,8 +3,8 @@ use std::convert::Infallible;
 use std::fmt::Write;
 use std::ops;
 
-pub use cookie::Cookie;
 use cookie::CookieJar;
+pub use cookie::{Cookie, Key};
 use headers::HeaderValue;
 use http::header::{COOKIE, SET_COOKIE};
 use lunatic::process_local;
@@ -14,7 +14,7 @@ use crate::response::Response;
 use crate::RequestContext;
 
 process_local! {
-    static COOKIES: RefCell<CookieJar> = RefCell::new(CookieJar::new());
+    pub static COOKIES: RefCell<CookieJar> = RefCell::new(CookieJar::new());
 }
 
 /// Cookies layer which populates the cookie jar from the incoming request,

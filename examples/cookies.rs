@@ -1,6 +1,8 @@
 use std::io;
 
-use submillisecond::cookies::{cookies_layer, Cookie, Cookies};
+use cookie::Cookie;
+use submillisecond::cookies::{cookies_layer, Cookies, Key};
+use submillisecond::session::{init_session, Session};
 use submillisecond::{router, Application};
 
 fn index(mut cookies: Cookies) -> String {
@@ -14,11 +16,21 @@ fn index(mut cookies: Cookies) -> String {
     count.to_string()
 }
 
+fn session(mut session: Session<i32>) -> String {
+    if *session < 10 {
+        *session += 1;
+    }
+    session.to_string()
+}
+
 fn main() -> io::Result<()> {
+    init_session("session", Key::from(&[2; 64]));
+
     Application::new(router! {
         with cookies_layer;
 
         GET "/" => index
+        GET "/session" => session
     })
     .serve("0.0.0.0:3000")
 }
