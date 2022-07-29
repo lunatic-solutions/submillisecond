@@ -15,6 +15,8 @@ use crate::response::{IntoResponse, Response};
 #[macro_use]
 pub(crate) mod macros;
 
+#[cfg(feature = "cookie")]
+pub mod cookies;
 mod core;
 pub mod defaults;
 pub mod extract;
