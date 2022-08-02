@@ -27,6 +27,8 @@ pub mod json;
 pub mod params;
 pub mod reader;
 pub mod response;
+#[cfg(feature = "cookie")]
+pub mod session;
 #[cfg(feature = "template")]
 pub mod template;
 
