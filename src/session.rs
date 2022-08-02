@@ -1,7 +1,15 @@
 //! Session data stored in encrypted user cookie.
 //!
-//! The [`cookies::cookies_layer`](super::cookies::cookies_layer) layer must be
-//! used for session data to work.
+//! Sessions can be shared across handlers as long as the same type in the
+//! generic is used. Using different session types across handlers is valid,
+//! and the data will be stored in separate cookies named
+//! `session-{type_id_hash}`.
+//!
+//! The [`init_session`] should be called before starting the web server to
+//! initialize a key.
+//!
+//! The [`cookies::cookies_layer`](super::cookies::cookies_layer) layer must
+//! also be used for session data to work.
 //!
 //! # Example
 //!
@@ -20,7 +28,7 @@
 //! }
 //!
 //! fn main() -> io::Result<()> {
-//!     session::init_session("session", Key::generate());
+//!     session::init_session(Key::generate());
 //!
 //!     Application::new(router! {
 //!         with cookies_layer;
@@ -31,23 +39,22 @@
 //! }
 //! ```
 
+use std::any::TypeId;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 
 use cookie::{Cookie, Key};
 use lunatic::process::{AbstractProcess, ProcessRef, Request, RequestHandler, StartProcess};
 use serde::de::DeserializeOwned;
-use serde::ser::SerializeTuple;
 use serde::{Deserialize, Serialize};
 
 use crate::cookies::COOKIES;
 use crate::extract::FromRequest;
 
-/// Initialize the session cookie name and key.
-pub fn init_session(cookie_name: impl Into<String>, key: Key) {
-    SessionProcess::start(
-        KeyWrapper(cookie_name.into(), key),
-        Some("submillisecond_session"),
-    );
+/// Initialize the session key.
+pub fn init_session(key: Key) {
+    SessionProcess::start(KeyWrapper(key), Some("submillisecond_session"));
 }
 
 /// Session extractor, used to store data encrypted in a browser cookie.
@@ -56,7 +63,7 @@ pub fn init_session(cookie_name: impl Into<String>, key: Key) {
 /// used with [`Default::default`].
 pub struct Session<D>
 where
-    D: Default + Serialize + DeserializeOwned,
+    D: Default + Serialize + DeserializeOwned + 'static,
 {
     changed: bool,
     data: D,
@@ -86,14 +93,15 @@ where
 
 impl<D> Drop for Session<D>
 where
-    D: Default + Serialize + DeserializeOwned,
+    D: Default + Serialize + DeserializeOwned + 'static,
 {
     fn drop(&mut self) {
         if self.changed {
             if let Ok(value) = serde_json::to_string(&self.data) {
                 COOKIES.with_borrow_mut(|mut cookies| {
                     let mut private_jar = cookies.private_mut(&self.key);
-                    private_jar.add(Cookie::new("session", value));
+                    let cookie_name = cookie_name::<D>();
+                    private_jar.add(Cookie::new(cookie_name, value));
                 });
             }
         }
@@ -102,14 +110,15 @@ where
 
 impl<D> FromRequest for Session<D>
 where
-    D: Default + Serialize + DeserializeOwned,
+    D: Default + Serialize + DeserializeOwned + 'static,
 {
     type Rejection = SessionProcessNotRunning;
 
     fn from_request(_req: &mut crate::RequestContext) -> Result<Self, Self::Rejection> {
         let session_process = ProcessRef::<SessionProcess>::lookup("submillisecond_session")
             .ok_or(SessionProcessNotRunning)?;
-        let KeyWrapper(cookie_name, key) = session_process.request(GetSessionNameKey);
+        let KeyWrapper(key) = session_process.request(GetSessionNameKey);
+        let cookie_name = cookie_name::<D>();
         let (changed, data) = COOKIES.with_borrow(|cookies| {
             let private_jar = cookies.private(&key);
             let session_cookie = private_jar.get(&cookie_name);
@@ -151,17 +160,14 @@ impl RequestHandler<GetSessionNameKey> for SessionProcess {
 }
 
 #[derive(Clone)]
-struct KeyWrapper(String, Key);
+struct KeyWrapper(Key);
 
 impl Serialize for KeyWrapper {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let mut tuple = serializer.serialize_tuple(2)?;
-        tuple.serialize_element(&self.0)?;
-        tuple.serialize_element(self.1.master())?;
-        tuple.end()
+        serializer.serialize_bytes(self.0.master())
     }
 }
 
@@ -170,7 +176,15 @@ impl<'de> Deserialize<'de> for KeyWrapper {
     where
         D: serde::Deserializer<'de>,
     {
-        let (cookie_name, key) = <(String, Vec<u8>)>::deserialize(deserializer)?;
-        Ok(KeyWrapper(cookie_name, Key::from(&key)))
+        let key = <Vec<u8>>::deserialize(deserializer)?;
+        Ok(KeyWrapper(Key::from(&key)))
     }
+}
+
+fn cookie_name<D: 'static>() -> String {
+    let type_id = TypeId::of::<D>();
+    let mut hasher = DefaultHasher::new();
+    type_id.hash(&mut hasher);
+    let hash = hasher.finish();
+    format!("session-{hash:x}")
 }

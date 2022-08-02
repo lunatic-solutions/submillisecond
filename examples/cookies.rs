@@ -23,14 +23,20 @@ fn session(mut session: Session<i32>) -> String {
     session.to_string()
 }
 
+fn session_bool(mut session: Session<bool>) -> String {
+    *session = !*session;
+    session.to_string()
+}
+
 fn main() -> io::Result<()> {
-    init_session("session", Key::from(&[2; 64]));
+    init_session(Key::from(&[2; 64]));
 
     Application::new(router! {
         with cookies_layer;
 
         GET "/" => index
         GET "/session" => session
+        GET "/session-bool" => session_bool
     })
     .serve("0.0.0.0:3000")
 }
