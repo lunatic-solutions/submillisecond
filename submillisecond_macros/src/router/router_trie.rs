@@ -392,10 +392,21 @@ impl<'r> RouterTrie<'r> {
         };
 
         match method {
-            Some(method) => hquote! {
-                let _ = ::http::Method::#method;
-                #expanded
-            },
+            Some(method) => {
+                if wildcard {
+                    hquote! {
+                        let _ = ::http::Method::#method;
+                        #expanded
+                    }
+                } else {
+                    hquote! {
+                        let _ = ::http::Method::#method;
+                        if req.reader.is_empty(true) {
+                            #expanded
+                        }
+                    }
+                }
+            }
             None => expanded,
         }
     }
