@@ -175,40 +175,6 @@ fn fallthrough_router() {
     assert_404!(res);
 }
 
-// This fails due to the conflicting `*`
-// #[test]
-// fn catchall_router() {
-//     let router = router! {
-//         GET "/a" => simple_handler
-//         GET "/b" => simple_handler
-//         GET "/c" => simple_handler
-//         GET "/*rest" => simple_handler
-//         POST "/*rest" => simple_handler
-//     };
-
-//     // 200
-//     let res = handle_request!(router, GET, "/a");
-//     assert_200!(res, b"OK");
-
-//     let res = handle_request!(router, GET, "/b");
-//     assert_200!(res, b"OK");
-
-//     let res = handle_request!(router, GET, "/c");
-//     assert_200!(res, b"OK");
-
-//     let res = handle_request!(router, GET, "/hello");
-//     assert_200!(res, b"OK");
-
-//     let res = handle_request!(router, POST, "/hello");
-//     assert_200!(res, b"OK");
-
-//     let res = handle_request!(router, GET, "/a/b");
-//     assert_200!(res, b"OK");
-
-//     let res = handle_request!(router, GET, "/hello/");
-//     assert_200!(res, b"OK");
-// }
-
 #[test]
 fn all_methods_router() {
     let router = router! {
@@ -263,5 +229,43 @@ fn all_methods_router() {
     assert_404!(res);
 
     let res = handle_request!(router, PATCH, "/get");
+    assert_404!(res);
+}
+
+#[test]
+fn wildcard_router() {
+    let router = router! {
+        GET "/" => simple_handler
+        GET "/foo" => simple_handler
+        GET "/any-*" => simple_handler
+    };
+
+    // 200
+    let res = handle_request!(router, GET, "/");
+    assert_200!(res, b"OK");
+
+    let res = handle_request!(router, GET, "/foo");
+    assert_200!(res, b"OK");
+
+    let res = handle_request!(router, GET, "/any-");
+    assert_200!(res, b"OK");
+
+    let res = handle_request!(router, GET, "/any-thing");
+    assert_200!(res, b"OK");
+
+    let res = handle_request!(router, GET, "/any-thing/at/all");
+    assert_200!(res, b"OK");
+
+    // 400
+    let res = handle_request!(router, GET, "/abc");
+    assert_404!(res);
+
+    let res = handle_request!(router, GET, "/abc/def");
+    assert_404!(res);
+
+    let res = handle_request!(router, GET, "/fooo");
+    assert_404!(res);
+
+    let res = handle_request!(router, GET, "/any");
     assert_404!(res);
 }
