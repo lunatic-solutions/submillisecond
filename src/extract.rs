@@ -5,6 +5,7 @@
 pub use path::Path;
 #[cfg(feature = "query")]
 pub use query::Query;
+pub use splat::Splat;
 pub use typed_header::TypedHeader;
 
 pub mod path;
@@ -19,6 +20,7 @@ mod params;
 mod query;
 mod request;
 mod route;
+mod splat;
 mod string;
 mod typed_header;
 mod vec;

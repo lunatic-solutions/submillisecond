@@ -4,7 +4,7 @@ use std::io;
 use headers::Host;
 use http::HeaderMap;
 use serde::Deserialize;
-use submillisecond::extract::{Path, Query, TypedHeader};
+use submillisecond::extract::{Path, Query, Splat, TypedHeader};
 use submillisecond::json::Json;
 use submillisecond::{router, Application, NamedParam};
 
@@ -14,6 +14,10 @@ fn index() -> &'static str {
 
 fn path(Path(id): Path<String>) -> String {
     format!("Welcome, {id}")
+}
+
+fn splat(Splat(splat): Splat) -> String {
+    splat
 }
 
 fn query(Query(query): Query<HashMap<String, String>>) -> String {
@@ -87,10 +91,11 @@ fn main() -> io::Result<()> {
         GET "/typed_header" => typed_header
         GET "/named_param/:age" => named_param
         GET "/named_param2/:name/:age" => named_param2
+        GET "/path/:id" => path
+        GET "/splat-*" => splat
         POST "/string" => string
         POST "/vec" => vec
         POST "/json" => json
-        GET "/path/:id" => path
     })
     .serve("0.0.0.0:3000")
 }

@@ -1,6 +1,6 @@
 #[derive(Clone, Debug, Default)]
 pub struct UriReader {
-    uri: String,
+    pub uri: String,
     pub cursor: usize,
 }
 
