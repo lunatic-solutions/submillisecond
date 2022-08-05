@@ -160,16 +160,20 @@ impl<'r> RouterTrie<'r> {
         let children = node.children();
         let Node { prefix, value, .. } = &node;
         let full_path = format!("{full_path}{prefix}");
-        let captures = Self::capture_param_parts(prefix);
         let child_nodes_expanded = self.expand_nodes(&full_path, children);
 
         match value {
-            Some(value) => match captures {
-                Some((prefix, param, suffix)) => {
-                    self.expand_param_node(&full_path, node, prefix, param, suffix)
+            Some(value) => {
+                if let Some((prefix, param, suffix)) = Self::capture_param_parts(prefix) {
+                    return self.expand_param_node(&full_path, node, prefix, param, suffix);
                 }
-                None => self.expand_static_node(prefix, value, child_nodes_expanded),
-            },
+
+                if let Some(prefix) = Self::capture_wildcard(prefix) {
+                    return self.expand_wildcard_node(prefix, value);
+                }
+
+                self.expand_static_node(prefix, value, child_nodes_expanded)
+            }
             None if !child_nodes_expanded.is_empty() => quote_reader_fallback! {
                 if req.reader.read_matching(#prefix) {
                     #child_nodes_expanded
@@ -200,12 +204,25 @@ impl<'r> RouterTrie<'r> {
         let ExpandedNodeParts {
             guards_expanded,
             handler_expanded,
-        } = Self::expand_node_parts(value);
+        } = Self::expand_node_parts(value, false);
 
         quote_reader_fallback! {
             if req.reader.read_matching(#prefix) #guards_expanded {
                 #child_nodes_expanded
 
+                #handler_expanded
+            }
+        }
+    }
+
+    fn expand_wildcard_node(&self, prefix: &str, value: &TrieValue<'r>) -> TokenStream {
+        let ExpandedNodeParts {
+            guards_expanded,
+            handler_expanded,
+        } = Self::expand_node_parts(value, true);
+
+        quote_reader_fallback! {
+            if req.reader.read_matching(#prefix) #guards_expanded {
                 #handler_expanded
             }
         }
@@ -228,7 +245,7 @@ impl<'r> RouterTrie<'r> {
                     let ExpandedNodeParts {
                         guards_expanded,
                         handler_expanded,
-                    } = Self::expand_node_parts(value);
+                    } = Self::expand_node_parts(value, false);
 
                     expanded.append_all(hquote! {
                         if req.reader.is_dangling_slash() #guards_expanded {
@@ -266,7 +283,7 @@ impl<'r> RouterTrie<'r> {
                         let ExpandedNodeParts {
                             guards_expanded,
                             handler_expanded,
-                        } = Self::expand_node_parts(value);
+                        } = Self::expand_node_parts(value, false);
 
                         expanded.append_all(quote_reader_fallback! {
                             if req.reader.read_matching(#suffix) #guards_expanded {
@@ -281,7 +298,7 @@ impl<'r> RouterTrie<'r> {
                         let ExpandedNodeParts {
                             guards_expanded,
                             handler_expanded,
-                        } = Self::expand_node_parts(value);
+                        } = Self::expand_node_parts(value, false);
 
                         expanded.append_all(quote_reader_fallback! {
                             if req.reader.read_matching(#suffix) #guards_expanded {
@@ -326,13 +343,14 @@ impl<'r> RouterTrie<'r> {
             middleware,
             node_type,
         }: &TrieValue<'r>,
+        wildcard: bool,
     ) -> ExpandedNodeParts {
         let guards_expanded = guard
             .iter()
             .fold(hquote! {}, |acc, guard| hquote! { #acc && #guard });
 
         let handler_expanded = match node_type {
-            NodeType::Handler => Self::expand_handler(method, handler, middleware),
+            NodeType::Handler => Self::expand_handler(method, handler, middleware, wildcard),
             NodeType::Subrouter => Self::expand_subrouter(handler, middleware),
         };
 
@@ -347,6 +365,7 @@ impl<'r> RouterTrie<'r> {
         method: &'r Option<Method>,
         handler: &ItemHandler,
         middleware: &'r Option<ItemWithMiddleware>,
+        wildcard: bool,
     ) -> TokenStream {
         let expanded = match handler {
             ItemHandler::Expr(handler) => {
@@ -357,9 +376,15 @@ impl<'r> RouterTrie<'r> {
                     },
                 );
 
-                hquote! {
-                    if req.reader.is_dangling_slash() {
+                if wildcard {
+                    hquote! {
                         return #middleware_expanded;
+                    }
+                } else {
+                    hquote! {
+                        if req.reader.is_dangling_slash() {
+                            return #middleware_expanded;
+                        }
                     }
                 }
             }
@@ -367,12 +392,21 @@ impl<'r> RouterTrie<'r> {
         };
 
         match method {
-            Some(method) => hquote! {
-                let _ = ::http::Method::#method;
-                if req.reader.is_empty(true) {
-                    #expanded
+            Some(method) => {
+                if wildcard {
+                    hquote! {
+                        let _ = ::http::Method::#method;
+                        #expanded
+                    }
+                } else {
+                    hquote! {
+                        let _ = ::http::Method::#method;
+                        if req.reader.is_empty(true) {
+                            #expanded
+                        }
+                    }
                 }
-            },
+            }
             None => expanded,
         }
     }
@@ -508,6 +542,8 @@ impl<'r> RouterTrie<'r> {
         }
     }
 
+    /// Capture param parts from url.
+    /// Eg. `/:foo`
     fn capture_param_parts(s: &str) -> Option<(&str, &str, &str)> {
         RE.captures(s).map(|captures| {
             (
@@ -516,5 +552,15 @@ impl<'r> RouterTrie<'r> {
                 captures.get(3).unwrap().as_str(),
             )
         })
+    }
+
+    /// Capture param parts from url.
+    /// Eg. `/*`
+    fn capture_wildcard(s: &str) -> Option<&str> {
+        if s.contains('*') {
+            s.split('*').next()
+        } else {
+            None
+        }
     }
 }

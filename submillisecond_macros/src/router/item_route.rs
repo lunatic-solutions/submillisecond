@@ -52,7 +52,24 @@ impl Parse for ItemRoute {
             if matches!(item_route.handler, ItemHandler::SubRouter(_)) {
                 return Err(syn::Error::new(
                     method.span(),
-                    "method prefix cannot be used with sub router",
+                    "method prefix cannot be used with sub routers",
+                ));
+            }
+        }
+
+        let path = item_route.path.value();
+        if let Some(pos) = path.find('*') {
+            if pos < path.len() - 1 {
+                return Err(syn::Error::new(
+                    item_route.path.span(),
+                    "wildcards must be placed at the end of the path",
+                ));
+            }
+
+            if item_route.method.is_none() {
+                return Err(syn::Error::new(
+                    item_route.path.span(),
+                    "wildcards cannot be used with sub routers - try adding a HTTP method",
                 ));
             }
         }
