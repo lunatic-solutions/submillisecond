@@ -172,12 +172,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "byteorder"
-version = "1.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
-
-[[package]]
 name = "bytes"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -481,18 +475,15 @@ checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 
 [[package]]
 name = "lunatic"
-version = "0.10.0-alpha.1"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f67c37e924554d6d95bedfba00c983c0bf58e6d9a74c9d3e18d9d5b745f5f68"
+checksum = "e86cbca3bd2a5856059e3b5145807ecbf342726af664a76e081eb5d527a44a12"
 dependencies = [
  "bincode",
  "lunatic-macros",
  "lunatic-test",
  "paste",
- "protobuf",
- "rmp-serde",
  "serde",
- "serde_json",
  "thiserror",
 ]
 
@@ -656,12 +647,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "protobuf"
-version = "2.27.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf7e6d18738ecd0902d30d1ad232c9125985a3422929b16c65517b38adc14f96"
-
-[[package]]
 name = "quote"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -716,28 +701,6 @@ name = "regex-syntax"
 version = "0.6.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49b3de9ec5dc0a3417da371aab17d729997c15010e7fd24ff707773a33bddb64"
-
-[[package]]
-name = "rmp"
-version = "0.8.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44519172358fd6d58656c86ab8e7fbc9e1490c3e8f14d35ed78ca0dd07403c9f"
-dependencies = [
- "byteorder",
- "num-traits",
- "paste",
-]
-
-[[package]]
-name = "rmp-serde"
-version = "0.15.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "723ecff9ad04f4ad92fe1c8ca6c20d2196d9286e9c60727c4cb5511629260e9d"
-dependencies = [
- "byteorder",
- "rmp",
- "serde",
-]
 
 [[package]]
 name = "ron"
@@ -885,12 +848,12 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "submillisecond",
- "submillisecond_macros",
+ "submillisecond-macros",
  "uuid",
 ]
 
 [[package]]
-name = "submillisecond_macros"
+name = "submillisecond-macros"
 version = "0.1.0"
 dependencies = [
  "better-bae",

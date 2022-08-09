@@ -1,10 +1,10 @@
 [package]
 edition = "2021"
-name = "submillisecond_macros"
+name = "submillisecond-macros"
 description = "Macros used by the submillisecond web framework."
 version = "0.1.0"
 license = "Apache-2.0/MIT"
-repository = "https://github.com/lunatic-solutions/submillisecond/tree/main/submillisecond_macros"
+repository = "https://github.com/lunatic-solutions/submillisecond/tree/main/submillisecond-macros"
 
 [lib]
 proc-macro = true
@@ -16,5 +16,5 @@ mime_guess = "2.0"
 proc-macro2 = "1.0"
 quote = "1.0"
 regex = "1.5.6"
-rust-format = {version = "0.3", features = ["token_stream"]}
-syn = {version = "1.0", features = ["derive", "extra-traits", "full"]}
+rust-format = { version = "0.3", features = ["token_stream"] }
+syn = { version = "1.0", features = ["derive", "extra-traits", "full"] }
