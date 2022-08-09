@@ -13,7 +13,7 @@ repository = "https://github.com/lunatic-solutions/submillisecond"
 members = ["submillisecond-macros"]
 
 [features]
-default = []
+default = ["logging"]
 cookie = ["dep:cookie"]
 json = ["serde_json"]
 logging = ["ansi_term", "lunatic-log"]
