@@ -10,7 +10,7 @@ readme = "Readme.md"
 repository = "https://github.com/lunatic-solutions/submillisecond"
 
 [workspace]
-members = ["submillisecond_macros"]
+members = ["submillisecond-macros"]
 
 [features]
 default = []
@@ -28,7 +28,7 @@ mime = "0.3.16"
 paste = "1.0"
 percent-encoding = "2.1"
 serde = { version = "1.0.132", features = ["derive"] }
-submillisecond_macros = { version = "0.1", path = "submillisecond_macros" }
+submillisecond-macros = { version = "0.1", path = "submillisecond-macros" }
 
 # optional dependencies
 askama = { version = "0.11", optional = true }
