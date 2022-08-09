@@ -124,7 +124,7 @@ impl Application {
                                 .unwrap_or("-"),
                         );
 
-                        lunatic_log::trace!("{} {}    {}", method_string, request.uri(), ip);
+                        lunatic_log::info!("{} {}    {}", method_string, request.uri(), ip);
                     }
 
                     let http_version = request.version();
