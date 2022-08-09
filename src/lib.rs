@@ -51,6 +51,9 @@ impl Application {
     }
 
     pub fn serve<A: ToSocketAddrs + Clone>(self, addr: A) -> io::Result<()> {
+        #[cfg(not(feature = "logging"))]
+        let listener = TcpListener::bind(addr)?;
+        #[cfg(feature = "logging")]
         let listener = TcpListener::bind(addr.clone())?;
 
         #[cfg(feature = "logging")]
