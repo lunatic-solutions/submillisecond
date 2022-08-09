@@ -536,7 +536,9 @@ dependencies = [
 
 [[package]]
 name = "lunatic-log"
-version = "0.2.2"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bd0e6b9668f7ca76a6babfb56cc868421187ea39ed9fb9db5d886316b145090"
 dependencies = [
  "ansi_term",
  "chrono",

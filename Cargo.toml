@@ -39,7 +39,7 @@ cookie = { version = "0.16", features = [
   "signed",
   "private",
 ], optional = true }
-lunatic-log = { path = "../logger-rs", version = "0.2", optional = true }
+lunatic-log = { version = "0.2", optional = true }
 serde_json = { version = "1.0", optional = true }
 serde_urlencoded = { version = "0.7", optional = true }
 
