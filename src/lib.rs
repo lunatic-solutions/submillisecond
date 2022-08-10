@@ -6,6 +6,10 @@ pub use http;
 use http::{header, HeaderValue};
 use lunatic::net::{TcpListener, TcpStream, ToSocketAddrs};
 use lunatic::{Mailbox, Process};
+#[cfg(feature = "logging")]
+use lunatic_log::{
+    LevelFilter, __lookup_logging_process, error, info, subscriber::fmt::FmtSubscriber,
+};
 pub use submillisecond_macros::*;
 
 pub use crate::error::*;
@@ -51,6 +55,16 @@ impl Application {
     }
 
     pub fn serve<A: ToSocketAddrs + Clone>(self, addr: A) -> io::Result<()> {
+        #[cfg(feature = "logging")]
+        if __lookup_logging_process().is_none() {
+            lunatic_log::init(
+                FmtSubscriber::new(LevelFilter::Trace)
+                    .with_color(true)
+                    .with_level(true)
+                    .with_target(true),
+            );
+        }
+
         #[cfg(not(feature = "logging"))]
         let listener = TcpListener::bind(addr)?;
         #[cfg(feature = "logging")]
@@ -74,7 +88,7 @@ impl Application {
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
-            lunatic_log::info!("Server started on {addrs}");
+            info!("Server started on {addrs}");
         }
 
         while let Ok((stream, _)) = listener.accept() {
@@ -92,10 +106,7 @@ impl Application {
                             #[allow(unused_variables)]
                             if let Err(err) = core::write_response(stream, err.into_response()) {
                                 #[cfg(feature = "logging")]
-                                lunatic_log::error!(
-                                    "[http reader] Failed to send response {:?}",
-                                    err
-                                );
+                                error!("[http reader] Failed to send response {:?}", err);
                             }
                             return;
                         }
@@ -124,7 +135,7 @@ impl Application {
                                 .unwrap_or("-"),
                         );
 
-                        lunatic_log::info!("{} {}    {}", method_string, request.uri(), ip);
+                        info!("{} {}    {}", method_string, request.uri(), ip);
                     }
 
                     let http_version = request.version();
@@ -141,7 +152,7 @@ impl Application {
                     #[allow(unused_variables)]
                     if let Err(err) = core::write_response(stream, response) {
                         #[cfg(feature = "logging")]
-                        lunatic_log::error!("[http reader] Failed to send response {:?}", err);
+                        error!("[http reader] Failed to send response {:?}", err);
                     }
                 },
             );
