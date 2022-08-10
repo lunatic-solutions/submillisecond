@@ -1,3 +1,60 @@
+//! Submillisecond is a [lunatic](https://lunatic.solutions/) web framework.
+//!
+//! # Usage
+//!
+//! First, add `submillisecond` as a dependency in `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! Submillisecond = "0.1"
+//! ```
+//!
+//! Then, add a `.cargo/config.toml` to configure the target and runner:
+//!
+//! ```toml
+//! [build]
+//! target = "wasm32-wasi"
+//!
+//! [target.wasm32-wasi]
+//! runner = "lunatic"
+//! ```
+//!
+//! Finally, define a [handler](crate::Handler) and
+//! [router](crate::router), and run your application:
+//!
+//! ```
+//! use submillisecond::{router, Application};
+//!
+//! fn index() -> &'static str {
+//!     "Hello from Submillisecond!"
+//! }
+//!
+//! fn main() -> std::io::Result<()> {
+//!     Application::new(router! {
+//!         GET "/" => index
+//!     })
+//!     .serve("0.0.0.0:3000")
+//! }
+//! ```
+//!
+//! The submillisecond repository has some more [examples](https://github.com/lunatic-solutions/submillisecond/tree/main/examples) to help you get started.
+//!
+//! # High-level features
+//!
+//! Submillisecond has some notable features including:
+//!
+//! - [Router macro](crate::router) for performant router generated at
+//!   compile-time.
+//! - [Handlers](crate::Handler): functions taking any number of extractors and
+//!   returning any type that implements
+//!   [IntoResponse](crate::response::IntoResponse).
+//! - [Extractors](crate::request::FromRequest): types that parse the request to
+//!   provide useful data.
+//! - Middleware: any handler which calls
+//!   [`req.next_handler()`](crate::RequestContext::next_handler).
+//! - [Guards](crate::Guard): types that protect routes per request.
+
+#![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use std::{io, mem};
