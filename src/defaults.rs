@@ -1,3 +1,5 @@
+//! Default responses for errors.
+
 use crate::Response;
 
 /// Return an error 404 not found response.

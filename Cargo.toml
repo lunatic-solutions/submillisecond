@@ -59,6 +59,7 @@ uuid = { version = "1.0.0", features = ["v4", "serde"] }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+targets = ["wasm32-wasi"]
 
 [[bench]]
 harness = false

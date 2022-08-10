@@ -6,7 +6,6 @@ pub use path::Path;
 #[cfg(feature = "query")]
 pub use query::Query;
 pub use splat::Splat;
-pub use typed_header::TypedHeader;
 
 pub mod path;
 pub mod rejection;
@@ -22,12 +21,12 @@ mod request;
 mod route;
 mod splat;
 mod string;
-mod typed_header;
 mod vec;
 
 use crate::response::IntoResponse;
 use crate::RequestContext;
 
+/// Types that can be created from a request. Also known as 'extractors'.
 pub trait FromRequest: Sized {
     /// If the extractor fails it'll use this "rejection" type. A rejection is
     /// a kind of error that can be converted into a response.
@@ -37,6 +36,8 @@ pub trait FromRequest: Sized {
     fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection>;
 }
 
+/// Types that can be created from an owned instance of the request. This can be
+/// used to avoid unecessary clones.
 pub trait FromOwnedRequest: Sized {
     /// If the extractor fails it'll use this "rejection" type. A rejection is
     /// a kind of error that can be converted into a response.

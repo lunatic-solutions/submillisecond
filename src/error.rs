@@ -4,6 +4,7 @@ use std::fmt;
 /// Alias for a type-erased error type.
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
+/// Errors that can happen when using submillisecond.
 #[derive(Debug)]
 pub struct Error {
     inner: BoxError,

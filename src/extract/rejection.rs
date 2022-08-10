@@ -1,3 +1,5 @@
+//! Rejection response types.
+
 use super::path::FailedToDeserializePathParams;
 use crate::response::IntoResponse;
 use crate::Response;
@@ -143,11 +145,11 @@ composite_rejection! {
     }
 }
 
-/// Rejection used for [`TypedHeader`](super::TypedHeader).
+/// Rejection used for [`TypedHeader`](crate::TypedHeader).
 #[derive(Debug)]
 pub struct TypedHeaderRejection {
-    pub(super) name: &'static http::header::HeaderName,
-    pub(super) reason: TypedHeaderRejectionReason,
+    pub(crate) name: &'static http::header::HeaderName,
+    pub(crate) reason: TypedHeaderRejectionReason,
 }
 
 impl TypedHeaderRejection {

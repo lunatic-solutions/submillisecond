@@ -1,9 +1,51 @@
 use http::{header, HeaderValue, StatusCode};
-use serde::{ser, Serialize};
+use serde::Serialize;
 
 use crate::response::{IntoResponse, Response};
 use crate::RequestContext;
 
+/// Json can be used as an extractor, or response type.
+///
+/// When used as an extractor, the request body will be deserialized into inner
+/// type `T` with [`serde::Deserialize`].
+///
+/// For returning `Json`, the inner type `T` will be serialized into the
+/// response body with [`serde::Serialize`], and the `Content-Type` header will
+/// be set to `application/json`.
+///
+/// # Extractor example
+///
+/// ```
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct LoginPayload {
+///     email: String,
+///     password: String,
+/// }
+///
+/// fn login(Json(login): Json<LoginPayload>) -> String {
+///     format!("Email: {}\nPassword: {}", login.email, login.password)
+/// }
+/// ```
+///
+/// # Response example
+///
+/// ```
+/// use serde::Serialize;
+/// use submillisecond::extract::Path;
+///
+/// #[derive(Serialize)]
+/// struct User {
+///     email: String,
+///     password: String,
+/// }
+///
+/// fn get_user(Path(id): Path<u32>) -> Json<User> {
+///     let user = find_user(id);
+///     Json(user)
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Json<T>(pub T);
 
@@ -32,28 +74,6 @@ where
                 .into_response(),
         }
     }
-}
-
-pub fn from_json<T>(req: RequestContext) -> serde_json::Result<RequestContext>
-where
-    T: ser::Serialize,
-{
-    let params = req.params.clone();
-    let reader = req.reader.clone();
-    let (parts, body) = req.request.into_parts();
-    let body = serde_json::to_vec(&body)?;
-    Ok(RequestContext {
-        request: http::Request::from_parts(parts, body),
-        params,
-        reader,
-        next: req.next,
-    })
-}
-
-pub fn to_json(res: Response) -> serde_json::Result<Response> {
-    let (parts, body) = res.into_parts();
-    let body = serde_json::from_slice(&body)?;
-    Ok(http::Response::from_parts(parts, body))
 }
 
 pub(crate) fn json_content_type(req: &RequestContext) -> bool {

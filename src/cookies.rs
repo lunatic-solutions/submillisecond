@@ -1,3 +1,5 @@
+//! Cookies layer and extractor.
+
 use std::cell::{RefCell, RefMut};
 use std::convert::Infallible;
 use std::fmt::Write;
@@ -14,6 +16,9 @@ use crate::response::Response;
 use crate::RequestContext;
 
 process_local! {
+    /// Process local cookie jar.
+    ///
+    /// It is advised to use the [`cookies_layer`] and [`Cookies`] extractor to manage this.
     pub static COOKIES: RefCell<CookieJar> = RefCell::new(CookieJar::new());
 }
 

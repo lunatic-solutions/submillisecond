@@ -4,9 +4,9 @@ use std::io;
 use headers::Host;
 use http::HeaderMap;
 use serde::Deserialize;
-use submillisecond::extract::{Path, Query, Splat, TypedHeader};
-use submillisecond::json::Json;
-use submillisecond::{router, Application, NamedParam};
+use submillisecond::extract::{Path, Query, Splat};
+use submillisecond::params::Params;
+use submillisecond::{router, Application, Json, NamedParam, TypedHeader};
 
 fn index() -> &'static str {
     "Hello :)"
@@ -45,6 +45,11 @@ fn header_map(headers: HeaderMap) -> String {
 
 fn typed_header(TypedHeader(host): TypedHeader<Host>) -> String {
     host.to_string()
+}
+
+fn params(params: Params) -> String {
+    let name = params.get("name").unwrap_or("user");
+    format!("Welcome, {name}")
 }
 
 #[derive(NamedParam)]
@@ -89,6 +94,7 @@ fn main() -> io::Result<()> {
         GET "/querys" => query
         GET "/header_map" => header_map
         GET "/typed_header" => typed_header
+        GET "/params/:name/:age" => params
         GET "/named_param/:age" => named_param
         GET "/named_param2/:name/:age" => named_param2
         GET "/path/:id" => path
