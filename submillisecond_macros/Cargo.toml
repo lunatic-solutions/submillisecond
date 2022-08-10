@@ -16,5 +16,8 @@ mime_guess = "2.0"
 proc-macro2 = "1.0"
 quote = "1.0"
 regex = "1.5.6"
-rust-format = {version = "0.3", features = ["token_stream"]}
-syn = {version = "1.0", features = ["derive", "extra-traits", "full"]}
+rust-format = { version = "0.3", features = ["token_stream"] }
+syn = { version = "1.0", features = ["derive", "extra-traits", "full"] }
+
+[package.metadata.docs.rs]
+targets = ["wasm32-wasi"]
