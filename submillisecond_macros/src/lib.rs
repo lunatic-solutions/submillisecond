@@ -66,7 +66,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///
 /// Handlers are in the form of the following:
 ///
-/// [METHOD](## Methods) Path `=>` HandlerIdent
+/// [METHOD](#methods) Path `=>` HandlerIdent
 ///
 /// A basic example would be:
 ///
@@ -121,7 +121,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///
 /// # Layers/middleware
 ///
-/// Handlers which call [`submillisecond::RequestContext::next_handler`] are
+/// Handlers which call [`submillisecond::RequestContext::next_handler`](https://docs.rs/submillisecond/latest/submillisecond/struct.RequestContext.html#method.next_handler) are
 /// considered to be middleware.
 ///
 /// Middleware can be used in the router macro using the `with` keyword.
