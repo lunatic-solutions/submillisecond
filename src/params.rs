@@ -1,37 +1,42 @@
+//! Params are data from the request url.
+//!
+//! The [`router!`](crate::router) macro collects params into the
+//! [`crate::RequestContext`]
+
 use std::{iter, mem, slice};
 
 /// A single URL parameter, consisting of a key and a value.
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Default, Clone)]
 pub struct Param {
+    /// Param key as defined in the url.
     pub key: &'static str,
+    /// Param value.
     pub value: String,
 }
 
 /// A list of parameters returned by a route match.
 ///
-/// ```rust
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// # let mut router = matchit::Router::new();
-/// # router.insert("/users/:id", true).unwrap();
-/// let matched = router.at("/users/1")?;
+/// # Extractor example
 ///
-/// // you can iterate through the keys and values
-/// for (key, value) in matched.params.iter() {
-///     println!("key: {}, value: {}", key, value);
+/// ```
+/// use submillisecond::router;
+/// use submillisecond::params::Params;
+///
+/// fn params(params: Params) -> String {
+///     let name = params.get("name").unwrap_or("user");
+///     format!("Welcome, {name}")
 /// }
 ///
-/// // or get a specific value by key
-/// let id = matched.params.get("id");
-/// assert_eq!(id, Some("1"));
-/// # Ok(())
-/// # }
+/// router! {
+///     GET "/:name" => params
+/// }
 /// ```
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Clone)]
 pub struct Params {
     kind: ParamsKind,
 }
 
-// most routes have 1-3 dynamic parameters, so we can avoid a heap allocation in
+// Most routes have 1-3 dynamic parameters, so we can avoid a heap allocation in
 // common cases.
 const SMALL: usize = 3;
 
@@ -49,6 +54,7 @@ impl Default for Params {
 }
 
 impl Params {
+    /// Creates an empty instance of [`Params`].
     pub fn new() -> Self {
         let kind = ParamsKind::None;
         Self { kind }
@@ -117,22 +123,6 @@ impl Params {
                 *len += 1;
             }
             ParamsKind::Large(vec) => vec.push(param),
-        }
-    }
-
-    pub fn merge(&mut self, other: Params) {
-        match other.kind {
-            ParamsKind::None => {}
-            ParamsKind::Small(params, len) => {
-                for param in params.into_iter().take(len) {
-                    self.push(param.key, param.value);
-                }
-            }
-            ParamsKind::Large(params) => {
-                for param in params {
-                    self.push(param.key, param.value);
-                }
-            }
         }
     }
 }

@@ -1,3 +1,5 @@
+//! Types and traits for http responses.
+
 pub use into_response::*;
 pub use into_response_parts::*;
 

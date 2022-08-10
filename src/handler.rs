@@ -2,7 +2,48 @@ use crate::extract::{FromOwnedRequest, FromRequest};
 use crate::response::IntoResponse;
 use crate::{RequestContext, Response};
 
+/// A handler is implemented for any function which takes any number of
+/// [extractors](crate::extract), and returns any type that implements
+/// [`IntoResponse`].
+///
+/// To avoid unecessary clones, the [`RequestContext`], [`http::Request`],
+/// [`String`], [`Vec<u8>`], [`Params`](crate::params::Params) extractors (and
+/// any other types which implement [`FromOwnedRequest`] directly) should be
+/// placed as the first argument, and cannot be used together in a single
+/// handler.
+///
+/// A maximum of 16 extractor arguments may be added for a single handler.
+///
+/// # Handler examples
+///
+/// ```
+/// fn index() -> &'static str {
+///     "Hello, submillisecond"
+/// }
+///
+/// use submillisecond::extract::Path;
+/// use submillisecond::http::status::FOUND;
+///
+/// fn headers(Path(id): Path<String>) -> (StatusCode, String) {
+///     (FOUND, id)
+/// }
+/// ```
+///
+/// # Middleware example
+///
+/// ```
+/// use submillisecond::RequestContent;
+/// use submillisecond::response::Response;
+///
+/// fn logging_layer(req: RequestContext) -> Response {
+///     println!("Incoming request start");
+///     let res = req.next_handler();
+///     println!("Incoming request end");
+///     res
+/// }
+/// ```
 pub trait Handler<Arg = (), Ret = ()> {
+    /// Handles the request, returning a response.
     fn handle(&self, req: RequestContext) -> Response;
 }
 

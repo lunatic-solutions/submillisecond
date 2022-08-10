@@ -1,3 +1,6 @@
+//! Extractor that will get captures from the URL and parse them using
+//! [`serde`].
+
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
@@ -12,8 +15,115 @@ use crate::params::Params;
 use crate::response::IntoResponse;
 use crate::{RequestContext, Response};
 
+#[doc(hidden)]
 pub mod de;
 
+/// Extractor that will get captures from the URL and parse them using
+/// [`serde`].
+///
+/// Any percent encoded parameters will be automatically decoded. The decoded
+/// parameters must be valid UTF-8, otherwise `Path` will fail and return a `400
+/// Bad Request` response.
+///
+/// # Example
+///
+/// ```
+/// use submillisecond::{router, extract::Path};
+/// use uuid::Uuid;
+///
+/// fn users_teams_show(
+///     Path((user_id, team_id)): Path<(Uuid, Uuid)>,
+/// ) {
+///     // ...
+/// }
+///
+/// router! {
+///     GET "/users/:user_id/team/:team_id" => users_teams_show
+/// }
+/// ```
+///
+/// If the path contains only one parameter, then you can omit the tuple.
+///
+/// ```
+/// use submillisecond::{router, extract::Path};
+/// use uuid::Uuid;
+///
+/// fn user_info(
+///     Path(user_id): Path<Uuid>,
+/// ) {
+///     // ...
+/// }
+///
+/// router! {
+///     GET "/users/:user_id" => user_info
+/// }
+/// ```
+///
+/// Path segments also can be deserialized into any type that implements
+/// [`serde::Deserialize`]. This includes tuples and structs:
+///
+/// ```
+/// use serde::Deserialize;
+/// use submillisecond::{router, extract::Path};
+/// use uuid::Uuid;
+///
+/// // Path segment labels will be matched with struct field names
+/// #[derive(Deserialize)]
+/// struct Params {
+///     user_id: Uuid,
+///     team_id: Uuid,
+/// }
+///
+/// fn users_teams_show(
+///     Path(Params { user_id, team_id }): Path<Params>,
+/// ) {
+///     // ...
+/// }
+///
+/// // When using tuples the path segments will be matched by their position in the route
+/// fn users_teams_create(
+///     Path((user_id, team_id)): Path<(String, String)>,
+/// ) {
+///     // ...
+/// }
+///
+/// router! {
+///     GET "/users/:user_id/team/:team_id" => users_teams_show
+///     POST "/users/:user_id/team/:team_id" => users_teams_create
+/// }
+/// ```
+///
+/// If you wish to capture all path parameters you can use `HashMap` or `Vec`:
+///
+/// ```
+/// use submillisecond::{router, extract::Path};
+/// use std::collections::HashMap;
+///
+/// fn params_map(
+///     Path(params): Path<HashMap<String, String>>,
+/// ) {
+///     // ...
+/// }
+///
+/// fn params_vec(
+///     Path(params): Path<Vec<(String, String)>>,
+/// ) {
+///     // ...
+/// }
+///
+/// router! {
+///     GET "/users/:user_id/team/:team_id" => params_map
+///     POST "/users/:user_id/team/:team_id" => params_vec
+/// }
+/// ```
+///
+/// # Providing detailed rejection output
+///
+/// If the URI cannot be deserialized into the target type the request will be
+/// rejected and an error response will be returned.
+///
+/// [`serde`]: https://crates.io/crates/serde
+/// [`serde::Deserialize`]: https://docs.rs/serde/1.0.143/serde/trait.Deserialize.html
 #[derive(Debug)]
 pub struct Path<T>(pub T);
 
@@ -69,6 +179,7 @@ where
 // this wrapper type is used as the deserializer error to hide the
 // `serde::de::Error` impl which would otherwise be public if we used
 // `ErrorKind` as the error directly
+#[doc(hidden)]
 #[derive(Debug)]
 pub struct PathDeserializationError {
     pub(super) kind: ErrorKind,

@@ -3,11 +3,45 @@ use std::ops::Deref;
 
 use headers::HeaderMapExt;
 
-use super::rejection::{TypedHeaderRejection, TypedHeaderRejectionReason};
+use crate::extract::rejection::{TypedHeaderRejection, TypedHeaderRejectionReason};
 use crate::extract::FromRequest;
 use crate::response::{IntoResponse, IntoResponseParts, ResponseParts};
 use crate::{RequestContext, Response};
 
+/// Extractor and response that works with typed header values from [`headers`].
+///
+/// # As extractor
+///
+/// In general, it's recommended to extract only the needed headers via
+/// `TypedHeader` rather than removing all headers with the `HeaderMap`
+/// extractor.
+///
+/// ```rust,no_run
+/// use submillisecond::{router, TypedHeader, headers::UserAgent};
+///
+/// fn users_teams_show(
+///     TypedHeader(user_agent): TypedHeader<UserAgent>,
+/// ) {
+///     // ...
+/// }
+///
+/// router! {
+///     GET "/users/:user_id/team/:team_id" => users_teams_show
+/// }
+/// ```
+///
+/// # As response
+///
+/// ```rust
+/// use submillisecond::{TypedHeader, headers::ContentType};
+///
+/// fn handler() -> (TypedHeader<ContentType>, &'static str) {
+///     (
+///         TypedHeader(ContentType::text_utf8()),
+///         "Hello, World!",
+///     )
+/// }
+/// ```
 #[derive(Debug, Clone, Copy)]
 pub struct TypedHeader<T>(pub T);
 
