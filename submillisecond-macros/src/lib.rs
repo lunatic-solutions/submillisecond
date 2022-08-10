@@ -18,7 +18,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///
 /// # Struct with fields example
 ///
-/// ```
+/// ```ignore
 /// #[derive(NamedParam)]
 /// struct Params {
 ///     name: String,
@@ -36,7 +36,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///
 /// # Unnamed struct example
 ///
-/// ```
+/// ```ignore
 /// #[derive(NamedParam)]
 /// #[param(name = "age")]
 /// struct AgeParam(i32);
@@ -66,11 +66,11 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///
 /// Handlers are in the form of the following:
 ///
-/// [METHOD](#methods) Path `=>` HandlerIdent
+/// > [METHOD](#methods) Path `=>` HandlerIdent
 ///
 /// A basic example would be:
 ///
-/// ```
+/// ```ignore
 /// router! {
 ///     GET "/home" => home_handler
 /// }
@@ -81,7 +81,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///
 /// Multiple routes can be defined with handlers:
 ///
-/// ```
+/// ```ignore
 /// router! {
 ///     GET "/" => index_handler
 ///     GET "/about" => about_handler
@@ -108,7 +108,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 /// Sub-routers are a similar syntax as handlers, except that they do not have a
 /// method prefix, and have curly braces after the `=>`.
 ///
-/// ```
+/// ```ignore
 /// router! {
 ///     "/admin" => {
 ///         GET "/dashboard" => admin_dashboard
@@ -126,7 +126,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///
 /// Middleware can be used in the router macro using the `with` keyword.
 ///
-/// ```
+/// ```ignore
 /// router! {
 ///     with global_logger;
 /// }
@@ -134,7 +134,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///
 /// Multiple middleware can be used with the array syntax.
 ///
-/// ```
+/// ```ignore
 /// router! {
 ///     with [layer_one, layer_two];
 /// }
@@ -143,7 +143,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 /// In the examples above, the middleware is used on the whole router.
 /// Instead, we can also use middleware on a per-route basis.
 ///
-/// ```
+/// ```ignore
 /// router! {
 ///     GET "/" with logger_layer => index_handler
 /// }
@@ -151,7 +151,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///
 /// When using guards, middleware should be placed after the if statement.
 ///
-/// ```
+/// ```ignore
 /// router! {
 ///     GET "/admin" if IsAdmin with logger_layer => admin_handler
 /// }
@@ -164,7 +164,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 /// The syntax is similar to a regular `if` statement, and is placed after the
 /// path of a route.
 ///
-/// ```
+/// ```ignore
 /// router! {
 ///     GET "/admin" if IsAdmin => admin_handler
 /// }
@@ -184,13 +184,13 @@ pub fn router(input: TokenStream) -> TokenStream {
 ///
 /// # Basic example
 ///
-/// ```
+/// ```ignore
 /// static_router!("./static")
 /// ```
 ///
 /// # Example with custom 404 handler
 ///
-/// ```
+/// ```ignore
 /// static_router!("./static", handle_404)
 /// ```
 #[proc_macro]
