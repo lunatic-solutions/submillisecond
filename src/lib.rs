@@ -6,6 +6,10 @@ pub use http;
 use http::{header, HeaderValue};
 use lunatic::net::{TcpListener, TcpStream, ToSocketAddrs};
 use lunatic::{Mailbox, Process};
+#[cfg(feature = "logging")]
+use lunatic_log::{
+    LevelFilter, __lookup_logging_process, error, info, subscriber::fmt::FmtSubscriber,
+};
 pub use submillisecond_macros::*;
 
 pub use crate::error::*;
@@ -50,8 +54,42 @@ impl Application {
         Application { router }
     }
 
-    pub fn serve<A: ToSocketAddrs>(self, addr: A) -> io::Result<()> {
+    pub fn serve<A: ToSocketAddrs + Clone>(self, addr: A) -> io::Result<()> {
+        #[cfg(feature = "logging")]
+        if __lookup_logging_process().is_none() {
+            lunatic_log::init(
+                FmtSubscriber::new(LevelFilter::Trace)
+                    .with_color(true)
+                    .with_level(true)
+                    .with_target(true),
+            );
+        }
+
+        #[cfg(not(feature = "logging"))]
         let listener = TcpListener::bind(addr)?;
+        #[cfg(feature = "logging")]
+        let listener = TcpListener::bind(addr.clone())?;
+
+        #[cfg(feature = "logging")]
+        {
+            let addrs = addr
+                .to_socket_addrs()?
+                .map(|addr| {
+                    let ip = addr.ip();
+                    let ip_string = if ip.is_unspecified() {
+                        "localhost".to_string()
+                    } else {
+                        ip.to_string()
+                    };
+                    ansi_term::Style::new()
+                        .bold()
+                        .paint(format!("http://{}:{}", ip_string, addr.port()))
+                        .to_string()
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            info!("Server started on {addrs}");
+        }
 
         while let Ok((stream, _)) = listener.accept() {
             Process::spawn_link(
@@ -65,12 +103,41 @@ impl Application {
                     let request = match core::parse_request(stream.clone()) {
                         Ok(request) => request,
                         Err(err) => {
+                            #[allow(unused_variables)]
                             if let Err(err) = core::write_response(stream, err.into_response()) {
-                                eprintln!("[http reader] Failed to send response {:?}", err);
+                                #[cfg(feature = "logging")]
+                                error!("[http reader] Failed to send response {:?}", err);
                             }
                             return;
                         }
                     };
+
+                    #[cfg(feature = "logging")]
+                    {
+                        let method_string = match *request.method() {
+                            http::Method::GET => ansi_term::Color::Green.normal(),
+                            http::Method::POST => ansi_term::Color::Blue.normal(),
+                            http::Method::PUT => ansi_term::Color::Yellow.normal(),
+                            http::Method::DELETE => ansi_term::Color::Red.normal(),
+                            http::Method::HEAD => ansi_term::Color::Purple.normal(),
+                            http::Method::OPTIONS => ansi_term::Color::Blue.dimmed(),
+                            http::Method::PATCH => ansi_term::Color::Cyan.normal(),
+                            _ => ansi_term::Color::White.normal(),
+                        }
+                        .bold()
+                        .paint(request.method().as_str());
+
+                        let ip = ansi_term::Style::new().dimmed().paint(
+                            request
+                                .headers()
+                                .get(http::header::HeaderName::from_static("x-forwarded-for"))
+                                .and_then(|v| v.to_str().ok())
+                                .unwrap_or("-"),
+                        );
+
+                        info!("{} {}    {}", method_string, request.uri(), ip);
+                    }
+
                     let http_version = request.version();
 
                     let mut response =
@@ -82,8 +149,10 @@ impl Application {
                         .headers_mut()
                         .append(header::CONTENT_LENGTH, HeaderValue::from(content_length));
 
+                    #[allow(unused_variables)]
                     if let Err(err) = core::write_response(stream, response) {
-                        eprintln!("[http reader] Failed to send response {:?}", err);
+                        #[cfg(feature = "logging")]
+                        error!("[http reader] Failed to send response {:?}", err);
                     }
                 },
             );
