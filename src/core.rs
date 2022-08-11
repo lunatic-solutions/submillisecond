@@ -1,77 +1,126 @@
-use std::io::{BufReader, Read};
-use std::mem::MaybeUninit;
+use std::io::Read;
 
-use http::{header, StatusCode};
-use httparse::{self, Status};
+use httparse::{self, Status, EMPTY_HEADER};
 use lunatic::net::TcpStream;
 
-use crate::response::IntoResponse;
-use crate::Response;
+const MAX_REQUEST_SIZE: usize = 5 * 1024 * 1024;
+const REQUEST_BUFFER_SIZE: usize = 2048;
+const MAX_HEADERS: usize = 128;
 
-const MAX_HEADERS: usize = 96;
-const REQUEST_BUFFER_SIZE: usize = 1024 * 8;
-const REQUEST_MAX_SIZE: usize = 1024 * 8 * 512; // 512 kB
+type RequestResult = Result<http::Request<Vec<u8>>, ParseRequestError>;
 
-pub(crate) fn parse_request(
-    stream: TcpStream,
-) -> Result<http::Request<Vec<u8>>, ParseRequestError> {
-    let mut reader = BufReader::new(stream);
-    let mut raw_request = Vec::with_capacity(REQUEST_BUFFER_SIZE);
-    let mut buf = [0_u8; REQUEST_BUFFER_SIZE];
+/// One or more HTTP request.
+///
+/// One TCP read can yield multiple pipelined requests. Ideally we would like to
+/// process each request in a separate process, but we do an exception for
+/// pipelined requests. We can't put data back in the TCP buffer, so we just go
+/// ahead and process all requests that one TCP read gives us.
+pub(crate) struct PipelinedRequests(Vec<RequestResult>);
 
+impl PipelinedRequests {
+    pub(crate) fn request_results(self) -> Vec<RequestResult> {
+        self.0
+    }
+}
+
+pub(crate) fn parse_requests(
+    requests_buffer: &mut Vec<u8>,
+    mut stream: TcpStream,
+) -> PipelinedRequests {
+    let mut requests: Vec<RequestResult> = Vec::new();
+    let mut buffer = [0_u8; REQUEST_BUFFER_SIZE];
+
+    // Indicates the start of the next pipelined request in the buffer.
+    let mut request_start = 0;
     loop {
-        let i = reader.read(&mut buf).unwrap();
-        if i > 0 {
-            raw_request.extend(&buf[..i]);
+        // Loop until at least one complete request is read.
+        let n = stream.read(&mut buffer).unwrap();
+        if n == 0 {
+            // In case the TCP stream was closed while processing requests abort
+            requests.push(Err(ParseRequestError::TcpStreamClosed));
+            return PipelinedRequests(requests);
         }
 
-        let mut headers = unsafe {
-            MaybeUninit::<[MaybeUninit<httparse::Header<'_>>; MAX_HEADERS]>::uninit().assume_init()
-        };
-        let mut req = httparse::Request::new(&mut []);
+        // Add read buffer to all requests
+        requests_buffer.extend(&buffer[..n]);
 
-        let status = req
-            .parse_with_uninit_headers(&raw_request, &mut headers)
-            .map_err(ParseRequestError::HttpParseError)?;
-        match status {
-            Status::Complete(offset) => {
-                let method =
-                    http::Method::try_from(req.method.ok_or(ParseRequestError::MissingMethod)?)
-                        .map_err(|_| ParseRequestError::UnknownMethod)?;
+        // If request passed max size, abort
+        if requests_buffer[request_start..].len() > MAX_REQUEST_SIZE {
+            requests.push(Err(ParseRequestError::RequestTooLarge));
+            return PipelinedRequests(requests);
+        }
 
-                let mut request = http::Request::builder().method(method);
-
-                if let Some(path) = req.path {
-                    request = request.uri(path);
-                }
-
-                request = req.headers.iter().fold(request, |request, header| {
-                    request.header(header.name, header.value)
-                });
-
-                let body = match request
-                    .headers_ref()
-                    .and_then(|headers| headers.get(&header::CONTENT_LENGTH))
-                {
-                    Some(content_length) => {
-                        let length = content_length
-                            .as_bytes()
-                            .iter()
-                            .map(|x| (*x as char).to_digit(10))
-                            .fold(Some(0), |acc, b| Some(acc? * 10 + (b? as usize)))
-                            .ok_or(ParseRequestError::InvalidContentLengthHeader)?;
-                        raw_request[offset..offset + length].to_owned()
+        // Try to parse request
+        let mut headers = [EMPTY_HEADER; MAX_HEADERS];
+        let mut req = httparse::Request::new(&mut headers);
+        match req.parse(&requests_buffer[request_start..]) {
+            Ok(status) => {
+                match status {
+                    Status::Complete(offset) => {
+                        let method = match http::Method::try_from(req.method.unwrap()) {
+                            Ok(method) => method,
+                            Err(_) => {
+                                // If method has an invalid value
+                                requests.push(Err(ParseRequestError::UnknownMethod));
+                                return PipelinedRequests(requests);
+                            }
+                        };
+                        let request = http::Request::builder()
+                            .method(method)
+                            .uri(req.path.unwrap());
+                        let mut content_lengt = None;
+                        let request = req.headers.iter().fold(request, |request, header| {
+                            if header.name.to_lowercase() == "content-length" {
+                                let value_string = std::str::from_utf8(header.value).unwrap();
+                                let length = value_string.parse::<usize>().unwrap();
+                                content_lengt = Some(length);
+                            }
+                            request.header(header.name, header.value)
+                        });
+                        // If content-length exists, request has body
+                        if let Some(content_lengt) = content_lengt {
+                            // If the complete content is captured from the
+                            // request w/o a trailing pipelined request, finish
+                            // request pipelining.
+                            if requests_buffer[request_start + offset..].len() == content_lengt {
+                                requests.push(Ok(request
+                                    .body(Vec::from(&requests_buffer[request_start + offset..]))
+                                    .unwrap()));
+                                return PipelinedRequests(requests);
+                            } else {
+                                requests.push(Ok(request
+                                    .body(Vec::from(
+                                        &requests_buffer[request_start + offset
+                                            ..request_start + offset + content_lengt],
+                                    ))
+                                    .unwrap()));
+                                // Force loading of next request in the pipeline
+                                request_start += offset + content_lengt;
+                            }
+                        } else {
+                            // If the offset points to the end of requests
+                            // buffer we have a full request, w/o a trailing
+                            // pipelined request.
+                            if requests_buffer[request_start + offset..].is_empty() {
+                                requests.push(Ok(request.body(Vec::new()).unwrap()));
+                                return PipelinedRequests(requests);
+                            } else {
+                                requests.push(Ok(request.body(Vec::new()).unwrap()));
+                                // Force loading of next request in the pipeline
+                                request_start += offset;
+                            }
+                        }
                     }
-                    None => raw_request[offset..].to_owned(),
-                };
-
-                return request.body(body).map_err(ParseRequestError::BadRequest);
-            }
-            Status::Partial => {
-                if raw_request.len() > REQUEST_MAX_SIZE {
-                    return Err(ParseRequestError::RequestTooLarge);
+                    Status::Partial => {
+                        // If the request was incomplete, continue reading from TCP & re-parse.
+                        continue;
+                    }
                 }
-                continue;
+            }
+            Err(err) => {
+                // In case of error return all successfully collected requests until now
+                requests.push(Err(ParseRequestError::HttpParseError(err)));
+                return PipelinedRequests(requests);
             }
         }
     }
@@ -79,21 +128,11 @@ pub(crate) fn parse_request(
 
 #[derive(Debug)]
 pub(crate) enum ParseRequestError {
-    BadRequest(http::Error),
+    TcpStreamClosed,
+    // BadRequest(http::Error),
     HttpParseError(httparse::Error),
-    InvalidContentLengthHeader,
-    MissingMethod,
+    // InvalidContentLengthHeader,
+    // MissingMethod,
     RequestTooLarge,
     UnknownMethod,
-}
-
-impl IntoResponse for ParseRequestError {
-    fn into_response(self) -> Response {
-        match self {
-            ParseRequestError::MissingMethod | ParseRequestError::UnknownMethod => {
-                (StatusCode::METHOD_NOT_ALLOWED, ()).into_response()
-            }
-            _ => (StatusCode::BAD_REQUEST, ()).into_response(),
-        }
-    }
 }
