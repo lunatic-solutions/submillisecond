@@ -1,4 +1,4 @@
-use std::io::{BufReader, Read, Result as IoResult, Write};
+use std::io::{BufReader, Read};
 use std::mem::MaybeUninit;
 
 use http::{header, StatusCode};
@@ -11,27 +11,6 @@ use crate::Response;
 const MAX_HEADERS: usize = 96;
 const REQUEST_BUFFER_SIZE: usize = 1024 * 8;
 const REQUEST_MAX_SIZE: usize = 1024 * 8 * 512; // 512 kB
-
-pub(crate) fn write_response(mut stream: TcpStream, response: Response) -> IoResult<()> {
-    // writing status line
-    write!(
-        &mut stream,
-        "{:?} {} {}\r\n",
-        response.version(),
-        response.status().as_u16(),
-        response.status().canonical_reason().unwrap()
-    )?;
-    // writing headers
-    for (key, value) in response.headers().iter() {
-        if let Ok(value) = String::from_utf8(value.as_ref().to_vec()) {
-            write!(stream, "{}: {}\r\n", key, value)?;
-        }
-    }
-    // separator between header and data
-    write!(&mut stream, "\r\n")?;
-    stream.write_all(response.body())?;
-    Ok(())
-}
 
 pub(crate) fn parse_request(
     stream: TcpStream,
