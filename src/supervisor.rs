@@ -16,7 +16,7 @@ pub(crate) enum WorkerResponse {
     Failure(String),
     #[serde(with = "serde_bytes")]
     Response(Vec<u8>),
-    Finish,
+    FinishPipeline,
 }
 
 pub(crate) fn request_supervisor<T, Arg, Ret>(
@@ -29,27 +29,27 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
     let supervisor = mailbox.this();
 
     // keep-alive loop
-    loop {
+    'keepalive: loop {
         // Spawn worker process
         Process::spawn(
             (supervisor.clone(), stream.clone(), handler_ref),
             request_woker::<T, Arg, Ret>,
         );
 
-        loop {
+        'pipeline: loop {
             match mailbox.receive() {
                 WorkerResponse::Response(ref data) => {
                     let result = stream.write_all(data);
                     if let Err(err) = result {
                         log_error(&format!("Failed to send response: {:?}", err));
-                        break;
+                        break 'keepalive;
                     }
                 }
                 WorkerResponse::Failure(ref err) => {
                     log_error(err);
-                    break;
+                    break 'keepalive;
                 }
-                WorkerResponse::Finish => break,
+                WorkerResponse::FinishPipeline => break 'pipeline,
             };
         }
     }
@@ -113,7 +113,7 @@ fn request_woker<T, Arg, Ret>(
         buffer.extend(response.body());
         supervisor.send(WorkerResponse::Response(buffer));
     }
-    supervisor.send(WorkerResponse::Finish);
+    supervisor.send(WorkerResponse::FinishPipeline);
 }
 
 #[cfg(feature = "logging")]
