@@ -15,7 +15,8 @@ use crate::{core, Handler, RequestContext};
 pub(crate) enum WorkerResponse {
     Failure(String),
     #[serde(with = "serde_bytes")]
-    Ok(Vec<u8>),
+    Response(Vec<u8>),
+    Finish,
 }
 
 pub(crate) fn request_supervisor<T, Arg, Ret>(
@@ -27,22 +28,31 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
 {
     let supervisor = mailbox.this();
 
-    // Spawn worker process
-    Process::spawn(
-        (supervisor, stream.clone(), handler_ref),
-        request_woker::<T, Arg, Ret>,
-    );
+    // keep-alive loop
+    loop {
+        // Spawn worker process
+        Process::spawn(
+            (supervisor.clone(), stream.clone(), handler_ref),
+            request_woker::<T, Arg, Ret>,
+        );
 
-    let response = mailbox.receive();
-    match response {
-        WorkerResponse::Ok(data) => {
-            let result = stream.write_all(&data);
-            if let Err(err) = result {
-                log_error(format!("Failed to send response: {:?}", err));
-            }
+        loop {
+            match mailbox.receive() {
+                WorkerResponse::Response(ref data) => {
+                    let result = stream.write_all(data);
+                    if let Err(err) = result {
+                        log_error(&format!("Failed to send response: {:?}", err));
+                        break;
+                    }
+                }
+                WorkerResponse::Failure(ref err) => {
+                    log_error(err);
+                    break;
+                }
+                WorkerResponse::Finish => break,
+            };
         }
-        WorkerResponse::Failure(err) => log_error(err),
-    };
+    }
 }
 
 fn request_woker<T, Arg, Ret>(
@@ -101,8 +111,9 @@ fn request_woker<T, Arg, Ret>(
         // separator between header and data
         buffer.extend("\r\n".as_bytes());
         buffer.extend(response.body());
-        supervisor.send(WorkerResponse::Ok(buffer));
+        supervisor.send(WorkerResponse::Response(buffer));
     }
+    supervisor.send(WorkerResponse::Finish);
 }
 
 #[cfg(feature = "logging")]
@@ -135,9 +146,9 @@ fn log_request(request: &Request<Vec<u8>>) {
 fn log_request(_request: &Request<Vec<u8>>) {}
 
 #[cfg(feature = "logging")]
-fn log_error(err: String) {
+fn log_error(err: &String) {
     lunatic_log::error!("{}", err);
 }
 
 #[cfg(not(feature = "logging"))]
-fn log_error(_err: String) {}
+fn log_error(_err: &String) {}

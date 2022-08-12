@@ -32,17 +32,20 @@ pub(crate) fn parse_requests(
 
     // Indicates the start of the next pipelined request in the buffer.
     let mut request_start = 0;
+    // Indicates if more data should be read from TCP stream.
+    let mut read_more_from_tcp = true;
+    // Loop until at least one complete request is read.
     loop {
-        // Loop until at least one complete request is read.
-        let n = stream.read(&mut buffer).unwrap();
-        if n == 0 {
-            // In case the TCP stream was closed while processing requests abort
-            requests.push(Err(ParseRequestError::TcpStreamClosed));
-            return PipelinedRequests(requests);
+        if read_more_from_tcp {
+            let n = stream.read(&mut buffer);
+            if n.is_err() || *n.as_ref().unwrap() == 0 {
+                // In case the TCP stream was closed/reset while processing requests abort
+                requests.push(Err(ParseRequestError::TcpStreamClosed));
+                return PipelinedRequests(requests);
+            }
+            // Add read buffer to all requests
+            requests_buffer.extend(&buffer[..(n.unwrap())]);
         }
-
-        // Add read buffer to all requests
-        requests_buffer.extend(&buffer[..n]);
 
         // If request passed max size, abort
         if requests_buffer[request_start..].len() > MAX_REQUEST_SIZE {
@@ -96,6 +99,7 @@ pub(crate) fn parse_requests(
                                     .unwrap()));
                                 // Force loading of next request in the pipeline
                                 request_start += offset + content_lengt;
+                                read_more_from_tcp = false;
                             }
                         } else {
                             // If the offset points to the end of requests
@@ -108,11 +112,13 @@ pub(crate) fn parse_requests(
                                 requests.push(Ok(request.body(Vec::new()).unwrap()));
                                 // Force loading of next request in the pipeline
                                 request_start += offset;
+                                read_more_from_tcp = false;
                             }
                         }
                     }
                     Status::Partial => {
                         // If the request was incomplete, continue reading from TCP & re-parse.
+                        read_more_from_tcp = true;
                         continue;
                     }
                 }
