@@ -33,8 +33,8 @@ pub struct Application<T, Arg, Ret> {
 
 impl<T, Arg, Ret> Application<T, Arg, Ret>
 where
+    T: Handler<Arg, Ret> + Copy,
     T: Fn<T> + Copy,
-    T: Handler<Arg, Ret>,
 {
     /// Creates a new application with a given router.
     pub fn new(handler: T) -> Self {

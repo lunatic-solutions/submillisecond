@@ -61,6 +61,7 @@ pub use submillisecond_macros::*;
 pub use {headers, http};
 
 pub use crate::app::Application;
+pub use crate::core::Body;
 pub use crate::error::*;
 pub use crate::guard::*;
 pub use crate::handler::*;

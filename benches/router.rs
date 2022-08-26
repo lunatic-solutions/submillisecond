@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use http::Method;
-use submillisecond::{router, Handler};
+use submillisecond::{router, Body, Handler};
 
 fn handler() {}
 
@@ -14,7 +14,7 @@ fn router_benchmark_simple(c: &mut Criterion) {
             let req = http::Request::builder()
                 .method(Method::GET)
                 .uri("/simple")
-                .body(Vec::new())
+                .body(Body::from_slice(&[]))
                 .unwrap();
 
             let res = Handler::handle(&router, req.into());
@@ -85,7 +85,7 @@ fn router_benchmark_nested(c: &mut Criterion) {
             let req = http::Request::builder()
                 .method(Method::GET)
                 .uri("/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/one/two/three/four/five/six/seven/eight/nine/ten")
-                .body(Vec::new())
+                .body(Body::from_slice(&[]))
                 .unwrap();
 
             let res = Handler::handle(&router, req.into());
@@ -156,7 +156,7 @@ fn router_benchmark_params(c: &mut Criterion) {
             let req = http::Request::builder()
                 .method(Method::GET)
                 .uri("/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/one/two/three/four/five/six/seven/eight/nine/ten")
-                .body(Vec::new())
+                .body(Body::from_slice(&[]))
                 .unwrap();
 
             let res = Handler::handle(&router, req.into());

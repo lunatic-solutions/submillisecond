@@ -7,6 +7,6 @@ impl FromOwnedRequest for Vec<u8> {
     type Rejection = Infallible;
 
     fn from_owned_request(req: RequestContext) -> Result<Self, Self::Rejection> {
-        Ok(req.request.into_body())
+        Ok(Vec::from(req.request.into_body().as_slice()))
     }
 }
