@@ -109,13 +109,34 @@ impl<'r> RouterTrie<'r> {
         let catch_all_expanded = self.expand_catch_all();
 
         let arms = [
-            (hquote! { ::http::Method::GET }, self.get.children()),
-            (hquote! { ::http::Method::POST }, self.post.children()),
-            (hquote! { ::http::Method::PUT }, self.put.children()),
-            (hquote! { ::http::Method::DELETE }, self.delete.children()),
-            (hquote! { ::http::Method::HEAD }, self.head.children()),
-            (hquote! { ::http::Method::OPTIONS }, self.options.children()),
-            (hquote! { ::http::Method::PATCH }, self.patch.children()),
+            (
+                hquote! { ::submillisecond::http::Method::GET },
+                self.get.children(),
+            ),
+            (
+                hquote! { ::submillisecond::http::Method::POST },
+                self.post.children(),
+            ),
+            (
+                hquote! { ::submillisecond::http::Method::PUT },
+                self.put.children(),
+            ),
+            (
+                hquote! { ::submillisecond::http::Method::DELETE },
+                self.delete.children(),
+            ),
+            (
+                hquote! { ::submillisecond::http::Method::HEAD },
+                self.head.children(),
+            ),
+            (
+                hquote! { ::submillisecond::http::Method::OPTIONS },
+                self.options.children(),
+            ),
+            (
+                hquote! { ::submillisecond::http::Method::PATCH },
+                self.patch.children(),
+            ),
         ]
         .into_iter()
         .filter_map(|(method, children)| {
@@ -395,12 +416,12 @@ impl<'r> RouterTrie<'r> {
             Some(method) => {
                 if wildcard {
                     hquote! {
-                        let _ = ::http::Method::#method;
+                        let _ = ::submillisecond::http::Method::#method;
                         #expanded
                     }
                 } else {
                     hquote! {
-                        let _ = ::http::Method::#method;
+                        let _ = ::submillisecond::http::Method::#method;
                         if req.reader.is_empty(true) {
                             #expanded
                         }

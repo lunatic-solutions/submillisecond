@@ -1,12 +1,12 @@
 use std::convert::Infallible;
 
 use super::FromOwnedRequest;
-use crate::RequestContext;
+use crate::{Body, RequestContext};
 
-impl FromOwnedRequest for Vec<u8> {
+impl FromOwnedRequest for Body<'static> {
     type Rejection = Infallible;
 
     fn from_owned_request(req: RequestContext) -> Result<Self, Self::Rejection> {
-        Ok(Vec::from(req.request.into_body().as_slice()))
+        Ok(*req.body())
     }
 }

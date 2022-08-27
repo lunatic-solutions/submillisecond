@@ -1,5 +1,6 @@
 use std::{convert, ops};
 
+use crate::core::Body;
 use crate::params::Params;
 use crate::reader::UriReader;
 use crate::Response;
@@ -7,7 +8,7 @@ use crate::Response;
 /// Wrapper for [`http::Request`] containing params and cursor.
 pub struct RequestContext {
     /// The [`http::Request`] instance.
-    pub request: http::Request<Vec<u8>>,
+    pub request: http::Request<Body<'static>>,
     /// Params collected from the router.
     pub params: Params,
     /// The uri reader.
@@ -40,14 +41,14 @@ impl RequestContext {
     }
 }
 
-impl convert::AsRef<http::Request<Vec<u8>>> for RequestContext {
-    fn as_ref(&self) -> &http::Request<Vec<u8>> {
+impl<'a> convert::AsRef<http::Request<Body<'a>>> for RequestContext {
+    fn as_ref(&self) -> &http::Request<Body<'a>> {
         &self.request
     }
 }
 
 impl ops::Deref for RequestContext {
-    type Target = http::Request<Vec<u8>>;
+    type Target = http::Request<Body<'static>>;
 
     fn deref(&self) -> &Self::Target {
         &self.request
@@ -60,8 +61,8 @@ impl ops::DerefMut for RequestContext {
     }
 }
 
-impl From<http::Request<Vec<u8>>> for RequestContext {
-    fn from(request: http::Request<Vec<u8>>) -> Self {
+impl From<http::Request<Body<'static>>> for RequestContext {
+    fn from(request: http::Request<Body<'static>>) -> Self {
         let path = request.uri().path().to_string();
         RequestContext {
             request,

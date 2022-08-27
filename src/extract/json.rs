@@ -18,13 +18,13 @@ where
             return Err(MissingJsonContentType.into());
         }
 
-        let body = String::from_utf8_lossy(req.body());
+        let body = String::from_utf8_lossy(req.body().as_slice());
         println!("{body}");
         let pp = serde_json::from_str::<T>(&body);
         println!("{pp:?}");
-        println!("{:?}", req.body());
+        println!("{:?}", req.body().as_slice());
 
-        let value = match serde_json::from_slice(req.body()) {
+        let value = match serde_json::from_slice(req.body().as_slice()) {
             Ok(value) => value,
             Err(err) => {
                 let rejection = match err.classify() {

@@ -1,17 +1,17 @@
 use http::Method;
-use lunatic_test::test;
-use submillisecond::{http, router, Handler, RequestContext};
+use lunatic::test;
+use submillisecond::{http, router, Body, Handler, RequestContext};
 
 macro_rules! build_request {
     ($method: ident, $uri: literal) => {
-        build_request!($method, $uri, Vec::new())
+        build_request!($method, $uri, &[])
     };
     ($method: ident, $uri: literal, $body: expr) => {
         RequestContext::from(
             http::Request::builder()
                 .method(Method::$method)
                 .uri($uri)
-                .body($body.to_vec())
+                .body(Body::from_slice($body))
                 .unwrap(),
         )
     };

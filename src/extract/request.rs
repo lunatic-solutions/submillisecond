@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
 use super::FromOwnedRequest;
+use crate::core::Body;
 use crate::RequestContext;
 
 impl FromOwnedRequest for RequestContext {
@@ -11,7 +12,7 @@ impl FromOwnedRequest for RequestContext {
     }
 }
 
-impl FromOwnedRequest for http::Request<Vec<u8>> {
+impl FromOwnedRequest for http::Request<Body<'static>> {
     type Rejection = Infallible;
 
     fn from_owned_request(req: RequestContext) -> Result<Self, Self::Rejection> {

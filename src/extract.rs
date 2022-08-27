@@ -10,6 +10,7 @@ pub use splat::Splat;
 pub mod path;
 pub mod rejection;
 
+mod body;
 mod header_map;
 #[cfg(feature = "json")]
 mod json;

@@ -1,0 +1,100 @@
+use std::io;
+use std::marker::PhantomData;
+
+pub use http;
+use lunatic::function::reference::Fn;
+use lunatic::function::FuncRef;
+use lunatic::net::{TcpListener, ToSocketAddrs};
+use lunatic::Process;
+
+use crate::supervisor::request_supervisor;
+use crate::Handler;
+
+/// An application containing a router for listening and handling incoming
+/// requests.
+///
+/// # Example
+///
+/// ```
+/// use submillisecond::{router, Application};
+///
+/// fn index() -> &'static str { "Welcome" }
+///
+/// Application::new(router! {
+///     GET "/" => index
+/// })
+/// .serve("0.0.0.0:3000")
+/// ```
+#[derive(Clone, Copy)]
+pub struct Application<T, Arg, Ret> {
+    handler: T,
+    phantom: PhantomData<(Arg, Ret)>,
+}
+
+impl<T, Arg, Ret> Application<T, Arg, Ret>
+where
+    T: Handler<Arg, Ret> + Copy,
+    T: Fn<T> + Copy,
+{
+    /// Creates a new application with a given router.
+    pub fn new(handler: T) -> Self {
+        Application {
+            handler,
+            phantom: PhantomData,
+        }
+    }
+
+    /// Listen on `addr` to receive incoming requests, and handling them with
+    /// the router.
+    pub fn serve<A>(self, addr: A) -> io::Result<()>
+    where
+        A: ToSocketAddrs + Clone,
+    {
+        let handler_ref = FuncRef::new(self.handler);
+        let listener = TcpListener::bind(addr.clone())?;
+        log_server_start(addr);
+        while let Ok((stream, _)) = listener.accept() {
+            Process::spawn_link((stream, handler_ref), request_supervisor);
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "logging")]
+fn log_server_start<A: ToSocketAddrs>(addr: A) {
+    use lunatic_log::subscriber::fmt::FmtSubscriber;
+    use lunatic_log::{LevelFilter, __lookup_logging_process, info};
+
+    // If no logging process is running, start the default logger.
+    if __lookup_logging_process().is_none() {
+        lunatic_log::init(
+            FmtSubscriber::new(LevelFilter::Trace)
+                .with_color(true)
+                .with_level(true)
+                .with_target(true),
+        );
+    }
+    // Make address bold.
+    let addrs = addr
+        .to_socket_addrs()
+        .unwrap() // is ok if the code is log is executed after bind
+        .map(|addr| {
+            let ip = addr.ip();
+            let ip_string = if ip.is_unspecified() {
+                "localhost".to_string()
+            } else {
+                ip.to_string()
+            };
+            ansi_term::Style::new()
+                .bold()
+                .paint(format!("http://{}:{}", ip_string, addr.port()))
+                .to_string()
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    info!("Server started on {addrs}");
+}
+
+#[cfg(not(feature = "logging"))]
+fn log_server_start<A: ToSocketAddrs>(_addr: A) {}
