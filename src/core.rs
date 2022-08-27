@@ -8,6 +8,7 @@ const REQUEST_BUFFER_SIZE: usize = 4096;
 const MAX_HEADERS: usize = 128;
 
 /// The request body.
+#[derive(Debug, Clone, Copy)]
 pub struct Body<'a>(&'a [u8]);
 
 impl<'a> Body<'a> {
@@ -107,8 +108,13 @@ pub(crate) fn parse_requests(
                     // Read more data from TCP stream
                     let n = stream.read(&mut buffer);
                     if n.is_err() || *n.as_ref().unwrap() == 0 {
-                        // In case the TCP stream was closed/reset while processing requests abort
-                        return PipelinedRequests::from_err(ParseRequestError::TcpStreamClosed);
+                        if request_buffer.is_empty() {
+                            return PipelinedRequests::from_err(
+                                ParseRequestError::TcpStreamClosedWithoutData,
+                            );
+                        } else {
+                            return PipelinedRequests::from_err(ParseRequestError::TcpStreamClosed);
+                        }
                     }
                     // Invalidate references in `headers` that could point to the previous
                     // `request_buffer` before extending it.
@@ -131,7 +137,9 @@ pub(crate) fn parse_requests(
 
     let method = match http::Method::try_from(request_raw.method.unwrap()) {
         Ok(method) => method,
-        Err(_) => return PipelinedRequests::from_err(ParseRequestError::UnknownMethod),
+        Err(_) => {
+            return PipelinedRequests::from_err(ParseRequestError::UnknownMethod);
+        }
     };
     let request = http::Request::builder()
         .method(method)
@@ -194,6 +202,7 @@ pub(crate) fn parse_requests(
 #[derive(Debug)]
 pub(crate) enum ParseRequestError {
     TcpStreamClosed,
+    TcpStreamClosedWithoutData,
     HttpParseError(httparse::Error),
     RequestTooLarge,
     UnknownMethod,

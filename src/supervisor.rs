@@ -9,7 +9,7 @@ use lunatic::net::TcpStream;
 use lunatic::{Mailbox, Process};
 use serde::{Deserialize, Serialize};
 
-use crate::core::Body;
+use crate::core::{Body, ParseRequestError};
 use crate::response::{IntoResponse, Response};
 use crate::{core, Handler, RequestContext};
 
@@ -28,13 +28,16 @@ where
 
 #[derive(Serialize, Deserialize)]
 pub(crate) enum WorkerResponse {
-    Failure(String),
     /// Response contains the HTTP response and sometimes data from a pipelined
     /// request.
     Response(
         #[serde(with = "serde_bytes")] Vec<u8>,
         #[serde(with = "serde_bytes")] Vec<u8>,
     ),
+    /// The TCP connection was closed before any data arrived
+    TcpClosed,
+    /// Failed to process request
+    Failure(String),
 }
 
 pub(crate) fn request_supervisor<T, Arg, Ret>(
@@ -84,6 +87,11 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
                     if let Err(err) = result {
                         log_error(&format!("Failed to send response: {:?}", err));
                     }
+                    break 'keepalive;
+                }
+                WorkerResponse::TcpClosed => {
+                    // If the `TcpStream` was closed without sending any data,
+                    // request is ignored.
                     break 'keepalive;
                 }
             },
@@ -147,6 +155,11 @@ where
     // Check if first request is valid
     let request = match request {
         Ok(request) => request,
+        Err(ParseRequestError::TcpStreamClosedWithoutData) => {
+            // In case there was no data sent, the parsing didn't actually fail.
+            worker_request.supervisor.send(WorkerResponse::TcpClosed);
+            return; // Abort request handling
+        }
         Err(error) => {
             worker_request
                 .supervisor
