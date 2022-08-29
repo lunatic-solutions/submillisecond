@@ -34,10 +34,10 @@ fn main() -> std::io::Result<()> {
 
 ```
 
-### Getting started with lunatic
+## Getting started with lunatic
 
 To run the example you will first need to download the lunatic runtime by following the
-installation steps in [this repository][2]. The runtime is just single executable and runs on
+installation steps in [this repository][2]. The runtime is just a single executable and runs on
 Windows, macOS and Linux. If you have already Rust installed, you can get it with:
 ```bash
 cargo install lunatic-runtime
@@ -83,7 +83,13 @@ and cargo is going to automatically build your project as a WebAssembly module a
 Lunatic provides a macro `#[lunatic::test]` to turn your tests into processes. Check out the
 `tests` folder for examples.
 
-### Getting started with submillisecond
+## Getting started with submillisecond
+
+Add it as a dependency
+
+```toml
+submillisecond = "0.2.0-alpha0"
+```
 
 ## Handlers
 
@@ -95,7 +101,7 @@ fn index(body: Vec<u8>, cookies: Cookies) -> String {
 }
 ```
 
-Handlers can return anything that can implements `IntoResponse`.
+Handlers can return anything that implements `IntoResponse`.
 
 ## Routers
 
@@ -147,7 +153,7 @@ router! {
 }
 ```
 
-### Guards
+## Guards
 
 Sub/routes can be protected by a guard:
 
@@ -160,15 +166,11 @@ impl Guard for ContentLengthLimit {
     }
 }
 
-fn main() -> std::io::Result<()> {
-    Application::new(router! {
-        "/short_requests" if ContentLengthGuard(128) => {
-             POST "/super" if ContentLengthGuard(64) => super_short
-             POST "/" => short
-        }
-       
-    })
-    .serve("0.0.0.0:3000")
+router! {
+    "/short_requests" if ContentLengthGuard(128) => {
+            POST "/super" if ContentLengthGuard(64) => super_short
+            POST "/" => short
+    }
 }
 ```
 
@@ -176,7 +178,7 @@ Guards can be chained with the `&&` and `||` syntax.
 
 ## Middleware
 
-Middleware is just a function, in fact they are handlers (can use extractors).
+Middleware is just a function, like handlers it can use extractors.
 
 ```rust
 fn logger(req: RequestContext) -> Response {
