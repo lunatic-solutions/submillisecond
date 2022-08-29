@@ -6,7 +6,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! Submillisecond = "0.1"
+//! submillisecond = "0.1"
 //! ```
 //!
 //! Then, add a `.cargo/config.toml` to configure the target and runner:

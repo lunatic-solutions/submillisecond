@@ -40,6 +40,7 @@ fn empty_line_prefix_is_valid() {
 }
 
 #[test]
+#[ignore]
 fn pipeline_requests() {
     Process::spawn_link(8901, hell_world_server);
     // Give enough time to for server to start
