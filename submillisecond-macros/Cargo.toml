@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "submillisecond-macros"
+name = "submillisecond_macros"
 description = "Macros used by the submillisecond web framework."
 version = "0.2.0"
 license = "Apache-2.0/MIT"
