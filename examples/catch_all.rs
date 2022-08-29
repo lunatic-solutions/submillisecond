@@ -1,5 +1,3 @@
-use std::io;
-
 use submillisecond::{router, Application};
 
 fn index() -> &'static str {
@@ -18,7 +16,7 @@ fn not_found_all() -> &'static str {
     "Route not found"
 }
 
-fn main() -> io::Result<()> {
+fn main() -> std::io::Result<()> {
     Application::new(router! {
         GET "/" => index
         "/foo" => {

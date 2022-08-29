@@ -1,5 +1,3 @@
-use std::io;
-
 use cookie::Cookie;
 use submillisecond::cookies::{cookies_layer, Cookies, Key};
 use submillisecond::session::{init_session, Session};
@@ -28,7 +26,7 @@ fn session_bool(mut session: Session<bool>) -> String {
     session.to_string()
 }
 
-fn main() -> io::Result<()> {
+fn main() -> std::io::Result<()> {
     init_session(Key::from(&[2; 64]));
 
     Application::new(router! {

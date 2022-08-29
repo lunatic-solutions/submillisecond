@@ -1,5 +1,3 @@
-use std::io;
-
 use submillisecond::extract::Path;
 use submillisecond::params::Params;
 use submillisecond::response::Response;
@@ -43,7 +41,7 @@ impl Guard for BarGuard {
     }
 }
 
-fn main() -> io::Result<()> {
+fn main() -> std::io::Result<()> {
     Application::new(router! {
         "/:a" if FakeGuard => {
             "/:b" => {

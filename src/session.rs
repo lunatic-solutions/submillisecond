@@ -14,8 +14,6 @@
 //! # Example
 //!
 //! ```
-//! use std::io;
-//!
 //! use submillisecond::cookies::{cookies_layer, Key};
 //! use submillisecond::session::{init_session, Session};
 //! use submillisecond::{router, Application};
@@ -27,7 +25,7 @@
 //!     session.to_string()
 //! }
 //!
-//! fn main() -> io::Result<()> {
+//! fn main() -> std::io::Result<()> {
 //!     session::init_session(Key::generate());
 //!
 //!     Application::new(router! {

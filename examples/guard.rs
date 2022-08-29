@@ -1,5 +1,3 @@
-use std::io;
-
 use submillisecond::{router, Application, Guard, RequestContext};
 
 struct ContentLengthGuard(u64);
@@ -24,7 +22,7 @@ fn foo_handler() -> &'static str {
     "foo bar"
 }
 
-fn main() -> io::Result<()> {
+fn main() -> std::io::Result<()> {
     Application::new(router! {
         POST "/foo" if ContentLengthGuard(5) || ContentLengthGuard(10) => foo_handler
     })

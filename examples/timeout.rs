@@ -1,4 +1,3 @@
-use std::io;
 use std::time::Duration;
 
 use submillisecond::{router, Application};
@@ -9,7 +8,7 @@ fn index() {
     lunatic::sleep(Duration::from_secs(60 * 10));
 }
 
-fn main() -> io::Result<()> {
+fn main() -> std::io::Result<()> {
     Application::new(router! {
         GET "/" => index
     })

@@ -1,5 +1,3 @@
-use std::io;
-
 use submillisecond::params::Params;
 use submillisecond::response::Response;
 use submillisecond::{router, Application, Guard, Handler, RequestContext};
@@ -61,7 +59,7 @@ impl Guard for FooGuard {
     }
 }
 
-fn main() -> io::Result<()> {
+fn main() -> std::io::Result<()> {
     const LOGGER: LoggingMiddleware = LoggingMiddleware::new(1);
 
     Application::new(router! {

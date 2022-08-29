@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::io;
 
 use headers::Host;
 use http::HeaderMap;
@@ -88,7 +87,7 @@ fn json(Json(login): Json<Login>) -> String {
     format!("Email: {}\nPassword: {}", login.email, login.password)
 }
 
-fn main() -> io::Result<()> {
+fn main() -> std::io::Result<()> {
     Application::new(router! {
         GET "/" => index
         GET "/querys" => query

@@ -1,12 +1,10 @@
-use std::io;
-
 use submillisecond::{router, Application};
 
 fn index() {
     panic!("Error");
 }
 
-fn main() -> io::Result<()> {
+fn main() -> std::io::Result<()> {
     Application::new(router! {
         GET "/" => index
     })
