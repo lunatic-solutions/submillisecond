@@ -19,7 +19,6 @@ fn hell_world_server(port: u16, _: Mailbox<()>) {
 }
 
 #[test]
-#[ignore]
 fn empty_line_prefix_is_valid() {
     Process::spawn_link(8900, hell_world_server);
     // Give enough time to for server to start
@@ -41,7 +40,6 @@ fn empty_line_prefix_is_valid() {
 }
 
 #[test]
-#[ignore]
 fn pipeline_requests() {
     Process::spawn_link(8901, hell_world_server);
     // Give enough time to for server to start
@@ -75,7 +73,6 @@ fn pipeline_requests() {
 }
 
 #[test]
-#[ignore]
 fn pipeline_requests_in_2_parts() {
     Process::spawn_link(8902, hell_world_server);
     // Give enough time to for server to start
@@ -118,7 +115,6 @@ fn pipeline_requests_in_2_parts() {
 }
 
 #[test]
-#[ignore]
 fn invalid_method() {
     Process::spawn_link(8903, hell_world_server);
     // Give enough time to for server to start
@@ -152,7 +148,6 @@ fn panic_server(port: u16, _: Mailbox<()>) {
 }
 
 #[test]
-#[ignore]
 fn handler_panics() {
     Process::spawn_link(8904, panic_server);
     // Give enough time to for server to start
@@ -186,7 +181,6 @@ fn post_echo_server(port: u16, _: Mailbox<()>) {
 }
 
 #[test]
-#[ignore]
 fn post_request_keep_alive() {
     Process::spawn_link(8905, post_echo_server);
     // Give enough time to for server to start
