@@ -1,6 +1,6 @@
 [package]
 name = "submillisecond"
-version = "0.1.0"
+version = "0.2.0-alpha0"
 edition = "2021"
 description = "A lunatic web framework for Rust."
 keywords = ["http", "web", "framework"]

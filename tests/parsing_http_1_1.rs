@@ -49,7 +49,7 @@ fn pipeline_requests() {
     stream.write_all(request).unwrap();
     let mut response = [0u8; 256];
     // First response
-    let n = stream.read(&mut response).unwrap();
+    let n = stream.read(&mut response[..100]).unwrap();
     let response_str = from_utf8(&response[..n]).unwrap();
     assert_eq!(
         response_str,
