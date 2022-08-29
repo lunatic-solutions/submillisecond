@@ -35,11 +35,7 @@ impl NamedParam {
                     });
 
                 quote! {
-                    let params = req
-                        .extensions()
-                        .get::<::submillisecond::params::Params>()
-                        .unwrap();
-
+                    let params = &req.params;
                     let fields = ::std::iter::Iterator::collect::<::std::result::Result<::std::vec::Vec<_>, _>>(
                         ::std::iter::Iterator::map(
                             ::std::iter::IntoIterator::into_iter([#( #names ),*]),
@@ -83,10 +79,7 @@ impl NamedParam {
             }
             NamedParamFields::Unnamed(NamedParamField { name, .. }) => {
                 quote! {
-                    let param_str = req
-                        .extensions()
-                        .get::<::submillisecond::params::Params>()
-                        .unwrap()
+                    let param_str = req.params
                         .get(#name)
                         .ok_or_else(<::submillisecond::extract::rejection::MissingPathParams as ::std::default::Default>::default)?;
 
