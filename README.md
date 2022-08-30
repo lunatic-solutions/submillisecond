@@ -10,7 +10,7 @@ Submillisecond is a **backend** web framework around the Rust language,
 > with submillisecond.
 
 If you would like to ask for help or just follow the discussions around Lunatic & submillisecond,
-[join our discord server][4].
+[join our discord server][3].
 
 # Features
 
