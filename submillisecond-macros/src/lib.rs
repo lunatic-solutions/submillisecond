@@ -89,7 +89,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///
 /// ##### RouterMiddleware
 ///
-/// > `with` _RouterMiddlewareItem_
+/// > `with` [_RouterMiddlewareItem_]
 ///
 /// ##### RouterMiddlewareItem
 ///
