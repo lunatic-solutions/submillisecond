@@ -2,12 +2,15 @@
 
 A [lunatic][0] web framework for the Rust language.
 
-Submillisecond is an attempt to build a **backend** web framework around the Rust language,
+Submillisecond is a **backend** web framework around the Rust language,
 [WebAssembly's][1] security and the [lunatic scheduler][2].
 
 > This is an early stage project, probably has bugs and the API is still changing. It's also
 > important to point out that many Rust crates don't compile to WebAssembly yet and can't be used
 > with submillisecond.
+
+If you would like to ask for help or just follow the discussions around Lunatic & submillisecond,
+[join our discord server][4].
 
 # Features
 
@@ -39,6 +42,7 @@ fn main() -> std::io::Result<()> {
 To run the example you will first need to download the lunatic runtime by following the
 installation steps in [this repository][2]. The runtime is just a single executable and runs on
 Windows, macOS and Linux. If you have already Rust installed, you can get it with:
+
 ```bash
 cargo install lunatic-runtime
 ```
@@ -101,11 +105,11 @@ fn index(body: Vec<u8>, cookies: Cookies) -> String {
 }
 ```
 
-Handlers can return anything that implements `IntoResponse`.
+Handlers can return anything that implements [`IntoResponse`][10].
 
 ## Routers
 
-Submillisecond provides a `router!` macro:
+Submillisecond provides a [`router!`][11] macro:
 
 ```rust
 #[derive(NamedParam)]
@@ -127,7 +131,7 @@ fn main() -> std::io::Result<()> {
 }
 ```
 
-GET parameters can be captured with an extractor.
+Uri parameters can be captured with the [Params][12] extractor.
 
 ### Nested routes
 
@@ -141,7 +145,7 @@ router! {
 }
 ```
 
-`_` can be used as a catch-all helper:
+The `_` syntax can be used to catch-all routes:
 
 ```rust
 router! {
@@ -178,7 +182,7 @@ Guards can be chained with the `&&` and `||` syntax.
 
 ## Middleware
 
-Middleware is just a function, like handlers it can use extractors.
+Middleware is any handler which calls [`next_handler()`][13] on the request context. Like handlers, it can use extractors.
 
 ```rust
 fn logger(req: RequestContext) -> Response {
@@ -202,12 +206,10 @@ Middleware can be chained together or only be used in sub-routes:
 
 ```rust
 router! {
-     with mid1;
-     with mid2;
+    with [mid1, mid2];
 
     "/foo" => {
-        with foo_mid1;
-        with foo_mid2;
+        with [foo_mid1, foo_mid2];
     }
 }
 ```
@@ -224,4 +226,8 @@ at your option.
 [0]: https://lunatic.solutions
 [1]: https://webassembly.org
 [2]: https://github.com/lunatic-solutions/lunatic
-
+[3]: https://discord.gg/b7zDqpXpB4
+[10]: https://docs.rs/submillisecond/latest/submillisecond/response/trait.IntoResponse.html
+[11]: https://docs.rs/submillisecond/latest/submillisecond/macro.router.html
+[12]: https://docs.rs/submillisecond/latest/submillisecond/params/struct.Params.html
+[13]: https://docs.rs/submillisecond/latest/submillisecond/struct.RequestContext.html#method.next_handler
