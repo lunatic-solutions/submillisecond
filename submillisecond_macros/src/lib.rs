@@ -62,55 +62,6 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///
 /// The syntax in this macro is aimed to be as simple and intuitive as possible.
 ///
-/// # Syntax
-///
-/// ##### RouterDefinition
-///
-/// > `{`
-/// >
-/// > &nbsp;&nbsp;&nbsp;&nbsp;[_RouterMiddleware_]﹖ `;`
-/// >
-/// > &nbsp;&nbsp;&nbsp;&nbsp;[_RouterItem_]*
-/// >
-/// > `}`
-///
-/// ##### RouterItem
-///
-/// > [_RouterMethod_]﹖ [STRING_LITERAL] [_RouterIfStmt_]﹖
-/// > [_RouterMiddleware_] `=>` [_RouterItemValue_]
-///
-/// ##### RouterItemValue
-///
-/// > [IDENTIFIER] | [_RouterDefinition_]
-///
-/// ##### RouterMethod
-///
-/// > `GET` | `POST` | `PUT` | `DELETE` | `HEAD` | `OPTIONS` | `PATCH`
-///
-/// ##### RouterMiddleware
-///
-/// > `with` _RouterMiddlewareItem_
-///
-/// ##### RouterMiddlewareItem
-///
-/// > [IDENTIFIER] | `[` [IDENTIFIER] `]`
-///
-/// ##### RouterIfStmt
-///
-/// > `if` [Expression]
-///
-/// [_RouterDefinition_]: #routerdefinition
-/// [_RouterMiddleware_]: #routermiddleware
-/// [_RouterMiddlewareItem_]: #routermiddlewareitem
-/// [_RouterItem_]: #routeritem
-/// [_RouterItemValue_]: #routeritemvalue
-/// [_RouterMethod_]: #routermethod
-/// [_RouterIfStmt_]: #routerifstmt
-///
-/// [IDENTIFIER]: https://doc.rust-lang.org/reference/identifiers.html
-/// [STRING_LITERAL]: https://doc.rust-lang.org/reference/tokens.html#string-literals
-/// [Expression]: https://doc.rust-lang.org/reference/expressions.html
-///
 /// # Handlers
 ///
 /// Handlers are routes with a HTTP method, path and handler.
@@ -216,6 +167,62 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///     GET "/admin" if IsAdmin => admin_handler
 /// }
 /// ```
+///
+/// # Syntax
+///
+/// ##### RouterDefinition
+///
+/// > `{`
+/// >
+/// > &nbsp;&nbsp;&nbsp;&nbsp;[_RouterMiddleware_]﹖ `;`
+/// >
+/// > &nbsp;&nbsp;&nbsp;&nbsp;[_RouterItem_]*
+/// >
+/// > &nbsp;&nbsp;&nbsp;&nbsp;[_RouterCatchAll_]﹖
+/// >
+/// > `}`
+///
+/// ##### RouterItem
+///
+/// > [_RouterMethod_]﹖ [STRING_LITERAL] [_RouterIfStmt_]﹖
+/// > [_RouterMiddleware_] `=>` [_RouterItemValue_]
+///
+/// ##### RouterItemValue
+///
+/// > [IDENTIFIER] | [_RouterDefinition_]
+///
+/// ##### RouterMethod
+///
+/// > `GET` | `POST` | `PUT` | `DELETE` | `HEAD` | `OPTIONS` | `PATCH`
+///
+/// ##### RouterMiddleware
+///
+/// > `with` [_RouterMiddlewareItem_]
+///
+/// ##### RouterMiddlewareItem
+///
+/// > [IDENTIFIER] | `[` [IDENTIFIER] `]`
+///
+/// ##### RouterIfStmt
+///
+/// > `if` [Expression]
+///
+/// ##### RouterCatchAll
+///
+/// > `_` `=>` [_RouterItemValue_]
+///
+/// [_RouterDefinition_]: #routerdefinition
+/// [_RouterMiddleware_]: #routermiddleware
+/// [_RouterMiddlewareItem_]: #routermiddlewareitem
+/// [_RouterItem_]: #routeritem
+/// [_RouterItemValue_]: #routeritemvalue
+/// [_RouterMethod_]: #routermethod
+/// [_RouterIfStmt_]: #routerifstmt
+/// [_RouterCatchAll_]: #routercatchall
+///
+/// [IDENTIFIER]: https://doc.rust-lang.org/reference/identifiers.html
+/// [STRING_LITERAL]: https://doc.rust-lang.org/reference/tokens.html#string-literals
+/// [Expression]: https://doc.rust-lang.org/reference/expressions.html
 #[proc_macro]
 pub fn router(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as Router);

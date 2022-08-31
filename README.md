@@ -1,18 +1,21 @@
 # submillisecond
 
-A [lunatic][0] web framework for the Rust language.
+A [lunatic] web framework for the Rust language.
 
-Submillisecond is an attempt to build a **backend** web framework around the Rust language,
-[WebAssembly's][1] security and the [lunatic scheduler][2].
+Submillisecond is a **backend** web framework around the Rust language,
+[WebAssembly's][wasm] security and the [lunatic scheduler][lunatic_gh].
 
 > This is an early stage project, probably has bugs and the API is still changing. It's also
 > important to point out that many Rust crates don't compile to WebAssembly yet and can't be used
 > with submillisecond.
 
+If you would like to ask for help or just follow the discussions around Lunatic & submillisecond,
+[join our discord server][discord].
+
 # Features
 
 - Fast compilation times
-- async-free - All preemption and scheduling is done by [lunatic][2]
+- async-free - All preemption and scheduling is done by [lunatic][lunatic_gh]
 - strong security - Each request is handled in a separate _lunatic_ process
 - Batteries included - TODO
 
@@ -37,13 +40,14 @@ fn main() -> std::io::Result<()> {
 ## Getting started with lunatic
 
 To run the example you will first need to download the lunatic runtime by following the
-installation steps in [this repository][2]. The runtime is just a single executable and runs on
+installation steps in [this repository][lunatic_gh]. The runtime is just a single executable and runs on
 Windows, macOS and Linux. If you have already Rust installed, you can get it with:
+
 ```bash
 cargo install lunatic-runtime
 ```
 
-[Lunatic][2] applications need to be compiled to [WebAssembly][1] before they can be executed by
+[Lunatic][lunatic_gh] applications need to be compiled to [WebAssembly][wasm] before they can be executed by
 the runtime. Rust has great support for WebAssembly and you can build a lunatic compatible
 application just by passing the `--target=wasm32-wasi` flag to cargo, e.g:
 
@@ -78,11 +82,6 @@ Now you can just use the commands you are already familiar with, such as `cargo 
 and cargo is going to automatically build your project as a WebAssembly module and run it inside
 `lunatic`.
 
-### Testing
-
-Lunatic provides a macro `#[lunatic::test]` to turn your tests into processes. Check out the
-`tests` folder for examples.
-
 ## Getting started with submillisecond
 
 Add it as a dependency
@@ -93,7 +92,9 @@ submillisecond = "0.2.0-alpha0"
 
 ## Handlers
 
-Handlers are just functions that can define zero or more extractors.
+Handlers are functions which return a response which implements [`IntoResponse`][intoresponse].
+
+They can have any number of arguments, where each argument is an [extractor].
 
 ```rust
 fn index(body: Vec<u8>, cookies: Cookies) -> String {
@@ -101,11 +102,9 @@ fn index(body: Vec<u8>, cookies: Cookies) -> String {
 }
 ```
 
-Handlers can return anything that implements `IntoResponse`.
-
 ## Routers
 
-Submillisecond provides a `router!` macro:
+Submillisecond provides a [`router!`][router] macro for defining routes in your app.
 
 ```rust
 #[derive(NamedParam)]
@@ -127,11 +126,17 @@ fn main() -> std::io::Result<()> {
 }
 ```
 
-GET parameters can be captured with an extractor.
+The router macro supports:
+
+- [Nested routes](#nested-routes)
+- [Url parameters](#url-parameters)
+- [Catch-all](#catch-all)
+- [Guards](#guards)
+- [Middleware](#middleware)
 
 ### Nested routes
 
-Routes can be nested:
+Routes can be nested.
 
 ```rust
 router! {
@@ -141,7 +146,44 @@ router! {
 }
 ```
 
-`_` can be used as a catch-all helper:
+### Url parameters
+
+Uri parameters can be captured with the [Path] extractor.
+
+```rust
+router! {
+    GET "/users/:first/:last/:age" => greet
+}
+
+fn greet(Path((first, last, age)): Path<(String, String, u32)>) -> String {
+    format!("Welcome {first} {last}. You are {age} years old.")
+}
+```
+
+You can use the [NamedParam] derive macro to define named parameters.
+
+```rust
+router! {
+    GET "/users/:first/:last/:age" => greet
+}
+
+#[derive(NamedParam)]
+struct GreetInfo {
+    first: String,
+    last: String,
+    age: u32,
+}
+
+fn greet(GreetInfo { first, last, age }: GreetInfo) -> String {
+    format!("Welcome {first} {last}. You are {age} years old.")
+}
+```
+
+Alternatively, you can access the params directly with the [Params] extractor.
+
+### Catch-all
+
+The `_` syntax can be used to catch-all routes.
 
 ```rust
 router! {
@@ -153,9 +195,9 @@ router! {
 }
 ```
 
-## Guards
+### Guards
 
-Sub/routes can be protected by a guard:
+Routes can be protected by guards.
 
 ```rust
 struct ContentLengthLimit(u64);
@@ -168,23 +210,24 @@ impl Guard for ContentLengthLimit {
 
 router! {
     "/short_requests" if ContentLengthGuard(128) => {
-            POST "/super" if ContentLengthGuard(64) => super_short
-            POST "/" => short
+        POST "/super" if ContentLengthGuard(64) => super_short
+        POST "/" => short
     }
 }
 ```
 
 Guards can be chained with the `&&` and `||` syntax.
 
-## Middleware
+### Middleware
 
-Middleware is just a function, like handlers it can use extractors.
+Middleware is any handler which calls [`next_handler`][next_handler] on the request context.
+Like handlers, it can use extractors.
 
 ```rust
 fn logger(req: RequestContext) -> Response {
-    // before next handler
+    println!("Before");
     let result = req.next_handler();
-    // after next handler
+    println!("After");
     result
 }
 
@@ -192,25 +235,36 @@ fn main() -> std::io::Result<()> {
     Application::new(router! {
         with logger;
 
-        GET "/hi/:first_name/:last_name" => hi
+        GET "/" => hi
     })
     .serve("0.0.0.0:3000")
 }
 ```
 
-Middleware can be chained together or only be used in sub-routes:
+Middleware can be chained together, and placed within sub-routes.
 
 ```rust
 router! {
-     with mid1;
-     with mid2;
+    with [mid1, mid2];
 
     "/foo" => {
-        with foo_mid1;
-        with foo_mid2;
+        with [foo_mid1, foo_mid2];
     }
 }
 ```
+
+They can also be specific to a single route.
+
+```rust
+router! {
+    GET "/" with mid1 => home
+}
+```
+
+## Testing
+
+Lunatic provides a macro `#[lunatic::test]` to turn your tests into processes. Check out the
+[`tests`][tests] folder for examples.
 
 # License
 
@@ -221,7 +275,15 @@ Licensed under either of
 
 at your option.
 
-[0]: https://lunatic.solutions
-[1]: https://webassembly.org
-[2]: https://github.com/lunatic-solutions/lunatic
-
+[lunatic]: https://lunatic.solutions
+[lunatic_gh]: https://github.com/lunatic-solutions/lunatic
+[wasm]: https://webassembly.org
+[discord]: https://discord.gg/b7zDqpXpB4
+[tests]: /tests
+[router]: https://docs.rs/submillisecond/latest/submillisecond/macro.router.html
+[intoresponse]: https://docs.rs/submillisecond/latest/submillisecond/response/trait.IntoResponse.html
+[params]: https://docs.rs/submillisecond/latest/submillisecond/params/struct.Params.html
+[path]: https://docs.rs/submillisecond/latest/submillisecond/extract/path/struct.Path.html
+[namedparam]: https://docs.rs/submillisecond/latest/submillisecond/derive.NamedParam.html
+[extractor]: https://docs.rs/submillisecond/latest/submillisecond/extract/trait.FromRequest.html
+[next_handler]: https://docs.rs/submillisecond/latest/submillisecond/struct.RequestContext.html#method.next_handler
