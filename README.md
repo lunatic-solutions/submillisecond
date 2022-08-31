@@ -94,7 +94,7 @@ submillisecond = "0.2.0-alpha0"
 
 Handlers are functions which return a response which implements [`IntoResponse`][intoresponse].
 
-They can have any number of arguments, where each argument is an [`Extractor`][extractor].
+They can have any number of arguments, where each argument is an [extractor].
 
 ```rust
 fn index(body: Vec<u8>, cookies: Cookies) -> String {
@@ -220,7 +220,7 @@ Guards can be chained with the `&&` and `||` syntax.
 
 ### Middleware
 
-Middleware is any handler which calls [`next_handler()`][next_handler] on the request context.
+Middleware is any handler which calls [`next_handler`][next_handler] on the request context.
 Like handlers, it can use extractors.
 
 ```rust
@@ -253,6 +253,14 @@ router! {
 }
 ```
 
+They can also be specific to a single route.
+
+```rust
+router! {
+    GET "/" with mid1 => home
+}
+```
+
 ## Testing
 
 Lunatic provides a macro `#[lunatic::test]` to turn your tests into processes. Check out the
@@ -277,4 +285,5 @@ at your option.
 [params]: https://docs.rs/submillisecond/latest/submillisecond/params/struct.Params.html
 [path]: https://docs.rs/submillisecond/latest/submillisecond/extract/path/struct.Path.html
 [namedparam]: https://docs.rs/submillisecond/latest/submillisecond/derive.NamedParam.html
+[extractor]: https://docs.rs/submillisecond/latest/submillisecond/extract/trait.FromRequest.html
 [next_handler]: https://docs.rs/submillisecond/latest/submillisecond/struct.RequestContext.html#method.next_handler
