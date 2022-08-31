@@ -196,7 +196,7 @@ where
             worker_request
                 .supervisor
                 .send(WorkerResponse::Failure(format!(
-                    "Reqeust parsing failed: {error:?}"
+                    "Request parsing failed: {error:?}"
                 )));
             return; // Abort request handling
         }
