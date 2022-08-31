@@ -19,12 +19,14 @@ json = ["serde_json"]
 logging = ["ansi_term", "lunatic-log"]
 query = ["serde_urlencoded"]
 template = ["askama"]
+websocket = ["base64ct", "sha1", "tungstenite"]
 
 [dependencies]
 headers = "0.3"
 http = "0.2.7"
 httparse = "1.7.1"
-lunatic = "^0.11.1"
+# lunatic = "^0.11.1"
+lunatic = { git = "https://github.com/lunatic-solutions/lunatic-rs" }
 mime = "0.3.16"
 paste = "1.0"
 percent-encoding = "2.1"
@@ -35,6 +37,7 @@ submillisecond_macros = { version = "0.2", path = "submillisecond_macros" }
 # optional dependencies
 ansi_term = { version = "0.12", optional = true }
 askama = { version = "0.11", optional = true }
+base64ct = { version = "1.5", features = ["alloc"], optional = true }
 cookie = { version = "0.16", features = [
   "percent-encode",
   "signed",
@@ -43,6 +46,9 @@ cookie = { version = "0.16", features = [
 lunatic-log = { version = "0.2", optional = true }
 serde_json = { version = "1.0", optional = true }
 serde_urlencoded = { version = "0.7", optional = true }
+sha1 = { version = "0.10", optional = true }
+tungstenite = { version = "0.17", optional = true }
+
 
 [dev-dependencies]
 base64 = "0.13.0"
@@ -52,8 +58,9 @@ submillisecond = { path = ".", features = [
   "json",
   "logging",
   "query",
+  "websocket",
 ] } # for examples
-ron = "0.7"
+ron = "0.8"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 
 [package.metadata.docs.rs]

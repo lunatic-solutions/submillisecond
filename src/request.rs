@@ -1,8 +1,12 @@
 use std::{convert, ops};
 
+use lunatic::net::TcpStream;
+use lunatic::Process;
+
 use crate::core::Body;
 use crate::params::Params;
 use crate::reader::UriReader;
+use crate::supervisor::WorkerResponse;
 use crate::Response;
 
 /// Wrapper for [`http::Request`] containing params and cursor.
@@ -15,11 +19,31 @@ pub struct RequestContext {
     pub reader: UriReader,
     /// The next handler.
     ///
-    /// This is useful for handler layers. See [`RequestContext::next_handler`].
-    pub next: Option<fn(RequestContext) -> Response>,
+    /// This is useful for middleware. See [`RequestContext::next_handler`].
+    pub(crate) next: Option<fn(RequestContext) -> Response>,
+    /// The TCP stream.
+    pub(crate) stream: TcpStream,
+    /// The worker mailbox.
+    pub(crate) supervisor: Process<WorkerResponse>,
 }
 
 impl RequestContext {
+    pub(crate) fn new(
+        request: http::Request<Body<'static>>,
+        stream: TcpStream,
+        supervisor: Process<WorkerResponse>,
+    ) -> Self {
+        let path = request.uri().path().to_string();
+        RequestContext {
+            request,
+            params: Params::default(),
+            reader: UriReader::new(path),
+            next: None,
+            stream,
+            supervisor,
+        }
+    }
+
     /// Call the next handler, returning the response.
     ///
     /// # Panics
@@ -58,17 +82,5 @@ impl ops::Deref for RequestContext {
 impl ops::DerefMut for RequestContext {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.request
-    }
-}
-
-impl From<http::Request<Body<'static>>> for RequestContext {
-    fn from(request: http::Request<Body<'static>>) -> Self {
-        let path = request.uri().path().to_string();
-        RequestContext {
-            request,
-            params: Params::default(),
-            reader: UriReader::new(path),
-            next: None,
-        }
     }
 }

@@ -34,10 +34,20 @@ pub(crate) enum WorkerResponse {
         #[serde(with = "serde_bytes")] Vec<u8>,
         #[serde(with = "serde_bytes")] Vec<u8>,
     ),
-    /// The TCP connection was closed before any data arrived
+    /// The TCP connection was closed before any data arrived.
     TcpClosed,
-    /// Failed to process request
+    /// Update the worker process for notifying about supervisor events.
+    UpdateWorkerProcess(Process<SupervisorResponse>),
+    /// Failed to process request.
     Failure(String),
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub(crate) enum SupervisorResponse {
+    /// Response was sent sucessfully.
+    ResponseSent,
+    /// Failed to write response to TCP stream.
+    ResponseFailure,
 }
 
 pub(crate) fn request_supervisor<T, Arg, Ret>(
@@ -66,68 +76,90 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
             request_woker::<T, Arg, Ret>,
         );
 
-        // Each request has a default 5 minute timeout.
-        match mailbox.receive_timeout(Duration::from_secs(5 * 60)) {
-            lunatic::MailboxResult::Message(msg) => match msg {
-                WorkerResponse::Response(ref data, next) => {
-                    let result = stream.write_all(data);
-                    if let Err(err) = result {
-                        log_error(&format!("Failed to send response: {:?}", err));
+        // Used to send supervisor response messages.
+        let mut worker_process: Option<Process<SupervisorResponse>> = None;
+
+        'mailbox: loop {
+            // Each request has a default 5 minute timeout.
+            match mailbox.receive_timeout(Duration::from_secs(5 * 60)) {
+                lunatic::MailboxResult::Message(msg) => match msg {
+                    WorkerResponse::Response(ref data, next) => {
+                        match stream.write_all(data) {
+                            Ok(()) => {
+                                if let Some(worker_process) = &worker_process {
+                                    worker_process.send(SupervisorResponse::ResponseSent);
+                                }
+                            }
+                            Err(err) => {
+                                if let Some(worker_process) = &worker_process {
+                                    worker_process.send(SupervisorResponse::ResponseFailure);
+                                }
+                                log_error(&format!("Failed to send response: {err:?}"));
+                                break 'keepalive;
+                            }
+                        }
+
+                        request_buffer = next;
+                    }
+                    WorkerResponse::Failure(ref err) => {
+                        log_error(err);
+                        let response: Response =
+                            (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+                                .into_response();
+                        let response = response_to_vec(response);
+                        let result = stream.write_all(&response);
+                        if let Err(err) = result {
+                            log_error(&format!("Failed to send response: {err:?}"));
+                        }
                         break 'keepalive;
                     }
-                    request_buffer = next;
+                    WorkerResponse::UpdateWorkerProcess(process) => {
+                        worker_process = Some(process);
+                        continue;
+                    }
+                    WorkerResponse::TcpClosed => {
+                        // If the `TcpStream` was closed without sending any data,
+                        // request is ignored.
+                        break 'keepalive;
+                    }
+                },
+                lunatic::MailboxResult::TimedOut => {
+                    // Kill worker
+                    worker.kill();
+                    log_error("Request timed out");
+                    let response: Response =
+                        (StatusCode::REQUEST_TIMEOUT, "Request timed out").into_response();
+                    let response = response_to_vec(response);
+                    let result = stream.write_all(&response);
+                    if let Err(err) = result {
+                        log_error(&format!("Failed to send response: {err:?}"));
+                    }
+                    break 'keepalive;
                 }
-                WorkerResponse::Failure(ref err) => {
-                    log_error(err);
+                lunatic::MailboxResult::LinkDied(_) => {
+                    log_error("Worker process panicked");
                     let response: Response =
                         (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
                             .into_response();
                     let response = response_to_vec(response);
                     let result = stream.write_all(&response);
                     if let Err(err) = result {
-                        log_error(&format!("Failed to send response: {:?}", err));
+                        log_error(&format!("Failed to send response: {err:?}"));
                     }
                     break 'keepalive;
                 }
-                WorkerResponse::TcpClosed => {
-                    // If the `TcpStream` was closed without sending any data,
-                    // request is ignored.
-                    break 'keepalive;
-                }
-            },
-            lunatic::MailboxResult::TimedOut => {
-                // Kill worker
-                worker.kill();
-                log_error(&String::from("Request timed out"));
-                let response: Response =
-                    (StatusCode::REQUEST_TIMEOUT, "Request timed out").into_response();
-                let response = response_to_vec(response);
-                let result = stream.write_all(&response);
-                if let Err(err) = result {
-                    log_error(&format!("Failed to send response: {:?}", err));
-                }
-                break 'keepalive;
-            }
-            lunatic::MailboxResult::LinkDied(_) => {
-                log_error(&String::from("Worker process panicked"));
-                let response: Response =
-                    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response();
-                let response = response_to_vec(response);
-                let result = stream.write_all(&response);
-                if let Err(err) = result {
-                    log_error(&format!("Failed to send response: {:?}", err));
-                }
-                break 'keepalive;
-            }
-            _ => unreachable!(),
-        };
+                _ => unreachable!(),
+            };
+
+            break 'mailbox;
+        }
     }
 }
 
 /// Request workers are processes that do all the request parsing and handling.
 /// At the end they return a buffer to the supervisor to send the response back
 /// to the client.
-fn request_woker<T, Arg, Ret>(worker_request: WorkerRequest<T>, _: Mailbox<()>)
+fn request_woker<T, Arg, Ret>(mut worker_request: WorkerRequest<T>, _: Mailbox<()>)
 where
     T: Handler<Arg, Ret> + Copy,
     T: Fn<T> + Copy,
@@ -145,11 +177,11 @@ where
     // can't implement the `Handler` trait for the type `fn(RequestContext<'a>)`,
     // only for `fn(RequestContext)`. This was the simplest workaround for it.
     //
-    // It is actually safe to dot this. This function is an entry point to a process
+    // It is actually safe to do this. This function is an entry point to a process
     // and `requests_buffer` will only be dropped right before the process finishes.
     let requests_buffer = unsafe { std::mem::transmute(&mut requests_buffer) };
 
-    let pipelined_request = core::parse_requests(requests_buffer, worker_request.stream);
+    let pipelined_request = core::parse_requests(requests_buffer, &mut worker_request.stream);
 
     let (request, next) = pipelined_request.pipeline();
     // Check if first request is valid
@@ -164,8 +196,7 @@ where
             worker_request
                 .supervisor
                 .send(WorkerResponse::Failure(format!(
-                    "Reqeust parsing failed: {:?}",
-                    error
+                    "Reqeust parsing failed: {error:?}"
                 )));
             return; // Abort request handling
         }
@@ -173,7 +204,15 @@ where
 
     log_request(&request);
 
-    let response = Handler::handle(&handler, RequestContext::from(request)).into_response();
+    let response = Handler::handle(
+        &handler,
+        RequestContext::new(
+            request,
+            worker_request.stream,
+            worker_request.supervisor.clone(),
+        ),
+    )
+    .into_response();
     let response = response_to_vec(response);
     worker_request
         .supervisor
@@ -242,9 +281,9 @@ fn log_request(request: &Request<Body>) {
 fn log_request(_request: &Request<Body>) {}
 
 #[cfg(feature = "logging")]
-fn log_error(err: &String) {
-    lunatic_log::error!("{}", err);
+fn log_error(err: impl std::fmt::Display) {
+    lunatic_log::error!("{err}");
 }
 
 #[cfg(not(feature = "logging"))]
-fn log_error(_err: &String) {}
+fn log_error(_err: impl std::fmt::Display) {}

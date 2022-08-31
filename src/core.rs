@@ -85,10 +85,10 @@ impl<'a> PipelinedRequests<'a> {
     }
 }
 
-pub(crate) fn parse_requests(
-    request_buffer: &mut Vec<u8>,
-    mut stream: TcpStream,
-) -> PipelinedRequests {
+pub(crate) fn parse_requests<'a>(
+    request_buffer: &'a mut Vec<u8>,
+    stream: &mut TcpStream,
+) -> PipelinedRequests<'a> {
     let mut buffer = [0_u8; REQUEST_BUFFER_SIZE];
     let mut headers = [EMPTY_HEADER; MAX_HEADERS];
 
