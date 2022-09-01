@@ -87,6 +87,15 @@ impl FromRequest for WebSocket {
     type Rejection = WebSocketRejection;
 
     fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
+        // Connection must be upgrade to websocket
+        let upgrade_header = req
+            .headers()
+            .get(CONNECTION)
+            .ok_or(WebSocketRejection::MissingUpgradeHeader)?;
+        if upgrade_header.as_bytes() != b"websocket" {
+            return Err(WebSocketRejection::MissingUpgradeHeader);
+        }
+
         // Must be HTTP 1.1 or greater
         if req.version() < http::Version::HTTP_11 {
             return Err(WebSocketRejection::UnsupportedHttpVersion);
@@ -187,6 +196,8 @@ impl From<WebSocketConfig> for tungstenite::protocol::WebSocketConfig {
 
 /// WebSocket upgrade rejection.
 pub enum WebSocketRejection {
+    /// Missing upgrade header.
+    MissingUpgradeHeader,
     /// Missing websocket key.
     MissingWebSocketKey,
     /// Missing websocket version.
@@ -202,6 +213,9 @@ pub enum WebSocketRejection {
 impl IntoResponse for WebSocketRejection {
     fn into_response(self) -> Response {
         let (status, body) = match self {
+            WebSocketRejection::MissingUpgradeHeader => {
+                (StatusCode::BAD_REQUEST, "missing upgrade header")
+            }
             WebSocketRejection::MissingWebSocketKey => {
                 (StatusCode::BAD_REQUEST, "missing websocket key")
             }
