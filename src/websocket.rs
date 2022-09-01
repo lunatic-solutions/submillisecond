@@ -1,5 +1,6 @@
 //! Websockets.
 
+use std::ops;
 use std::time::Duration;
 
 use base64ct::{Base64, Encoding};
@@ -10,6 +11,7 @@ use http::StatusCode;
 use lunatic::function::FuncRef;
 use lunatic::net::TcpStream;
 use lunatic::{Mailbox, Process};
+use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 pub use tungstenite::protocol::frame::CloseFrame;
@@ -22,7 +24,62 @@ use crate::supervisor::{Connection, SupervisorResponse};
 use crate::RequestContext;
 
 /// A websocket connection.
-pub type WebSocketConnection = tungstenite::protocol::WebSocket<TcpStream>;
+#[derive(Debug)]
+pub struct WebSocketConnection(tungstenite::protocol::WebSocket<TcpStream>);
+
+impl From<tungstenite::protocol::WebSocket<TcpStream>> for WebSocketConnection {
+    fn from(conn: tungstenite::protocol::WebSocket<TcpStream>) -> Self {
+        WebSocketConnection(conn)
+    }
+}
+
+impl ops::Deref for WebSocketConnection {
+    type Target = tungstenite::protocol::WebSocket<TcpStream>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl ops::DerefMut for WebSocketConnection {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Serialize for WebSocketConnection {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut conn = serializer.serialize_struct("WebSocketConnection", 2)?;
+        conn.serialize_field("stream", self.0.get_ref())?;
+        conn.serialize_field("config", &WebSocketConfig::from(*self.0.get_config()))?;
+        conn.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for WebSocketConnection {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct WebSocketConnectionVisitor {
+            stream: TcpStream,
+            config: WebSocketConfig,
+        }
+
+        let conn = WebSocketConnectionVisitor::deserialize(deserializer)?;
+
+        Ok(tungstenite::protocol::WebSocket::from_raw_socket(
+            conn.stream,
+            Role::Server,
+            Some(conn.config.into()),
+        )
+        .into())
+    }
+}
 
 /// WebSocket extractor which upgrades a HTTP connection.
 ///
@@ -71,7 +128,7 @@ impl WebSocket {
                         Role::Server,
                         config.map(|config| config.into()),
                     );
-                    callback(conn);
+                    callback(conn.into());
                 }
             },
         );
@@ -186,6 +243,17 @@ pub struct WebSocketConfig {
 impl From<WebSocketConfig> for tungstenite::protocol::WebSocketConfig {
     fn from(config: WebSocketConfig) -> Self {
         tungstenite::protocol::WebSocketConfig {
+            max_send_queue: config.max_send_queue,
+            max_message_size: config.max_message_size,
+            max_frame_size: config.max_frame_size,
+            accept_unmasked_frames: config.accept_unmasked_frames,
+        }
+    }
+}
+
+impl From<tungstenite::protocol::WebSocketConfig> for WebSocketConfig {
+    fn from(config: tungstenite::protocol::WebSocketConfig) -> Self {
+        WebSocketConfig {
             max_send_queue: config.max_send_queue,
             max_message_size: config.max_message_size,
             max_frame_size: config.max_frame_size,
