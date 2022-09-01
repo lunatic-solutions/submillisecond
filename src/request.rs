@@ -20,6 +20,7 @@ pub struct RequestContext {
     /// This is useful for middleware. See [`RequestContext::next_handler`].
     pub(crate) next: Option<fn(RequestContext) -> Response>,
     /// The TCP stream.
+    #[cfg_attr(not(feature = "websocket"), allow(dead_code))]
     pub(crate) stream: TcpStream,
 }
 
