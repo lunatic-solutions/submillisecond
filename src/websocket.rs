@@ -18,7 +18,7 @@ pub use tungstenite::Message;
 
 use crate::extract::FromRequest;
 use crate::response::{IntoResponse, Response};
-use crate::supervisor::{SupervisorResponse, WorkerResponse};
+use crate::supervisor::{Connection, SupervisorResponse};
 use crate::RequestContext;
 
 /// A websocket connection.
@@ -41,7 +41,6 @@ pub type WebSocketConnection = tungstenite::protocol::WebSocket<TcpStream>;
 /// ```
 pub struct WebSocket {
     stream: TcpStream,
-    supervisor: Process<WorkerResponse>,
     websocket_key: Vec<u8>,
 }
 
@@ -77,10 +76,8 @@ impl WebSocket {
             },
         );
 
-        self.supervisor
-            .send(WorkerResponse::UpdateWorkerProcess(process));
-
         WebSocketUpgrade {
+            process,
             websocket_key: self.websocket_key,
         }
     }
@@ -118,7 +115,6 @@ impl FromRequest for WebSocket {
 
         Ok(WebSocket {
             stream: req.stream.clone(),
-            supervisor: req.supervisor.clone(),
             websocket_key,
         })
     }
@@ -126,6 +122,7 @@ impl FromRequest for WebSocket {
 
 /// An upgraded websocket response.
 pub struct WebSocketUpgrade {
+    process: Process<SupervisorResponse>,
     websocket_key: Vec<u8>,
 }
 
@@ -144,6 +141,7 @@ impl IntoResponse for WebSocketUpgrade {
             .header(UPGRADE, "websocket")
             .header(CONNECTION, "Upgrade")
             .header(SEC_WEBSOCKET_ACCEPT, base64_key)
+            .extension(Connection::Upgrade(self.process))
             .body(Vec::new())
             .unwrap()
     }

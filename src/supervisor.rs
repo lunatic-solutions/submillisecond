@@ -30,14 +30,9 @@ where
 pub(crate) enum WorkerResponse {
     /// Response contains the HTTP response and sometimes data from a pipelined
     /// request.
-    Response(
-        #[serde(with = "serde_bytes")] Vec<u8>,
-        #[serde(with = "serde_bytes")] Vec<u8>,
-    ),
+    Response(#[serde(with = "serde_bytes")] Vec<u8>, Connection),
     /// The TCP connection was closed before any data arrived.
     TcpClosed,
-    /// Update the worker process for notifying about supervisor events.
-    UpdateWorkerProcess(Process<SupervisorResponse>),
     /// Failed to process request.
     Failure(String),
 }
@@ -48,6 +43,12 @@ pub(crate) enum SupervisorResponse {
     ResponseSent,
     /// Failed to write response to TCP stream.
     ResponseFailure,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) enum Connection {
+    KeepAlive(#[serde(with = "serde_bytes")] Vec<u8>),
+    Upgrade(Process<SupervisorResponse>),
 }
 
 pub(crate) fn request_supervisor<T, Arg, Ret>(
@@ -76,68 +77,33 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
             request_woker::<T, Arg, Ret>,
         );
 
-        // Used to send supervisor response messages.
-        let mut worker_process: Option<Process<SupervisorResponse>> = None;
-
-        'mailbox: loop {
-            // Each request has a default 5 minute timeout.
-            match mailbox.receive_timeout(Duration::from_secs(5 * 60)) {
-                lunatic::MailboxResult::Message(msg) => match msg {
-                    WorkerResponse::Response(ref data, next) => {
-                        match stream.write_all(data) {
-                            Ok(()) => {
-                                if let Some(worker_process) = &worker_process {
-                                    worker_process.send(SupervisorResponse::ResponseSent);
-                                }
-                            }
-                            Err(err) => {
-                                if let Some(worker_process) = &worker_process {
-                                    worker_process.send(SupervisorResponse::ResponseFailure);
-                                }
-                                log_error(&format!("Failed to send response: {err:?}"));
-                                break 'keepalive;
-                            }
-                        }
-
-                        request_buffer = next;
-                    }
-                    WorkerResponse::Failure(ref err) => {
-                        log_error(err);
-                        let response: Response =
-                            (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
-                                .into_response();
-                        let response = response_to_vec(response);
-                        let result = stream.write_all(&response);
-                        if let Err(err) = result {
-                            log_error(&format!("Failed to send response: {err:?}"));
-                        }
-                        break 'keepalive;
-                    }
-                    WorkerResponse::UpdateWorkerProcess(process) => {
-                        worker_process = Some(process);
-                        continue;
-                    }
-                    WorkerResponse::TcpClosed => {
-                        // If the `TcpStream` was closed without sending any data,
-                        // request is ignored.
-                        break 'keepalive;
-                    }
-                },
-                lunatic::MailboxResult::TimedOut => {
-                    // Kill worker
-                    worker.kill();
-                    log_error("Request timed out");
-                    let response: Response =
-                        (StatusCode::REQUEST_TIMEOUT, "Request timed out").into_response();
-                    let response = response_to_vec(response);
-                    let result = stream.write_all(&response);
+        // Each request has a default 5 minute timeout.
+        match mailbox.receive_timeout(Duration::from_secs(5)) {
+            lunatic::MailboxResult::Message(msg) => match msg {
+                WorkerResponse::Response(ref data, Connection::KeepAlive(next)) => {
+                    let result = stream.write_all(data);
                     if let Err(err) = result {
                         log_error(&format!("Failed to send response: {err:?}"));
+                        break 'keepalive;
                     }
+
+                    request_buffer = next;
+                }
+                WorkerResponse::Response(ref data, Connection::Upgrade(process)) => {
+                    match stream.write_all(data) {
+                        Ok(()) => {
+                            process.send(SupervisorResponse::ResponseSent);
+                        }
+                        Err(err) => {
+                            process.send(SupervisorResponse::ResponseFailure);
+                            log_error(&format!("Failed to send response: {err:?}"));
+                        }
+                    }
+
                     break 'keepalive;
                 }
-                lunatic::MailboxResult::LinkDied(_) => {
-                    log_error("Worker process panicked");
+                WorkerResponse::Failure(ref err) => {
+                    log_error(err);
                     let response: Response =
                         (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
                             .into_response();
@@ -148,10 +114,37 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
                     }
                     break 'keepalive;
                 }
-                _ => unreachable!(),
-            };
-
-            break 'mailbox;
+                WorkerResponse::TcpClosed => {
+                    // If the `TcpStream` was closed without sending any data,
+                    // request is ignored.
+                    break 'keepalive;
+                }
+            },
+            lunatic::MailboxResult::TimedOut => {
+                // Kill worker
+                worker.kill();
+                log_error("Request timed out");
+                let response: Response =
+                    (StatusCode::REQUEST_TIMEOUT, "Request timed out").into_response();
+                let response = response_to_vec(response);
+                let result = stream.write_all(&response);
+                if let Err(err) = result {
+                    log_error(&format!("Failed to send response: {err:?}"));
+                }
+                break 'keepalive;
+            }
+            lunatic::MailboxResult::LinkDied(_) => {
+                log_error("Worker process panicked");
+                let response: Response =
+                    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response();
+                let response = response_to_vec(response);
+                let result = stream.write_all(&response);
+                if let Err(err) = result {
+                    log_error(&format!("Failed to send response: {err:?}"));
+                }
+                break 'keepalive;
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -206,17 +199,18 @@ where
 
     let response = Handler::handle(
         &handler,
-        RequestContext::new(
-            request,
-            worker_request.stream,
-            worker_request.supervisor.clone(),
-        ),
+        RequestContext::new(request, worker_request.stream),
     )
     .into_response();
+    let connection = response
+        .extensions()
+        .get::<Connection>()
+        .cloned()
+        .unwrap_or(Connection::KeepAlive(next));
     let response = response_to_vec(response);
     worker_request
         .supervisor
-        .send(WorkerResponse::Response(response, next));
+        .send(WorkerResponse::Response(response, connection));
 }
 
 fn response_to_vec(mut response: Response) -> Vec<u8> {

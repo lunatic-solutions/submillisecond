@@ -1,12 +1,10 @@
 use std::{convert, ops};
 
 use lunatic::net::TcpStream;
-use lunatic::Process;
 
 use crate::core::Body;
 use crate::params::Params;
 use crate::reader::UriReader;
-use crate::supervisor::WorkerResponse;
 use crate::Response;
 
 /// Wrapper for [`http::Request`] containing params and cursor.
@@ -23,16 +21,10 @@ pub struct RequestContext {
     pub(crate) next: Option<fn(RequestContext) -> Response>,
     /// The TCP stream.
     pub(crate) stream: TcpStream,
-    /// The worker mailbox.
-    pub(crate) supervisor: Process<WorkerResponse>,
 }
 
 impl RequestContext {
-    pub(crate) fn new(
-        request: http::Request<Body<'static>>,
-        stream: TcpStream,
-        supervisor: Process<WorkerResponse>,
-    ) -> Self {
+    pub(crate) fn new(request: http::Request<Body<'static>>, stream: TcpStream) -> Self {
         let path = request.uri().path().to_string();
         RequestContext {
             request,
@@ -40,7 +32,6 @@ impl RequestContext {
             reader: UriReader::new(path),
             next: None,
             stream,
-            supervisor,
         }
     }
 
