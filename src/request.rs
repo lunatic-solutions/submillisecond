@@ -24,7 +24,8 @@ pub struct RequestContext {
 }
 
 impl RequestContext {
-    pub(crate) fn new(request: http::Request<Body<'static>>, stream: TcpStream) -> Self {
+    /// Creates a new instance of request context.
+    pub fn new(request: http::Request<Body<'static>>, stream: TcpStream) -> Self {
         let path = request.uri().path().to_string();
         RequestContext {
             request,
