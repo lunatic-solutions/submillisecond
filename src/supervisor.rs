@@ -47,7 +47,12 @@ pub(crate) enum SupervisorResponse {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) enum Connection {
+    /// Keep the connection alive, using the `Vec<u8>` as the start of the next
+    /// request.
     KeepAlive(#[serde(with = "serde_bytes")] Vec<u8>),
+    /// Upgrade the connection and close. It is expected that a process was
+    /// spawned by a handler to handle the upgraded connection with the cloned
+    /// TcpStream.
     Upgrade(Process<SupervisorResponse>),
 }
 
