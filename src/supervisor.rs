@@ -83,7 +83,7 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
         );
 
         // Each request has a default 5 minute timeout.
-        match mailbox.receive_timeout(Duration::from_secs(5)) {
+        match mailbox.receive_timeout(Duration::from_secs(5 * 60)) {
             lunatic::MailboxResult::Message(msg) => match msg {
                 WorkerResponse::Response(ref data, Connection::KeepAlive(next)) => {
                     let result = stream.write_all(data);
