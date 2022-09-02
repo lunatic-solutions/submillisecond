@@ -1,4 +1,5 @@
 use http::Method;
+use lunatic::net::TcpStream;
 use lunatic::test;
 use submillisecond::{http, router, Body, Handler, RequestContext};
 
@@ -7,12 +8,13 @@ macro_rules! build_request {
         build_request!($method, $uri, &[])
     };
     ($method: ident, $uri: literal, $body: expr) => {
-        RequestContext::from(
+        RequestContext::new(
             http::Request::builder()
                 .method(Method::$method)
                 .uri($uri)
                 .body(Body::from_slice($body))
                 .unwrap(),
+            TcpStream::connect("127.0.0.1:22").unwrap(),
         )
     };
 }

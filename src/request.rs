@@ -1,5 +1,7 @@
 use std::{convert, ops};
 
+use lunatic::net::TcpStream;
+
 use crate::core::Body;
 use crate::params::Params;
 use crate::reader::UriReader;
@@ -15,11 +17,26 @@ pub struct RequestContext {
     pub reader: UriReader,
     /// The next handler.
     ///
-    /// This is useful for handler layers. See [`RequestContext::next_handler`].
-    pub next: Option<fn(RequestContext) -> Response>,
+    /// This is useful for middleware. See [`RequestContext::next_handler`].
+    pub(crate) next: Option<fn(RequestContext) -> Response>,
+    /// The TCP stream.
+    #[cfg_attr(not(feature = "websocket"), allow(dead_code))]
+    pub(crate) stream: TcpStream,
 }
 
 impl RequestContext {
+    /// Creates a new instance of request context.
+    pub fn new(request: http::Request<Body<'static>>, stream: TcpStream) -> Self {
+        let path = request.uri().path().to_string();
+        RequestContext {
+            request,
+            params: Params::default(),
+            reader: UriReader::new(path),
+            next: None,
+            stream,
+        }
+    }
+
     /// Call the next handler, returning the response.
     ///
     /// # Panics
@@ -58,17 +75,5 @@ impl ops::Deref for RequestContext {
 impl ops::DerefMut for RequestContext {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.request
-    }
-}
-
-impl From<http::Request<Body<'static>>> for RequestContext {
-    fn from(request: http::Request<Body<'static>>) -> Self {
-        let path = request.uri().path().to_string();
-        RequestContext {
-            request,
-            params: Params::default(),
-            reader: UriReader::new(path),
-            next: None,
-        }
     }
 }

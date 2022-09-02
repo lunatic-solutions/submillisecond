@@ -1,6 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use http::Method;
-use submillisecond::{router, Body, Handler};
+use lunatic::net::TcpStream;
+use submillisecond::{router, Body, Handler, RequestContext};
 
 fn handler() {}
 
@@ -10,16 +11,21 @@ fn router_benchmark_simple(c: &mut Criterion) {
     };
 
     c.bench_function("simple router", |b| {
-        b.iter(|| {
-            let req = http::Request::builder()
-                .method(Method::GET)
-                .uri("/simple")
-                .body(Body::from_slice(&[]))
-                .unwrap();
+        let stream = TcpStream::connect("127.0.0.1:22").unwrap();
 
-            let res = Handler::handle(&router, req.into());
+        b.iter(|| {
+            let req = RequestContext::new(
+                http::Request::builder()
+                    .method(Method::GET)
+                    .uri("/simple")
+                    .body(Body::from_slice(&[]))
+                    .unwrap(),
+                stream.clone(),
+            );
+
+            let res = Handler::handle(&router, req);
             assert!(res.status().is_success());
-        })
+        });
     });
 }
 
@@ -81,16 +87,21 @@ fn router_benchmark_nested(c: &mut Criterion) {
     };
 
     c.bench_function("nested router", |b| {
-        b.iter(|| {
-            let req = http::Request::builder()
-                .method(Method::GET)
-                .uri("/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/one/two/three/four/five/six/seven/eight/nine/ten")
-                .body(Body::from_slice(&[]))
-                .unwrap();
+        let stream = TcpStream::connect("127.0.0.1:22").unwrap();
 
-            let res = Handler::handle(&router, req.into());
+        b.iter(|| {
+            let req = RequestContext::new(
+                http::Request::builder()
+                    .method(Method::GET)
+                    .uri("/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/one/two/three/four/five/six/seven/eight/nine/ten")
+                    .body(Body::from_slice(&[]))
+                    .unwrap(),
+                stream.clone(),
+            );
+
+            let res = Handler::handle(&router, req);
             assert!(res.status().is_success());
-        })
+        });
     });
 }
 
@@ -152,16 +163,21 @@ fn router_benchmark_params(c: &mut Criterion) {
     };
 
     c.bench_function("params router", |b| {
-        b.iter(|| {
-            let req = http::Request::builder()
-                .method(Method::GET)
-                .uri("/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/one/two/three/four/five/six/seven/eight/nine/ten")
-                .body(Body::from_slice(&[]))
-                .unwrap();
+        let stream = TcpStream::connect("127.0.0.1:22").unwrap();
 
-            let res = Handler::handle(&router, req.into());
+        b.iter(|| {
+            let req = RequestContext::new(
+                http::Request::builder()
+                    .method(Method::GET)
+                    .uri("/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/one/two/three/four/five/six/seven/eight/nine/ten")
+                    .body(Body::from_slice(&[]))
+                    .unwrap(),
+                stream.clone(),
+            );
+
+            let res = Handler::handle(&router, req);
             assert!(res.status().is_success());
-        })
+        });
     });
 }
 
