@@ -6,6 +6,8 @@ use lunatic::function::reference::Fn;
 use lunatic::function::FuncRef;
 use lunatic::net::{TcpListener, ToSocketAddrs};
 use lunatic::Process;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use crate::supervisor::request_supervisor;
 use crate::Handler;
@@ -26,18 +28,34 @@ use crate::Handler;
 /// .serve("0.0.0.0:3000")
 /// ```
 #[derive(Clone, Copy)]
-pub struct Application<T, Arg, Ret> {
+pub struct Application<T, Arg, Ret>
+where
+    T: Handler<Arg, Ret>,
+{
     handler: T,
     phantom: PhantomData<(Arg, Ret)>,
 }
 
-impl<T, Arg, Ret> Application<T, Arg, Ret>
+impl<T, Arg, Ret> Application<FuncRef<T>, Arg, Ret>
 where
-    T: Handler<Arg, Ret> + Copy,
     T: Fn<T> + Copy,
+    FuncRef<T>: Handler<Arg, Ret>,
 {
     /// Creates a new application with a given router.
     pub fn new(handler: T) -> Self {
+        Application {
+            handler: FuncRef::new(handler),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<T, Arg, Ret> Application<T, Arg, Ret>
+where
+    T: Handler<Arg, Ret> + Serialize + DeserializeOwned + Clone,
+{
+    /// Creates a new application with a custom router.
+    pub fn new_custom(handler: T) -> Self {
         Application {
             handler,
             phantom: PhantomData,
@@ -50,11 +68,10 @@ where
     where
         A: ToSocketAddrs + Clone,
     {
-        let handler_ref = FuncRef::new(self.handler);
         let listener = TcpListener::bind(addr.clone())?;
         log_server_start(addr);
         while let Ok((stream, _)) = listener.accept() {
-            Process::spawn_link((stream, handler_ref), request_supervisor);
+            Process::spawn_link((stream, self.handler.clone()), request_supervisor);
         }
 
         Ok(())

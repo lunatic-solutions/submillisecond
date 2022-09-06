@@ -1,12 +1,12 @@
 use std::io::Write;
+use std::marker::PhantomData;
 use std::time::Duration;
 
 use headers::HeaderValue;
 use http::{header, Request, StatusCode, Version};
-use lunatic::function::reference::Fn;
-use lunatic::function::FuncRef;
 use lunatic::net::TcpStream;
 use lunatic::{Mailbox, Process};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::core::{Body, ParseRequestError};
@@ -15,15 +15,16 @@ use crate::{core, Handler, RequestContext};
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
-pub(crate) struct WorkerRequest<T>
+pub(crate) struct WorkerRequest<T, Arg, Ret>
 where
-    T: Fn<T>,
+    T: Serialize + DeserializeOwned,
 {
     supervisor: Process<WorkerResponse>,
     stream: TcpStream,
-    handler: FuncRef<T>,
+    handler: T,
     #[serde(with = "serde_bytes")]
     request_buffer: Vec<u8>,
+    phantom: PhantomData<(Arg, Ret)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -57,11 +58,10 @@ pub(crate) enum Connection {
 }
 
 pub(crate) fn request_supervisor<T, Arg, Ret>(
-    (mut stream, handler_ref): (TcpStream, FuncRef<T>),
+    (mut stream, handler_ref): (TcpStream, T),
     mailbox: Mailbox<WorkerResponse>,
 ) where
-    T: Handler<Arg, Ret> + Copy,
-    T: Fn<T> + Copy,
+    T: Handler<Arg, Ret> + Serialize + DeserializeOwned + Clone,
 {
     let supervisor = mailbox.this();
     let mut request_buffer: Vec<u8> = Vec::new();
@@ -76,8 +76,9 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
             WorkerRequest {
                 supervisor: supervisor.clone(),
                 stream: stream.clone(),
-                handler: handler_ref,
+                handler: handler_ref.clone(),
                 request_buffer,
+                phantom: PhantomData,
             },
             request_woker::<T, Arg, Ret>,
         );
@@ -157,12 +158,11 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
 /// Request workers are processes that do all the request parsing and handling.
 /// At the end they return a buffer to the supervisor to send the response back
 /// to the client.
-fn request_woker<T, Arg, Ret>(mut worker_request: WorkerRequest<T>, _: Mailbox<()>)
+fn request_woker<T, Arg, Ret>(mut worker_request: WorkerRequest<T, Arg, Ret>, _: Mailbox<()>)
 where
-    T: Handler<Arg, Ret> + Copy,
-    T: Fn<T> + Copy,
+    T: Handler<Arg, Ret> + Serialize + DeserializeOwned,
 {
-    let handler = *worker_request.handler;
+    let handler = worker_request.handler;
     let mut requests_buffer = worker_request.request_buffer;
     // SAFETY:
     //

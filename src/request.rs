@@ -8,6 +8,7 @@ use crate::reader::UriReader;
 use crate::Response;
 
 /// Wrapper for [`http::Request`] containing params and cursor.
+#[derive(Debug)]
 pub struct RequestContext {
     /// The [`http::Request`] instance.
     pub request: http::Request<Body<'static>>,
