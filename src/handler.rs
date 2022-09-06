@@ -9,11 +9,10 @@ use crate::{RequestContext, Response};
 
 /// Implemented for process-safe [`Handlers`](Handler).
 ///
-/// Submillisecond handles every request in a separate [lunatic
-/// process](lunatic::Process), and lunatic's processes are sandboxed. This
-/// means that no memory is shared between the request handler and the rest of
-/// the app. This introduces an additional limitation on what can be a
-/// [`Handler`].
+/// Submillisecond handles every request in a separate lunatic process, and
+/// lunatic's processes are sandboxed. This means that no memory is shared
+/// between the request handler and the rest of the app. This introduces an
+/// additional limitation on what can be a [`Handler`].
 ///
 /// Two kinds of types are safe to be used as handlers:
 /// - Static functions
