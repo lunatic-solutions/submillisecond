@@ -2,13 +2,11 @@ use std::io;
 use std::marker::PhantomData;
 
 pub use http;
-use lunatic::function::reference::Fn;
-use lunatic::function::FuncRef;
 use lunatic::net::{TcpListener, ToSocketAddrs};
 use lunatic::Process;
 
 use crate::supervisor::request_supervisor;
-use crate::Handler;
+use crate::ProcessSafeHandler;
 
 /// An application containing a router for listening and handling incoming
 /// requests.
@@ -26,15 +24,14 @@ use crate::Handler;
 /// .serve("0.0.0.0:3000")
 /// ```
 #[derive(Clone, Copy)]
-pub struct Application<T, Arg, Ret> {
+pub struct Application<T, Kind, Arg, Ret> {
     handler: T,
-    phantom: PhantomData<(Arg, Ret)>,
+    phantom: PhantomData<(Kind, Arg, Ret)>,
 }
 
-impl<T, Arg, Ret> Application<T, Arg, Ret>
+impl<T, Kind, Arg, Ret> Application<T, Kind, Arg, Ret>
 where
-    T: Handler<Arg, Ret> + Copy,
-    T: Fn<T> + Copy,
+    T: ProcessSafeHandler<Kind, Arg, Ret>,
 {
     /// Creates a new application with a given router.
     pub fn new(handler: T) -> Self {
@@ -50,11 +47,11 @@ where
     where
         A: ToSocketAddrs + Clone,
     {
-        let handler_ref = FuncRef::new(self.handler);
+        let safe_handler = self.handler.safe_handler();
         let listener = TcpListener::bind(addr.clone())?;
         log_server_start(addr);
         while let Ok((stream, _)) = listener.accept() {
-            Process::spawn_link((stream, handler_ref), request_supervisor);
+            Process::spawn_link((stream, safe_handler.clone()), request_supervisor);
         }
 
         Ok(())
