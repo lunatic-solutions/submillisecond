@@ -53,7 +53,7 @@ tungstenite = { version = "0.17", optional = true }
 base64 = "0.13.0"
 criterion = { git = "https://github.com/bheisler/criterion.rs", branch = "version-0.4", default-features = false }
 submillisecond = { path = ".", features = [
-  "cookie",
+  "cookies",
   "json",
   "logging",
   "query",
