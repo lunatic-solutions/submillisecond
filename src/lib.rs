@@ -74,7 +74,7 @@ pub use crate::typed_header::*;
 #[macro_use]
 pub(crate) mod macros;
 
-#[cfg(feature = "cookie")]
+#[cfg(feature = "cookies")]
 pub mod cookies;
 pub mod defaults;
 pub mod extract;
@@ -82,7 +82,7 @@ pub mod extract;
 pub mod params;
 pub mod reader;
 pub mod response;
-#[cfg(feature = "cookie")]
+#[cfg(feature = "cookies")]
 pub mod session;
 #[cfg(feature = "template")]
 pub mod template;
