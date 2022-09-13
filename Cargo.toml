@@ -14,7 +14,7 @@ members = ["submillisecond_macros"]
 
 [features]
 default = ["logging"]
-cookie = ["dep:cookie"]
+cookies = ["dep:cookie", "serde_json"]
 json = ["serde_json"]
 logging = ["ansi_term", "lunatic-log"]
 query = ["serde_urlencoded"]
