@@ -144,10 +144,19 @@ impl FromRequest for WebSocket {
     type Rejection = WebSocketRejection;
 
     fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
-        // Connection must be upgrade to websocket
+        // Connection must be Upgrade
         let upgrade_header = req
             .headers()
             .get(CONNECTION)
+            .ok_or(WebSocketRejection::MissingUpgradeHeader)?;
+        if upgrade_header.as_bytes() != b"Upgrade" {
+            return Err(WebSocketRejection::MissingUpgradeHeader);
+        }
+
+        // Upgrade must be websocket
+        let upgrade_header = req
+            .headers()
+            .get(UPGRADE)
             .ok_or(WebSocketRejection::MissingUpgradeHeader)?;
         if upgrade_header.as_bytes() != b"websocket" {
             return Err(WebSocketRejection::MissingUpgradeHeader);
