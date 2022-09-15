@@ -87,7 +87,7 @@ impl<'de> Deserialize<'de> for WebSocketConnection {
 ///
 /// ```
 /// fn websocket(ws: WebSocket) -> WebSocketUpgrade {
-///     ws.on_upgrade(|conn| {
+///     ws.on_upgrade((), |mut conn, ()| {
 ///         conn.write_message(Message::text("Hello from submillisecond!"));
 ///     })
 /// }
