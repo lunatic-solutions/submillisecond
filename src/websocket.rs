@@ -33,6 +33,17 @@ impl From<tungstenite::protocol::WebSocket<TcpStream>> for WebSocketConnection {
     }
 }
 
+impl Clone for WebSocketConnection {
+    fn clone(&self) -> Self {
+        tungstenite::WebSocket::from_raw_socket(
+            self.get_ref().clone(),
+            Role::Server,
+            Some(self.get_config().clone()),
+        )
+        .into()
+    }
+}
+
 impl ops::Deref for WebSocketConnection {
     type Target = tungstenite::protocol::WebSocket<TcpStream>;
 
