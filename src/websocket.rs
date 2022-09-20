@@ -49,11 +49,11 @@ impl WebSocketConnection {
 
 /// A `Sink` part of the split pair.
 #[derive(Debug, Deserialize, Serialize)]
-pub struct SplitSink {
+pub struct SplitStream {
     ws_conn: WebSocketConnection,
 }
 
-impl SplitSink {
+impl SplitStream {
     /// Read a message from stream, if possible.
     pub fn can_read(&self) -> bool {
         self.ws_conn.can_read()
@@ -72,11 +72,11 @@ impl SplitSink {
 
 /// A Stream part of the split pair.
 #[derive(Debug, Deserialize, Serialize)]
-pub struct SplitStream {
+pub struct SplitSink {
     ws_conn: WebSocketConnection,
 }
 
-impl SplitStream {
+impl SplitSink {
     /// Check if it is possible to write messages.
     ///
     /// Writing gets impossible immediately after sending or receiving `Message::Close`.

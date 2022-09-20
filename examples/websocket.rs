@@ -9,17 +9,17 @@ use submillisecond::websocket::{
 use submillisecond::{router, Application};
 
 struct WebSocketHandler {
-    writer: SplitStream,
+    writer: SplitSink,
 }
 
 #[abstract_process]
 impl WebSocketHandler {
     #[init]
     fn init(this: ProcessRef<Self>, ws_conn: WebSocketConnection) -> Self {
-        let (reader, writer) = ws_conn.split();
+        let (writer, reader) = ws_conn.split();
 
         fn read_handler(
-            (mut reader, this): (SplitSink, ProcessRef<WebSocketHandler>),
+            (mut reader, this): (SplitStream, ProcessRef<WebSocketHandler>),
             _: Mailbox<()>,
         ) {
             loop {
