@@ -54,7 +54,7 @@ pub struct SplitStream {
 }
 
 impl SplitStream {
-    /// Read a message from stream, if possible.
+    /// Check if it is possible to read messages.
     pub fn can_read(&self) -> bool {
         self.ws_conn.can_read()
     }
