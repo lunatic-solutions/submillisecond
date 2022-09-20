@@ -47,7 +47,7 @@ impl WebSocketConnection {
     }
 }
 
-/// A `Sink` part of the split pair.
+/// A `Stream` part of the split pair.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SplitStream {
     ws_conn: WebSocketConnection,
@@ -70,7 +70,7 @@ impl SplitStream {
     }
 }
 
-/// A Stream part of the split pair.
+/// A `Sink` part of the split pair.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SplitSink {
     ws_conn: WebSocketConnection,
