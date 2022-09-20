@@ -15,7 +15,7 @@ struct WebSocketHandler {
 #[abstract_process]
 impl WebSocketHandler {
     #[init]
-    fn init(this: ProcessRef<Self>, (ws_conn,): (WebSocketConnection,)) -> Self {
+    fn init(this: ProcessRef<Self>, ws_conn: WebSocketConnection) -> Self {
         let (reader, writer) = ws_conn.split();
 
         fn read_handler(
@@ -29,7 +29,7 @@ impl WebSocketHandler {
                         this.send_message("Pong".to_owned());
                     }
                     Ok(Message::Close(_)) => break,
-                    Ok(_) => {}
+                    Ok(_) => { /* Ignore other messages */ }
                     Err(err) => eprintln!("Read Message Error: {err:?}"),
                 }
             }
@@ -51,8 +51,7 @@ impl WebSocketHandler {
 fn main() -> std::io::Result<()> {
     fn websocket(ws: WebSocket) -> WebSocketUpgrade {
         ws.on_upgrade(|conn| {
-            lunatic_log::info!("Establish WebSocket Connection...");
-            WebSocketHandler::start_link((conn,), None);
+            WebSocketHandler::start_link(conn, None);
         })
     }
 
