@@ -33,6 +33,71 @@ impl From<tungstenite::protocol::WebSocket<TcpStream>> for WebSocketConnection {
     }
 }
 
+impl WebSocketConnection {
+    /// Splits this `WebSocketConnection` object into separate `Sink` and `Stream` objects.
+    ///
+    /// This can be useful when you want to split ownership between processes.
+    pub fn split(self) -> (SplitSink, SplitStream) {
+        (
+            SplitSink {
+                ws_conn: self.clone(),
+            },
+            SplitStream { ws_conn: self },
+        )
+    }
+}
+
+/// A `Sink` part of the split pair.
+pub struct SplitSink {
+    ws_conn: WebSocketConnection,
+}
+
+impl SplitSink {
+    /// Read a message from stream, if possible.
+    pub fn can_read(&self) -> bool {
+        self.ws_conn.can_read()
+    }
+
+    /// Read a message from stream, if possible.
+    pub fn read_message(&mut self) -> tungstenite::Result<Message> {
+        self.ws_conn.read_message()
+    }
+
+    /// Close the connection.
+    pub fn close(&mut self, code: Option<CloseFrame>) -> tungstenite::Result<()> {
+        self.ws_conn.close(code)
+    }
+}
+
+/// A Stream part of the split pair.
+pub struct SplitStream {
+    ws_conn: WebSocketConnection,
+}
+
+impl SplitStream {
+    /// Check if it is possible to write messages.
+    ///
+    /// Writing gets impossible immediately after sending or receiving `Message::Close`.
+    pub fn can_write(&self) -> bool {
+        self.ws_conn.can_write()
+    }
+
+    /// Send a message to stream, if possible.
+    pub fn write_message(&mut self, message: Message) -> tungstenite::Result<()> {
+        self.ws_conn.write_message(message)
+    }
+
+    /// Flush the pending send queue.
+    pub fn write_pending(&mut self) -> tungstenite::Result<()> {
+        self.ws_conn.write_pending()
+    }
+
+    /// Close the connection.
+    pub fn close(&mut self, code: Option<CloseFrame>) -> tungstenite::Result<()> {
+        self.ws_conn.close(code)
+    }
+}
+
 impl Clone for WebSocketConnection {
     fn clone(&self) -> Self {
         tungstenite::WebSocket::from_raw_socket(
