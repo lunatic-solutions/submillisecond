@@ -87,7 +87,7 @@ impl<'de> Deserialize<'de> for WebSocketConnection {
 ///
 /// ```
 /// fn websocket(ws: WebSocket) -> WebSocketUpgrade {
-///     ws.on_upgrade(|conn| {
+///     ws.on_upgrade((), |mut conn, ()| {
 ///         conn.write_message(Message::text("Hello from submillisecond!"));
 ///     })
 /// }
@@ -104,22 +104,33 @@ pub struct WebSocket {
 impl WebSocket {
     /// Spawns a process with the established websocket connection provided to
     /// the callback.
-    pub fn on_upgrade(self, callback: fn(WebSocketConnection)) -> WebSocketUpgrade {
-        self.on_upgrade_with_config(callback, None)
+    pub fn on_upgrade<C>(
+        self,
+        captures: C,
+        callback: fn(WebSocketConnection, C),
+    ) -> WebSocketUpgrade
+    where
+        C: Serialize + for<'de> Deserialize<'de>,
+    {
+        self.on_upgrade_with_config(captures, callback, None)
     }
 
     /// Spawns a process with the established websocket connection provided to
     /// the callback with websocket options.
-    pub fn on_upgrade_with_config(
+    pub fn on_upgrade_with_config<C>(
         self,
-        callback: fn(WebSocketConnection),
+        captures: C,
+        callback: fn(WebSocketConnection, C),
         config: Option<WebSocketConfig>,
-    ) -> WebSocketUpgrade {
+    ) -> WebSocketUpgrade
+    where
+        C: Serialize + for<'de> Deserialize<'de>,
+    {
         let stream = self.stream.clone();
         let callback = FuncRef::new(callback);
         let process = Process::spawn_link(
-            (stream, callback, config),
-            |(stream, callback, config), mailbox: Mailbox<SupervisorResponse>| {
+            (stream, callback, captures, config),
+            |(stream, callback, captures, config), mailbox: Mailbox<SupervisorResponse>| {
                 if let lunatic::MailboxResult::Message(SupervisorResponse::ResponseSent) =
                     mailbox.receive_timeout(Duration::from_secs(5))
                 {
@@ -128,7 +139,7 @@ impl WebSocket {
                         Role::Server,
                         config.map(|config| config.into()),
                     );
-                    callback(conn.into());
+                    callback(conn.into(), captures);
                 }
             },
         );
