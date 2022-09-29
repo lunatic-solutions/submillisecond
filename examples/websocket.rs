@@ -50,7 +50,7 @@ impl WebSocketHandler {
 
 fn main() -> std::io::Result<()> {
     fn websocket(ws: WebSocket) -> WebSocketUpgrade {
-        ws.on_upgrade(|conn| {
+        ws.on_upgrade((), |conn, _| {
             WebSocketHandler::start_link(conn, None);
         })
     }
