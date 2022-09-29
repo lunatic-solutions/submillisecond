@@ -17,7 +17,11 @@ If you would like to ask for help or just follow the discussions around Lunatic 
 - Fast compilation times
 - async-free - All preemption and scheduling is done by [lunatic][lunatic_gh]
 - strong security - Each request is handled in a separate _lunatic_ process
-- Batteries included - TODO
+- Batteries included
+  - Cookies
+  - Json
+  - Logging
+  - Websockets
 
 # Code example
 
@@ -34,7 +38,6 @@ fn main() -> std::io::Result<()> {
     })
     .serve("0.0.0.0:3000")
 }
-
 ```
 
 ## Getting started with lunatic
