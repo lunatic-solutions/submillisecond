@@ -4,6 +4,7 @@ use std::ops;
 use std::time::Duration;
 
 use base64ct::{Base64, Encoding};
+use headers::HeaderValue;
 use http::header::{
     CONNECTION, SEC_WEBSOCKET_ACCEPT, SEC_WEBSOCKET_KEY, SEC_WEBSOCKET_VERSION, UPGRADE,
 };
@@ -34,7 +35,8 @@ impl From<tungstenite::protocol::WebSocket<TcpStream>> for WebSocketConnection {
 }
 
 impl WebSocketConnection {
-    /// Splits this `WebSocketConnection` object into separate `Sink` and `Stream` objects.
+    /// Splits this `WebSocketConnection` object into separate `Sink` and
+    /// `Stream` objects.
     ///
     /// This can be useful when you want to split ownership between processes.
     pub fn split(self) -> (SplitSink, SplitStream) {
@@ -79,7 +81,8 @@ pub struct SplitSink {
 impl SplitSink {
     /// Check if it is possible to write messages.
     ///
-    /// Writing gets impossible immediately after sending or receiving `Message::Close`.
+    /// Writing gets impossible immediately after sending or receiving
+    /// `Message::Close`.
     pub fn can_write(&self) -> bool {
         self.ws_conn.can_write()
     }
@@ -105,7 +108,7 @@ impl Clone for WebSocketConnection {
         tungstenite::WebSocket::from_raw_socket(
             self.get_ref().clone(),
             Role::Server,
-            Some(self.get_config().clone()),
+            Some(*self.get_config()),
         )
         .into()
     }
@@ -234,20 +237,22 @@ impl FromRequest for WebSocket {
 
     fn from_request(req: &mut RequestContext) -> Result<Self, Self::Rejection> {
         // Connection must be Upgrade
-        let upgrade_header = req
+        let mut connection_headers = req
             .headers()
             .get(CONNECTION)
-            .ok_or(WebSocketRejection::MissingUpgradeHeader)?;
-        if upgrade_header.as_bytes() != b"Upgrade" {
+            .ok_or(WebSocketRejection::MissingUpgradeHeader)?
+            .comma_separated_headers();
+        if !connection_headers.any(|upgrade_header| upgrade_header == b"Upgrade") {
             return Err(WebSocketRejection::MissingUpgradeHeader);
         }
 
         // Upgrade must be websocket
-        let upgrade_header = req
+        let mut upgrade_header = req
             .headers()
             .get(UPGRADE)
-            .ok_or(WebSocketRejection::MissingUpgradeHeader)?;
-        if upgrade_header.as_bytes() != b"websocket" {
+            .ok_or(WebSocketRejection::MissingUpgradeHeader)?
+            .comma_separated_headers();
+        if !upgrade_header.any(|upgrade_header| upgrade_header == b"websocket") {
             return Err(WebSocketRejection::MissingUpgradeHeader);
         }
 
@@ -404,4 +409,67 @@ impl IntoResponse for WebSocketRejection {
 
         (status, body).into_response()
     }
+}
+
+type SplitFn = fn(&u8) -> bool;
+type MapFn = fn(&[u8]) -> &[u8];
+
+struct CommaSeparatedHeadersIter<'a> {
+    iter: std::iter::Map<std::slice::Split<'a, u8, SplitFn>, MapFn>,
+}
+
+impl<'a> Iterator for CommaSeparatedHeadersIter<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
+trait CommaSeparatedHeaders {
+    fn comma_separated_headers(&self) -> CommaSeparatedHeadersIter;
+}
+
+impl CommaSeparatedHeaders for HeaderValue {
+    fn comma_separated_headers(&self) -> CommaSeparatedHeadersIter {
+        CommaSeparatedHeadersIter {
+            iter: self
+                .as_bytes()
+                .split((|c| *c as char == ',') as fn(&u8) -> bool)
+                .into_iter()
+                .map(trim_ascii),
+        }
+    }
+}
+
+const fn trim_ascii(bytes: &[u8]) -> &[u8] {
+    trim_ascii_end(trim_ascii_start(bytes))
+}
+
+// TODO: remove once <https://github.com/rust-lang/rust/issues/94035> is stable.
+const fn trim_ascii_start(mut bytes: &[u8]) -> &[u8] {
+    // Note: A pattern matching based approach (instead of indexing) allows
+    // making the function const.
+    while let [first, rest @ ..] = bytes {
+        if first.is_ascii_whitespace() {
+            bytes = rest;
+        } else {
+            break;
+        }
+    }
+    bytes
+}
+
+// TODO: remove once <https://github.com/rust-lang/rust/issues/94035> is stable.
+const fn trim_ascii_end(mut bytes: &[u8]) -> &[u8] {
+    // Note: A pattern matching based approach (instead of indexing) allows
+    // making the function const.
+    while let [rest @ .., last] = bytes {
+        if last.is_ascii_whitespace() {
+            bytes = rest;
+        } else {
+            break;
+        }
+    }
+    bytes
 }
