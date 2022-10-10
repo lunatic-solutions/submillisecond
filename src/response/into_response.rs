@@ -102,6 +102,23 @@ impl IntoResponse for Cow<'static, [u8]> {
     }
 }
 
+/// Html response body with Content-Type set to utf8 text/html.
+pub struct Html<T>(pub T);
+
+impl<T> IntoResponse for Html<T>
+where
+    T: IntoResponse,
+{
+    fn into_response(self) -> Response {
+        let mut res = self.0.into_response();
+        res.headers_mut().append(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static(mime::TEXT_HTML_UTF_8.as_ref()),
+        );
+        res
+    }
+}
+
 impl<R> IntoResponse for (StatusCode, R)
 where
     R: IntoResponse,
