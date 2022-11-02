@@ -1,7 +1,7 @@
 use http::Method;
 use lunatic::net::TcpStream;
 use lunatic::test;
-use submillisecond::{http, router, Body, Handler, RequestContext};
+use submillisecond::{http, response::Response, router, Body, Handler, RequestContext};
 
 macro_rules! build_request {
     ($method: ident, $uri: literal) => {
@@ -270,4 +270,49 @@ fn wildcard_router() {
 
     let res = handle_request!(router, GET, "/any");
     assert_404!(res);
+}
+
+fn handle_aaa() -> Response {
+    Response::builder().body(b"aaa".to_vec()).unwrap()
+}
+
+fn handle_aab() -> Response {
+    Response::builder().body(b"aab".to_vec()).unwrap()
+}
+
+fn handle_bbb() -> Response {
+    Response::builder().body(b"bbb".to_vec()).unwrap()
+}
+
+fn handle_bba() -> Response {
+    Response::builder().body(b"bba".to_vec()).unwrap()
+}
+
+// this test will make sure that if a trie node
+// needs to be split up due to a matching prefix
+// that the previous children will still be handled
+#[test]
+fn router_split() {
+    let router = router! {
+        GET "/aaa" => handle_aaa
+        GET "/aab" => handle_aab
+        GET "/bbb" => handle_bbb
+        GET "/bba" => handle_bba
+    };
+
+    // 200 aaa
+    let res = handle_request!(router, GET, "/aaa");
+    assert_200!(res, b"aaa");
+
+    // 200 aab
+    let res = handle_request!(router, GET, "/aab");
+    assert_200!(res, b"aab");
+
+    // 200 bbb
+    let res = handle_request!(router, GET, "/bbb");
+    assert_200!(res, b"bbb");
+
+    // 200 bba
+    let res = handle_request!(router, GET, "/bba");
+    assert_200!(res, b"bba");
 }

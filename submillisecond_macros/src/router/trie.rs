@@ -91,7 +91,7 @@ where
                 let new_child = TrieNode::Node {
                     value: mem::take(value),
                     prefix: suffix.to_string(),
-                    children: vec![],
+                    children: mem::take(children),
                 };
                 // insert new node with new suffix if
                 if last_match < key_len {
