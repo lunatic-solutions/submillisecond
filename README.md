@@ -22,6 +22,9 @@ If you would like to ask for help or just follow the discussions around Lunatic 
   - Json
   - Logging
   - Websockets
+- [Submillisecond LiveView] - Frontend web framework
+
+[submillisecond liveview]: https://github.com/lunatic-solutions/submillisecond-live-view
 
 # Code example
 
