@@ -144,19 +144,19 @@ pub(crate) fn parse_requests<'a>(
     let request = http::Request::builder()
         .method(method)
         .uri(request_raw.path.unwrap());
-    let mut content_lengt = None;
+    let mut content_length = None;
     let request = request_raw.headers.iter().fold(request, |request, header| {
         if header.name.to_lowercase() == "content-length" {
             let value_string = std::str::from_utf8(header.value).unwrap();
             let length = value_string.parse::<usize>().unwrap();
-            content_lengt = Some(length);
+            content_length = Some(length);
         }
         request.header(header.name, header.value)
     });
     // If content-length exists, request has a body
-    if let Some(content_lengt) = content_lengt {
+    if let Some(content_length) = content_length {
         #[allow(clippy::comparison_chain)]
-        if request_buffer[offset..].len() == content_lengt {
+        if request_buffer[offset..].len() == content_length {
             // Complete content is captured from the request w/o trailing pipelined
             // requests.
             PipelinedRequests::from_complete(
@@ -164,18 +164,18 @@ pub(crate) fn parse_requests<'a>(
                     .body(Body::from_slice(&request_buffer[offset..]))
                     .unwrap(),
             )
-        } else if request_buffer[offset..].len() > content_lengt {
+        } else if request_buffer[offset..].len() > content_length {
             // Complete content is captured from the request with trailing pipelined
             // requests.
             PipelinedRequests::from_pipeline(
                 request
                     .body(Body::from_slice(&request_buffer[offset..]))
                     .unwrap(),
-                Vec::from(&request_buffer[offset + content_lengt..]),
+                Vec::from(&request_buffer[offset + content_length..]),
             )
         } else {
             // Read the rest from TCP stream to form a full request
-            let rest = content_lengt - request_buffer[offset..].len();
+            let rest = content_length - request_buffer[offset..].len();
             let mut buffer = vec![0u8; rest];
             stream.read_exact(&mut buffer).unwrap();
             request_buffer.extend(&buffer);

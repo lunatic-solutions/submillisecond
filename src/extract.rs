@@ -38,7 +38,7 @@ pub trait FromRequest: Sized {
 }
 
 /// Types that can be created from an owned instance of the request. This can be
-/// used to avoid unecessary clones.
+/// used to avoid unnecessary clones.
 pub trait FromOwnedRequest: Sized {
     /// If the extractor fails it'll use this "rejection" type. A rejection is
     /// a kind of error that can be converted into a response.

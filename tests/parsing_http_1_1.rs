@@ -100,8 +100,8 @@ fn pipeline_requests_in_2_parts() {
         Hello world!"
     );
     // Second response
-    let requst_rest = " HTTP/1.1\r\n\r\n".as_bytes();
-    stream.write_all(requst_rest).unwrap();
+    let request_rest = " HTTP/1.1\r\n\r\n".as_bytes();
+    stream.write_all(request_rest).unwrap();
 
     let n = stream.read(&mut response).unwrap();
     let response_str = from_utf8(&response[..n]).unwrap();
