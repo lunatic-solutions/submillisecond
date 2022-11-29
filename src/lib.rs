@@ -78,12 +78,12 @@ pub(crate) mod macros;
 pub mod cookies;
 pub mod defaults;
 pub mod extract;
-
 pub mod params;
 pub mod reader;
 pub mod response;
 #[cfg(feature = "cookies")]
 pub mod session;
+pub mod state;
 #[cfg(feature = "template")]
 pub mod template;
 #[cfg(feature = "websocket")]

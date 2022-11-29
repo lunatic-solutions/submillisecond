@@ -201,3 +201,19 @@ impl std::error::Error for TypedHeaderRejection {
         }
     }
 }
+
+define_rejection! {
+    #[status = INTERNAL_SERVER_ERROR]
+    #[body = "State not initialized"]
+    /// Rejection type used when loading state without initializing.
+    pub struct NotInitialized(Error);
+}
+
+composite_rejection! {
+    /// Rejection used for [`State<T>`].
+    ///
+    /// Contains one variant for each way the [`State<T>`] extractor can fail.
+    pub enum StateRejection {
+        NotInitialized,
+    }
+}
