@@ -67,6 +67,11 @@ where
         let state = process.get();
         Some(State { process, state })
     }
+
+    /// Consumes the wrapper, returning the wrapped inner state.
+    pub fn into_inner(self) -> T {
+        self.state
+    }
 }
 
 impl<T> ops::Deref for State<T>
