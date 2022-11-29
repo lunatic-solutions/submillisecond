@@ -69,7 +69,7 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
         // Spawn worker process
         let worker = Process::spawn_link(
             WorkerRequest {
-                supervisor: supervisor.clone(),
+                supervisor,
                 stream: stream.clone(),
                 handler: handler.clone(),
                 request_buffer,
