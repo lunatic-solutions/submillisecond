@@ -90,7 +90,7 @@ fn json(Json(login): Json<Login>) -> String {
 fn main() -> std::io::Result<()> {
     Application::new(router! {
         GET "/" => index
-        GET "/querys" => query
+        GET "/queries" => query
         GET "/header_map" => header_map
         GET "/typed_header" => typed_header
         GET "/params/:name/:age" => params

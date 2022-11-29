@@ -89,7 +89,7 @@ pub fn named_param(input: TokenStream) -> TokenStream {
 ///
 /// ## Methods
 ///
-/// The suppoted methods are:
+/// The supported methods are:
 ///
 /// - GET
 /// - POST

@@ -67,7 +67,7 @@ impl UriReader {
         self.cursor = 0;
     }
 
-    /// Check if the cursor has reached the end of the uri, optinally allowing
+    /// Check if the cursor has reached the end of the uri, optionally allowing
     /// for a trailing slash.
     pub fn is_empty(&self, allow_trailing_slash: bool) -> bool {
         if allow_trailing_slash {

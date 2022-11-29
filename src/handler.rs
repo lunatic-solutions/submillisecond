@@ -81,7 +81,7 @@ where
 /// [extractors](crate::extract), and returns any type that implements
 /// [`IntoResponse`].
 ///
-/// To avoid unecessary clones, the [`RequestContext`], [`http::Request`],
+/// To avoid unnecessary clones, the [`RequestContext`], [`http::Request`],
 /// [`String`], [`Vec<u8>`], [`Params`](crate::params::Params) extractors (and
 /// any other types which implement [`FromOwnedRequest`] directly) should be
 /// placed as the first argument, and cannot be used together in a single
