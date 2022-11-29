@@ -95,9 +95,9 @@ where
             } else {
                 let entry_path = entry.path();
                 let entry_path = entry_path
-                    .strip_prefix(&base_path)
+                    .strip_prefix(base_path)
                     .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-                let mime = mime_guess::from_path(&entry_path)
+                let mime = mime_guess::from_path(entry_path)
                     .first()
                     .unwrap_or(mime::TEXT_PLAIN);
 

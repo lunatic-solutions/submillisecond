@@ -168,7 +168,7 @@ where
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        T::deserialize(de::PathDeserializer::new(&*params))
+        T::deserialize(de::PathDeserializer::new(&params))
             .map_err(|err| {
                 PathRejection::FailedToDeserializePathParams(FailedToDeserializePathParams(err))
             })
