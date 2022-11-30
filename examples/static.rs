@@ -6,5 +6,5 @@ fn handle_404() -> (StatusCode, &'static str) {
 }
 
 fn main() -> std::io::Result<()> {
-    Application::new(static_router!("./static", handle_404)).serve("0.0.0.0:3000")
+    Application::new(|| static_router!("./static", handle_404)).serve("0.0.0.0:3000")
 }

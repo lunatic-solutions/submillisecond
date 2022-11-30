@@ -120,6 +120,9 @@ where
 pub trait Handler<Arg = (), Ret = ()> {
     /// Handles the request, returning a response.
     fn handle(&self, req: RequestContext) -> Response;
+
+    /// Initializes handler, useful for spawning processes on startup.
+    fn init(&self) {}
 }
 
 impl<F, R> Handler<(), R> for F

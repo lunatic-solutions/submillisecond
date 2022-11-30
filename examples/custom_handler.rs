@@ -12,5 +12,5 @@ impl Handler for Name {
 }
 
 fn main() -> std::io::Result<()> {
-    Application::new(Name("World".into())).serve("0.0.0.0:3000")
+    Application::new(|| Name("World".into())).serve("0.0.0.0:3000")
 }

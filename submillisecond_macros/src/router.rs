@@ -20,9 +20,10 @@ use crate::hquote;
 
 #[derive(Clone, Debug)]
 pub struct Router {
-    pub middleware: Option<ItemWithMiddleware>,
-    pub routes: Vec<ItemRoute>,
-    pub catch_all: Option<ItemCatchAll>,
+    middleware: Option<ItemWithMiddleware>,
+    routes: Vec<ItemRoute>,
+    catch_all: Option<ItemCatchAll>,
+    inits: Vec<syn::Expr>,
 }
 
 impl Router {
@@ -30,11 +31,32 @@ impl Router {
         let trie = RouterTrie::new(self);
         let inner = trie.expand();
 
-        hquote! {
+        let inits = self.inits.iter().map(|handler| {
+            hquote! {
+                ::submillisecond::Handler::init(&#handler)
+            }
+        });
+
+        hquote! {(|| {
+            #( #inits; )*
+
             (|mut req: ::submillisecond::RequestContext| -> ::submillisecond::response::Response {
                 #inner
-            }) as ::submillisecond::Router
-        }
+            }) as fn(_) -> _
+        }) as ::submillisecond::Router}
+    }
+
+    fn handlers(&mut self) -> Vec<syn::Expr> {
+        self.routes
+            .iter_mut()
+            .flat_map(|route| match &mut route.handler {
+                ItemHandler::Expr(expr) => vec![*expr.clone()],
+                ItemHandler::SubRouter(router) => {
+                    router.inits = vec![];
+                    router.handlers()
+                }
+            })
+            .collect()
     }
 }
 
@@ -58,10 +80,15 @@ impl Parse for Router {
 
         let catch_all = input.peek(Token![_]).then(|| input.parse()).transpose()?;
 
-        Ok(Router {
+        let mut router = Router {
             middleware,
             routes,
             catch_all,
-        })
+            inits: vec![],
+        };
+
+        router.inits = router.handlers();
+
+        Ok(router)
     }
 }

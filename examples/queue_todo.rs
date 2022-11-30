@@ -308,7 +308,7 @@ fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
 
 fn liveness_check() -> &'static str {
     println!("Running liveness check");
-    "{\"status\":\"UP\"}"
+    r#"{"status":"UP"}"#
 }
 
 // has the prefix /api/mgmt
@@ -329,7 +329,7 @@ const ROUTER: Router = router! {
             POST "/todos/poll" => poll_todo
         }
     }
-    "/api/mgmt" => MGMT_ROUTER
+    "/api/mgmt" => MGMT_ROUTER()
     GET "/something_different/:shoppingcart_id" => liveness_check
 };
 

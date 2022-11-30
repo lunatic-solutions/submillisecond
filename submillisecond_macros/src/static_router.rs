@@ -30,7 +30,7 @@ impl StaticRouter {
                     #match_arms
                     _ => #catch_all_expanded,
                 }
-            }) as ::submillisecond::Router
+            }) as fn(_) -> _
         }
     }
 
