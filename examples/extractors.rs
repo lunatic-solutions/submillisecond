@@ -48,7 +48,8 @@ fn typed_header(TypedHeader(host): TypedHeader<Host>) -> String {
 
 fn params(params: Params) -> String {
     let name = params.get("name").unwrap_or("user");
-    format!("Welcome, {name}")
+    let age = params.get("age").unwrap_or("age");
+    format!("Welcome, {name}. You are {age} years old.")
 }
 
 #[derive(NamedParam)]
