@@ -2,7 +2,7 @@
 edition = "2021"
 name = "submillisecond_macros"
 description = "Macros used by the submillisecond web framework."
-version = "0.2.2"
+version = "0.3.0"
 license = "Apache-2.0/MIT"
 repository = "https://github.com/lunatic-solutions/submillisecond/tree/main/submillisecond-macros"
 
