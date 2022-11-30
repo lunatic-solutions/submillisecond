@@ -1,7 +1,8 @@
 use http::Method;
 use lunatic::net::TcpStream;
 use lunatic::test;
-use submillisecond::{http, response::Response, router, Body, Handler, RequestContext};
+use submillisecond::response::Response;
+use submillisecond::{http, router, Body, Handler, RequestContext};
 
 macro_rules! build_request {
     ($method: ident, $uri: literal) => {
@@ -22,11 +23,11 @@ macro_rules! build_request {
 macro_rules! handle_request {
     ($router: ident, $method: ident, $uri: literal) => {{
         let req = build_request!($method, $uri);
-        Handler::handle(&$router, req)
+        Handler::handle(&$router(), req)
     }};
     ($router: ident, $method: ident, $uri: literal, $body: expr) => {{
         let req = build_request!($method, $uri, $body);
-        Handler::handle(&$router, req)
+        Handler::handle(&$router(), req)
     }};
 }
 

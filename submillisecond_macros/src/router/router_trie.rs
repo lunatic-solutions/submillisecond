@@ -456,7 +456,7 @@ impl<'r> RouterTrie<'r> {
                 let middleware_expanded = Self::expand_middleware(
                     middleware.as_ref(),
                     hquote! {
-                        let subrouter = #subrouter_expanded;
+                        let subrouter = (#subrouter_expanded)();
                         ::submillisecond::Handler::handle(&subrouter, req)
                     },
                 );

@@ -34,9 +34,9 @@ where
     T: ProcessSafeHandler<Kind, Arg, Ret>,
 {
     /// Creates a new application with a given router.
-    pub fn new(handler: T) -> Self {
+    pub fn new(handler: fn() -> T) -> Self {
         Application {
-            handler,
+            handler: handler(),
             phantom: PhantomData,
         }
     }

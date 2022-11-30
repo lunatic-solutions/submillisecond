@@ -30,11 +30,29 @@ impl Router {
         let trie = RouterTrie::new(self);
         let inner = trie.expand();
 
-        hquote! {
+        let handlers = self.handlers().into_iter().map(|handler| {
+            hquote! {
+                ::submillisecond::Handler::init(&#handler)
+            }
+        });
+
+        hquote! {(|| {
+            #( #handlers; )*
+
             (|mut req: ::submillisecond::RequestContext| -> ::submillisecond::response::Response {
                 #inner
-            }) as ::submillisecond::Router
-        }
+            }) as fn(_) -> _
+        }) as ::submillisecond::Router}
+    }
+
+    fn handlers(&self) -> Vec<&syn::Expr> {
+        self.routes
+            .iter()
+            .flat_map(|route| match &route.handler {
+                ItemHandler::Expr(expr) => vec![expr.as_ref()],
+                ItemHandler::SubRouter(router) => router.handlers(),
+            })
+            .collect()
     }
 }
 
