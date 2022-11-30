@@ -20,9 +20,10 @@ use crate::hquote;
 
 #[derive(Clone, Debug)]
 pub struct Router {
-    pub middleware: Option<ItemWithMiddleware>,
-    pub routes: Vec<ItemRoute>,
-    pub catch_all: Option<ItemCatchAll>,
+    middleware: Option<ItemWithMiddleware>,
+    routes: Vec<ItemRoute>,
+    catch_all: Option<ItemCatchAll>,
+    inits: Vec<syn::Expr>,
 }
 
 impl Router {
@@ -30,14 +31,14 @@ impl Router {
         let trie = RouterTrie::new(self);
         let inner = trie.expand();
 
-        let handlers = self.handlers().into_iter().map(|handler| {
+        let inits = self.inits.iter().map(|handler| {
             hquote! {
                 ::submillisecond::Handler::init(&#handler)
             }
         });
 
         hquote! {(|| {
-            #( #handlers; )*
+            #( #inits; )*
 
             (|mut req: ::submillisecond::RequestContext| -> ::submillisecond::response::Response {
                 #inner
@@ -45,12 +46,15 @@ impl Router {
         }) as ::submillisecond::Router}
     }
 
-    fn handlers(&self) -> Vec<&syn::Expr> {
+    fn handlers(&mut self) -> Vec<syn::Expr> {
         self.routes
-            .iter()
-            .flat_map(|route| match &route.handler {
-                ItemHandler::Expr(expr) => vec![expr.as_ref()],
-                ItemHandler::SubRouter(router) => router.handlers(),
+            .iter_mut()
+            .flat_map(|route| match &mut route.handler {
+                ItemHandler::Expr(expr) => vec![*expr.clone()],
+                ItemHandler::SubRouter(router) => {
+                    router.inits = vec![];
+                    router.handlers()
+                }
             })
             .collect()
     }
@@ -76,10 +80,15 @@ impl Parse for Router {
 
         let catch_all = input.peek(Token![_]).then(|| input.parse()).transpose()?;
 
-        Ok(Router {
+        let mut router = Router {
             middleware,
             routes,
             catch_all,
-        })
+            inits: vec![],
+        };
+
+        router.inits = router.handlers();
+
+        Ok(router)
     }
 }
