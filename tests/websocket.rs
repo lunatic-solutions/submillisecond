@@ -1,18 +1,20 @@
-use tungstenite::{client, ClientHandshake, HandshakeError, handshake::client::Response};
+use tungstenite::{client, handshake::client::Response, ClientHandshake, HandshakeError};
 
 use lunatic::{
-    abstract_process, sleep, Process, Mailbox, net::TcpStream,
+    abstract_process,
+    net::TcpStream,
     process::{ProcessRef, StartProcess},
+    sleep, Mailbox, Process,
 };
 
 use std::time::Duration;
 
 use submillisecond::{
+    router,
     websocket::{
-        Message, SplitSink, SplitStream, WebSocket,
-        WebSocketConnection, WebSocketUpgrade,
+        Message, SplitSink, SplitStream, WebSocket, WebSocketConnection, WebSocketUpgrade,
     },
-    router, Application
+    Application,
 };
 
 #[lunatic::test]
@@ -85,7 +87,10 @@ fn setup_server(port: u16, _: Mailbox<()>) {
     .unwrap();
 }
 
-fn connect() -> Result<(tungstenite::protocol::WebSocket<TcpStream>, Response), HandshakeError<ClientHandshake<TcpStream>>> {
+fn connect() -> Result<
+    (tungstenite::protocol::WebSocket<TcpStream>, Response),
+    HandshakeError<ClientHandshake<TcpStream>>,
+> {
     let tcp_stream = TcpStream::connect("127.0.0.1:9000").unwrap();
 
     let mut headers = [
