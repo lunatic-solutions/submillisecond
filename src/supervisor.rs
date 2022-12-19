@@ -83,7 +83,7 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
                 WorkerResponse::Response(ref data, Connection::KeepAlive(next)) => {
                     let result = stream.write_all(data);
                     if let Err(err) = result {
-                        log_error(&format!("Failed to send response: {err:?}"));
+                        log_error(format!("Failed to send response: {err:?}"));
                         break 'keepalive;
                     }
 
@@ -96,7 +96,7 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
                         }
                         Err(err) => {
                             process.send(SupervisorResponse::ResponseFailure);
-                            log_error(&format!("Failed to send response: {err:?}"));
+                            log_error(format!("Failed to send response: {err:?}"));
                         }
                     }
 
@@ -110,7 +110,7 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
                     let response = response_to_vec(response);
                     let result = stream.write_all(&response);
                     if let Err(err) = result {
-                        log_error(&format!("Failed to send response: {err:?}"));
+                        log_error(format!("Failed to send response: {err:?}"));
                     }
                     break 'keepalive;
                 }
@@ -129,7 +129,7 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
                 let response = response_to_vec(response);
                 let result = stream.write_all(&response);
                 if let Err(err) = result {
-                    log_error(&format!("Failed to send response: {err:?}"));
+                    log_error(format!("Failed to send response: {err:?}"));
                 }
                 break 'keepalive;
             }
@@ -140,7 +140,7 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
                 let response = response_to_vec(response);
                 let result = stream.write_all(&response);
                 if let Err(err) = result {
-                    log_error(&format!("Failed to send response: {err:?}"));
+                    log_error(format!("Failed to send response: {err:?}"));
                 }
                 break 'keepalive;
             }
