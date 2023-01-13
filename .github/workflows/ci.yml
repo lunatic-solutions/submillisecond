@@ -11,7 +11,7 @@ jobs:
       - name: "Check out repository"
         uses: actions/checkout@v1
       # Rust builds can take some time, cache them.
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
       - name: "Install lunatic"
         run: cargo install --git https://github.com/lunatic-solutions/lunatic
       - name: Install rust
