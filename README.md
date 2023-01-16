@@ -93,7 +93,7 @@ and cargo is going to automatically build your project as a WebAssembly module a
 Add it as a dependency
 
 ```toml
-submillisecond = "0.2.0-alpha0"
+submillisecond = "0.3.0"
 ```
 
 ## Handlers
