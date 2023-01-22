@@ -111,7 +111,7 @@ where
 {
     fn into_response(self) -> Response {
         let mut res = self.0.into_response();
-        res.headers_mut().append(
+        res.headers_mut().insert(
             header::CONTENT_TYPE,
             HeaderValue::from_static(mime::TEXT_HTML_UTF_8.as_ref()),
         );
@@ -244,7 +244,9 @@ impl IntoResponse for Redirect {
 
 #[cfg(test)]
 mod tests {
-    use super::{IntoResponse, Redirect};
+    use lunatic::test;
+
+    use super::{Html, IntoResponse, Redirect};
 
     #[test]
     fn redirect() {
@@ -271,6 +273,14 @@ mod tests {
         assert_eq!(base_redirect.headers().get("Location").unwrap(), uri);
         assert_eq!(temporary_redirect.headers().get("Location").unwrap(), uri);
         assert_eq!(permanent_redirect.headers().get("Location").unwrap(), uri);
+    }
+
+    #[test]
+    fn html_string() {
+        let response = Html("<!DOCTYPE html>".to_string()).into_response();
+        let headers: Vec<_> = response.headers().get_all("content-type").iter().collect();
+        assert_eq!(headers, vec!["text/html; charset=utf-8"]);
+        assert_eq!(response.body(), b"<!DOCTYPE html>");
     }
 }
 
