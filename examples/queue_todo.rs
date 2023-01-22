@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use base64::{engine::general_purpose, Engine as _};
 use lunatic::process::{AbstractProcess, ProcessRef, Request, RequestHandler, StartProcess};
 use lunatic::supervisor::Supervisor;
 use serde::{Deserialize, Serialize};
@@ -92,7 +93,7 @@ impl FileLog {
 
     pub fn append(&mut self, header: u8, data: &[u8]) {
         // let x: MyStruct = ron::from_str("(boolean: true, float: 1.23)").unwrap();
-        let encoded = base64::encode(data);
+        let encoded = general_purpose::STANDARD.encode(data);
         let buf = [&[header], encoded.as_bytes(), NEWLINE].concat();
         match self.file.write_all(&buf) {
             Err(why) => panic!(
