@@ -276,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn html_string() {
+    fn html_response() {
         let response = Html("<!DOCTYPE html>".to_string()).into_response();
         let headers: Vec<_> = response.headers().get_all("content-type").iter().collect();
         assert_eq!(headers, vec!["text/html; charset=utf-8"]);
