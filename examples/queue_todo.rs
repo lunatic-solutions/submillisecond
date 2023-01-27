@@ -4,7 +4,8 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use base64::{engine::general_purpose, Engine as _};
+use base64::engine::general_purpose;
+use base64::Engine as _;
 use lunatic::process::{AbstractProcess, ProcessRef, Request, RequestHandler, StartProcess};
 use lunatic::supervisor::Supervisor;
 use serde::{Deserialize, Serialize};
@@ -64,7 +65,7 @@ impl FileLog {
             // file_name,
             full_path: full_path.clone(),
             file: match File::create(&full_path) {
-                Err(why) => panic!("couldn't open {:?}: {}", cwd, why),
+                Err(why) => panic!("couldn't open {cwd:?}: {why}"),
                 // write 0 as initial cursor
                 Ok(file) => file,
             },
@@ -295,7 +296,7 @@ fn poll_todo(params: Params) -> Json<Todo> {
 fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
     let user_id = params.get("user_id").unwrap();
-    println!("RECEIVED BODY {:?} | {user_id}", body);
+    println!("RECEIVED BODY {body:?} | {user_id}");
     let todo = Todo {
         uuid: Uuid::new_v4(),
         title: body.0.title,
