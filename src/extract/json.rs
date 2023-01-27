@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use serde::de::DeserializeOwned;
 
 use super::rejection::{JsonDataError, JsonRejection, JsonSyntaxError, MissingJsonContentType};
@@ -9,7 +7,7 @@ use crate::RequestContext;
 
 impl<T> FromRequest for Json<T>
 where
-    T: DeserializeOwned + Debug,
+    T: DeserializeOwned,
 {
     type Rejection = JsonRejection;
 
@@ -17,12 +15,6 @@ where
         if !json_content_type(req) {
             return Err(MissingJsonContentType.into());
         }
-
-        let body = String::from_utf8_lossy(req.body().as_slice());
-        println!("{body}");
-        let pp = serde_json::from_str::<T>(&body);
-        println!("{pp:?}");
-        println!("{:?}", req.body().as_slice());
 
         let value = match serde_json::from_slice(req.body().as_slice()) {
             Ok(value) => value,

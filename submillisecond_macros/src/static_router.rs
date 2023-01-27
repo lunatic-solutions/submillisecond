@@ -90,7 +90,6 @@ where
             let entry = entry?;
             let file_type = entry.file_type()?;
             if file_type.is_dir() {
-                println!("{:?}", entry.path());
                 static_files.extend(walk_nested(base_path, &entry.path())?.into_iter());
             } else {
                 let entry_path = entry.path();
