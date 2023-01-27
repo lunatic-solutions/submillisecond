@@ -22,7 +22,7 @@ fn foo_handler(params: Params) -> &'static str {
 }
 
 fn bar_handler(Path((a, b, c)): Path<(String, String, String)>) -> &'static str {
-    println!("GOT PATH {:?} {:?} {:?}", a, b, c);
+    println!("GOT PATH {a:?} {b:?} {c:?}");
     "bar"
 }
 
