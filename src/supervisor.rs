@@ -234,7 +234,7 @@ fn response_to_vec(mut response: Response) -> Vec<u8> {
     // writing headers
     for (key, value) in response.headers().iter() {
         if let Ok(value) = String::from_utf8(value.as_ref().to_vec()) {
-            response_buffer.extend(format!("{}: {}\r\n", key, value).as_bytes());
+            response_buffer.extend(format!("{key}: {value}\r\n").as_bytes());
         }
     }
     // separator between header and data
