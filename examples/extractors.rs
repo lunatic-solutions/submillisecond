@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use headers::Host;
 use http::HeaderMap;
 use serde::Deserialize;
-use submillisecond::extract::{Path, Query, Splat};
+use submillisecond::extract::{Host, Path, Query, Splat};
 use submillisecond::params::Params;
 use submillisecond::{router, Application, Json, NamedParam, TypedHeader};
 
@@ -42,7 +41,11 @@ fn header_map(headers: HeaderMap) -> String {
         .join("\n")
 }
 
-fn typed_header(TypedHeader(host): TypedHeader<Host>) -> String {
+fn host(Host(host): Host) -> String {
+    host
+}
+
+fn typed_header(TypedHeader(host): TypedHeader<headers::Host>) -> String {
     host.to_string()
 }
 
@@ -93,6 +96,7 @@ fn main() -> std::io::Result<()> {
         GET "/" => index
         GET "/queries" => query
         GET "/header_map" => header_map
+        GET "/host" => host
         GET "/typed_header" => typed_header
         GET "/params/:name/:age" => params
         GET "/named_param/:age" => named_param
