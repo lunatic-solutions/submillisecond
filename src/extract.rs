@@ -2,6 +2,7 @@
 //!
 //! Many of the types and implementations were taken from [Axum](https://crates.io/crates/axum).
 
+pub use host::Host;
 pub use path::Path;
 #[cfg(feature = "query")]
 pub use query::Query;
@@ -12,6 +13,7 @@ pub mod rejection;
 
 mod body;
 mod header_map;
+mod host;
 #[cfg(feature = "json")]
 mod json;
 mod method;
