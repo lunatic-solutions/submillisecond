@@ -49,7 +49,10 @@ where
     {
         let safe_handler = self.handler.safe_handler();
         let listener = TcpListener::bind(addr.clone())?;
-        log_server_start(addr);
+        match listener.local_addr() {
+            Ok(a) => log_server_start(a),
+            Err(_) => log_server_start(addr),
+        }
         while let Ok((stream, _)) = listener.accept() {
             Process::spawn_link((stream, safe_handler.clone()), request_supervisor);
         }
@@ -75,7 +78,7 @@ fn log_server_start<A: ToSocketAddrs>(addr: A) {
     // Make address bold.
     let addrs = addr
         .to_socket_addrs()
-        .unwrap() // is ok if the code is log is executed after bind
+        .unwrap() // is ok since the code is executed after bind
         .map(|addr| {
             let ip = addr.ip();
             let ip_string = if ip.is_unspecified() {
