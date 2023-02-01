@@ -1,13 +1,15 @@
 use std::collections::{HashMap, VecDeque};
 use std::fs::{DirBuilder, File};
 use std::io::{self, Write};
+use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use base64::engine::general_purpose;
 use base64::Engine as _;
-use lunatic::process::{AbstractProcess, ProcessRef, Request, RequestHandler, StartProcess};
-use lunatic::supervisor::Supervisor;
+use lunatic::ap::{AbstractProcess, Config, ProcessRef, RequestHandler, State};
+use lunatic::serializer::Bincode;
+use lunatic::supervisor::{Supervisor, SupervisorConfig};
 use serde::{Deserialize, Serialize};
 use submillisecond::params::Params;
 use submillisecond::response::Response;
@@ -115,12 +117,12 @@ impl FileLog {
 pub struct PersistenceSup;
 impl Supervisor for PersistenceSup {
     type Arg = String;
-    type Children = PersistenceProcess;
+    type Children = (PersistenceProcess,);
 
-    fn init(config: &mut lunatic::supervisor::SupervisorConfig<Self>, name: Self::Arg) {
+    fn init(config: &mut SupervisorConfig<Self>, name: Self::Arg) {
         // Always register the `PersistenceProcess` under the name passed to the
         // supervisor.
-        config.children_args(((), Some(name)))
+        config.children_args((((), Some(name)),))
     }
 }
 
@@ -133,16 +135,19 @@ pub struct PersistenceProcess {
 impl AbstractProcess for PersistenceProcess {
     type Arg = ();
     type State = Self;
+    type Serializer = Bincode;
+    type Handlers = ();
+    type StartupError = ();
 
-    fn init(_: ProcessRef<Self>, _: Self::Arg) -> Self::State {
+    fn init(_: Config<Self>, _: Self::Arg) -> Result<Self::State, ()> {
         // Coordinator shouldn't die when a client dies. This makes the link
         // one-directional.
         unsafe { lunatic::host::api::process::die_when_link_dies(0) };
-        PersistenceProcess {
+        Ok(PersistenceProcess {
             users: HashMap::new(),
             users_nicknames: HashMap::new(),
             wal: FileLog::new("/persistence", "todos.wal"),
-        }
+        })
     }
 }
 
@@ -151,7 +156,8 @@ struct AddTodo(Uuid, Todo);
 impl RequestHandler<AddTodo> for PersistenceProcess {
     type Response = bool;
 
-    fn handle(state: &mut Self::State, AddTodo(user_id, todo): AddTodo) -> bool {
+    fn handle(mut state: State<Self>, AddTodo(user_id, todo): AddTodo) -> bool {
+        let state = state.deref_mut();
         if let Some(user) = state.users.get_mut(&user_id) {
             state.wal.append_push_todo(user.uuid, todo.clone());
             user.todos.push_back(todo);
@@ -165,7 +171,7 @@ impl RequestHandler<CreateUserDto> for PersistenceProcess {
     type Response = Option<Uuid>;
 
     fn handle(
-        state: &mut Self::State,
+        mut state: State<Self>,
         CreateUserDto { nickname, name }: CreateUserDto,
     ) -> Self::Response {
         let user_uuid = Uuid::new_v4();
@@ -191,7 +197,8 @@ struct PollTodo(Uuid);
 impl RequestHandler<PollTodo> for PersistenceProcess {
     type Response = Option<Todo>;
 
-    fn handle(state: &mut Self::State, PollTodo(user_id): PollTodo) -> Self::Response {
+    fn handle(mut state: State<Self>, PollTodo(user_id): PollTodo) -> Self::Response {
+        let state = state.deref_mut();
         if let Some(user) = state.users.get_mut(&user_id) {
             if let Some(front) = user.todos.front() {
                 state.wal.append_poll_todo(user.uuid, front.uuid);
@@ -208,7 +215,7 @@ impl RequestHandler<PeekTodo> for PersistenceProcess {
     // send clone because it will be serialized anyway
     type Response = Option<Todo>;
 
-    fn handle(state: &mut Self::State, PeekTodo(user_id): PeekTodo) -> Self::Response {
+    fn handle(mut state: State<Self>, PeekTodo(user_id): PeekTodo) -> Self::Response {
         if let Some(user) = state.users.get_mut(&user_id) {
             if let Some(f) = user.todos.front() {
                 return Some(f.clone());
@@ -223,7 +230,7 @@ struct ListTodos(Uuid);
 impl RequestHandler<ListTodos> for PersistenceProcess {
     type Response = Vec<Todo>;
 
-    fn handle(state: &mut Self::State, ListTodos(user_id): ListTodos) -> Self::Response {
+    fn handle(mut state: State<Self>, ListTodos(user_id): ListTodos) -> Self::Response {
         // self.todos_wal
         //     .append_confirmation(message_uuid, pubrel.clone(), SystemTime::now());
         if let Some(user) = state.users.get_mut(&user_id) {
@@ -336,7 +343,9 @@ const ROUTER: Router = router! {
 };
 
 fn main() -> io::Result<()> {
-    PersistenceSup::start_link("persistence".to_owned(), None);
+    PersistenceSup::link()
+        .start("persistence".to_owned())
+        .unwrap();
 
     Application::new(ROUTER).serve("0.0.0.0:3000")
 }

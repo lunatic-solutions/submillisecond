@@ -43,7 +43,8 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 
 use cookie::{Cookie, Key};
-use lunatic::process::{AbstractProcess, ProcessRef, Request, RequestHandler, StartProcess};
+use lunatic::ap::{AbstractProcess, Config, ProcessRef, RequestHandler, State};
+use lunatic::serializer::Bincode;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -52,7 +53,7 @@ use crate::extract::FromRequest;
 
 /// Initialize the session key.
 pub fn init_session(key: Key) {
-    SessionProcess::start(KeyWrapper(key), Some("submillisecond_session"));
+    SessionProcess::start_as("submillisecond_session", KeyWrapper(key)).unwrap();
 }
 
 /// Session extractor, used to store data encrypted in a browser cookie.
@@ -141,9 +142,12 @@ struct SessionProcess(KeyWrapper);
 impl AbstractProcess for SessionProcess {
     type Arg = KeyWrapper;
     type State = Self;
+    type Serializer = Bincode;
+    type Handlers = ();
+    type StartupError = ();
 
-    fn init(_: ProcessRef<Self>, key: KeyWrapper) -> Self::State {
-        Self(key)
+    fn init(_: Config<Self>, key: KeyWrapper) -> Result<Self::State, ()> {
+        Ok(Self(key))
     }
 }
 
@@ -152,7 +156,7 @@ struct GetSessionNameKey;
 impl RequestHandler<GetSessionNameKey> for SessionProcess {
     type Response = KeyWrapper;
 
-    fn handle(state: &mut Self::State, _: GetSessionNameKey) -> Self::Response {
+    fn handle(state: State<Self>, _: GetSessionNameKey) -> Self::Response {
         state.0.clone()
     }
 }
