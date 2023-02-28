@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Check out repository"
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
       # Rust builds can take some time, cache them.
       - uses: Swatinem/rust-cache@v2
       - name: "Install lunatic"
