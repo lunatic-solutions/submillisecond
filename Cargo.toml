@@ -35,7 +35,7 @@ submillisecond_macros = { version = "0.3", path = "submillisecond_macros" }
 
 # optional dependencies
 ansi_term = { version = "0.12", optional = true }
-askama = { version = "0.11", optional = true }
+askama = { version = "0.12", optional = true }
 base64ct = { version = "1.5", features = ["alloc"], optional = true }
 cookie = { version = "0.17", features = [
   "percent-encode",
