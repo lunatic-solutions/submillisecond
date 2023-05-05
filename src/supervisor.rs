@@ -4,7 +4,7 @@ use std::time::Duration;
 use headers::HeaderValue;
 use http::{header, Request, StatusCode, Version};
 use lunatic::net::TcpStream;
-use lunatic::{Mailbox, Process};
+use lunatic::{Mailbox, MailboxError, MessageSignal, Process};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -79,7 +79,7 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
 
         // Each request has a default 5 minute timeout.
         match mailbox.receive_timeout(Duration::from_secs(5 * 60)) {
-            lunatic::MailboxResult::Message(msg) => match msg {
+            Ok(MessageSignal::Message(msg)) => match msg {
                 WorkerResponse::Response(ref data, Connection::KeepAlive(next)) => {
                     let result = stream.write_all(data);
                     if let Err(err) = result {
@@ -120,7 +120,18 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
                     break 'keepalive;
                 }
             },
-            lunatic::MailboxResult::TimedOut => {
+            Ok(MessageSignal::Signal(_)) => {
+                log_error("Worker process panicked");
+                let response: Response =
+                    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response();
+                let response = response_to_vec(response);
+                let result = stream.write_all(&response);
+                if let Err(err) = result {
+                    log_error(format!("Failed to send response: {err:?}"));
+                }
+                break 'keepalive;
+            }
+            Err(MailboxError::TimedOut) => {
                 // Kill worker
                 worker.kill();
                 log_error("Request timed out");
@@ -133,18 +144,9 @@ pub(crate) fn request_supervisor<T, Arg, Ret>(
                 }
                 break 'keepalive;
             }
-            lunatic::MailboxResult::LinkDied(_) => {
-                log_error("Worker process panicked");
-                let response: Response =
-                    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response();
-                let response = response_to_vec(response);
-                let result = stream.write_all(&response);
-                if let Err(err) = result {
-                    log_error(format!("Failed to send response: {err:?}"));
-                }
-                break 'keepalive;
+            Err(MailboxError::DeserializationFailed(err)) => {
+                panic!("failed to deserialize worker message: {err}");
             }
-            _ => unreachable!(),
         }
     }
 }

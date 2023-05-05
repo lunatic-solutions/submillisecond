@@ -10,6 +10,7 @@ use base64::Engine as _;
 use lunatic::ap::{AbstractProcess, Config, ProcessRef, RequestHandler, State};
 use lunatic::serializer::Bincode;
 use lunatic::supervisor::{Supervisor, SupervisorConfig};
+use lunatic::ProcessName;
 use serde::{Deserialize, Serialize};
 use submillisecond::params::Params;
 use submillisecond::response::Response;
@@ -125,6 +126,9 @@ impl Supervisor for PersistenceSup {
         config.children_args((((), Some(name)),))
     }
 }
+
+#[derive(ProcessName)]
+pub struct PersistenceProcessID;
 
 pub struct PersistenceProcess {
     users: HashMap<Uuid, User>,
@@ -277,7 +281,7 @@ struct CreateUserResponseDto {
 
 // routes logic
 fn create_user(user: Json<CreateUserDto>) -> Json<CreateUserResponseDto> {
-    let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
+    let persistence = ProcessRef::<PersistenceProcess>::lookup(&"persistence").unwrap();
     if let Some(uuid) = persistence.request(user.0) {
         return Json(CreateUserResponseDto { uuid });
     }
@@ -285,14 +289,14 @@ fn create_user(user: Json<CreateUserDto>) -> Json<CreateUserResponseDto> {
 }
 
 fn list_todos(params: Params) -> Json<Vec<Todo>> {
-    let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
+    let persistence = ProcessRef::<PersistenceProcess>::lookup(&PersistenceProcessID).unwrap();
     let user_id = params.get("user_id").unwrap();
     let todos = persistence.request(ListTodos(Uuid::from_str(user_id).unwrap()));
     Json(todos)
 }
 
 fn poll_todo(params: Params) -> Json<Todo> {
-    let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
+    let persistence = ProcessRef::<PersistenceProcess>::lookup(&PersistenceProcessID).unwrap();
     let user_id = params.get("user_id").unwrap();
     if let Some(todo) = persistence.request(PollTodo(Uuid::from_str(user_id).unwrap())) {
         return Json(todo);
@@ -301,7 +305,7 @@ fn poll_todo(params: Params) -> Json<Todo> {
 }
 
 fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
-    let persistence = ProcessRef::<PersistenceProcess>::lookup("persistence").unwrap();
+    let persistence = ProcessRef::<PersistenceProcess>::lookup(&PersistenceProcessID).unwrap();
     let user_id = params.get("user_id").unwrap();
     println!("RECEIVED BODY {body:?} | {user_id}");
     let todo = Todo {

@@ -45,15 +45,19 @@ use std::ops::{Deref, DerefMut};
 use cookie::{Cookie, Key};
 use lunatic::ap::{AbstractProcess, Config, ProcessRef, RequestHandler, State};
 use lunatic::serializer::Bincode;
+use lunatic::ProcessName;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::cookies::COOKIES;
 use crate::extract::FromRequest;
 
+#[derive(ProcessName)]
+struct SessionProcessID;
+
 /// Initialize the session key.
 pub fn init_session(key: Key) {
-    SessionProcess::start_as("submillisecond_session", KeyWrapper(key)).unwrap();
+    SessionProcess::start_as(&SessionProcessID, KeyWrapper(key)).unwrap();
 }
 
 /// Session extractor, used to store data encrypted in a browser cookie.
@@ -114,7 +118,7 @@ where
     type Rejection = SessionProcessNotRunning;
 
     fn from_request(_req: &mut crate::RequestContext) -> Result<Self, Self::Rejection> {
-        let session_process = ProcessRef::<SessionProcess>::lookup("submillisecond_session")
+        let session_process = ProcessRef::<SessionProcess>::lookup(&SessionProcessID)
             .ok_or(SessionProcessNotRunning)?;
         let KeyWrapper(key) = session_process.request(GetSessionNameKey);
         let cookie_name = cookie_name::<D>();

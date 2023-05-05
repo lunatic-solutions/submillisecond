@@ -19,8 +19,8 @@
 
 use std::{fmt, ops};
 
-use lunatic::abstract_process;
 use lunatic::ap::{AbstractProcess, Config, ProcessRef};
+use lunatic::{abstract_process, ProcessName};
 use serde::{Deserialize, Serialize};
 
 /// State stored in a process.
@@ -51,8 +51,8 @@ where
 {
     /// Initializes state by spawning a process.
     pub fn init(state: T) -> Self {
-        let name = format!("submillisecond-state-{}", std::any::type_name::<T>());
-        let process = StateProcess::start_as(name, state.clone()).unwrap();
+        let name = StateProcessName::new::<T>();
+        let process = StateProcess::start_as(&name, state.clone()).unwrap();
         State { process, state }
     }
 
@@ -66,8 +66,8 @@ where
     ///
     /// If the state has not initialized, `None` is returned.
     pub fn load() -> Option<Self> {
-        let name = format!("submillisecond-state-{}", std::any::type_name::<T>());
-        let process = ProcessRef::lookup(name)?;
+        let name = StateProcessName::new::<T>();
+        let process = ProcessRef::lookup(&name)?;
         let state = process.get();
         Some(State { process, state })
     }
@@ -95,6 +95,23 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         <T as fmt::Debug>::fmt(&self.state, f)
+    }
+}
+
+struct StateProcessName {
+    name: String,
+}
+
+impl StateProcessName {
+    fn new<T>() -> Self {
+        let name = format!("submillisecond-state-{}", std::any::type_name::<T>());
+        StateProcessName { name }
+    }
+}
+
+impl ProcessName for StateProcessName {
+    fn process_name(&self) -> &str {
+        &self.name
     }
 }
 

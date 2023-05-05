@@ -212,7 +212,7 @@ impl WebSocket {
         let process = Process::spawn_link(
             (stream, callback, captures, config),
             |(stream, callback, captures, config), mailbox: Mailbox<SupervisorResponse>| {
-                if let lunatic::MailboxResult::Message(SupervisorResponse::ResponseSent) =
+                if let Ok(SupervisorResponse::ResponseSent) =
                     mailbox.receive_timeout(Duration::from_secs(5))
                 {
                     let conn = tungstenite::protocol::WebSocket::from_raw_socket(
