@@ -1,13 +1,12 @@
-use lunatic::{
-    abstract_process,
-    process::{ProcessRef, StartProcess},
-    Mailbox, Process,
-};
+use lunatic::ap::{Config, ProcessRef};
+use lunatic::{abstract_process, AbstractProcess, Mailbox, Process};
+use serde::{Deserialize, Serialize};
 use submillisecond::websocket::{
     Message, SplitSink, SplitStream, WebSocket, WebSocketConnection, WebSocketUpgrade,
 };
 use submillisecond::{router, Application};
 
+#[derive(Serialize, Deserialize)]
 struct WebSocketHandler {
     writer: SplitSink,
 }
@@ -15,7 +14,7 @@ struct WebSocketHandler {
 #[abstract_process]
 impl WebSocketHandler {
     #[init]
-    fn init(this: ProcessRef<Self>, ws_conn: WebSocketConnection) -> Self {
+    fn init(this: Config<Self>, ws_conn: WebSocketConnection) -> Result<Self, ()> {
         let (writer, reader) = ws_conn.split();
 
         fn read_handler(
@@ -35,9 +34,9 @@ impl WebSocketHandler {
             }
         }
 
-        Process::spawn_link((reader, this), read_handler);
+        Process::spawn_link((reader, this.self_ref()), read_handler);
 
-        WebSocketHandler { writer }
+        Ok(WebSocketHandler { writer })
     }
 
     #[handle_message]
@@ -51,7 +50,7 @@ impl WebSocketHandler {
 fn main() -> std::io::Result<()> {
     fn websocket(ws: WebSocket) -> WebSocketUpgrade {
         ws.on_upgrade((), |conn, _| {
-            WebSocketHandler::start_link(conn, None);
+            WebSocketHandler::link().start(conn).unwrap();
         })
     }
 

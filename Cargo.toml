@@ -25,7 +25,7 @@ websocket = ["base64ct", "sha1", "tungstenite"]
 headers = "0.3"
 http = "0.2.7"
 httparse = "1.7.1"
-lunatic = "0.12"
+lunatic = "0.13"
 mime = "0.3.16"
 paste = "1.0"
 percent-encoding = "2.1"
@@ -42,7 +42,7 @@ cookie = { version = "0.17", features = [
   "signed",
   "private",
 ], optional = true }
-lunatic-log = { version = "0.3", optional = true }
+lunatic-log = { version = "0.4", optional = true }
 serde_json = { version = "1.0", optional = true }
 serde_urlencoded = { version = "0.7", optional = true }
 sha1 = { version = "0.10", optional = true }

@@ -19,8 +19,8 @@
 
 use std::{fmt, ops};
 
-use lunatic::abstract_process;
-use lunatic::process::{ProcessRef, StartProcess};
+use lunatic::ap::{AbstractProcess, Config, ProcessRef};
+use lunatic::{abstract_process, ProcessName};
 use serde::{Deserialize, Serialize};
 
 /// State stored in a process.
@@ -32,7 +32,11 @@ use serde::{Deserialize, Serialize};
 /// to be used as an extractor in handlers. If the state is not initialized, an
 /// internal server error will be returned to the response.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct State<T> {
+#[serde(bound = "")]
+pub struct State<T>
+where
+    T: Clone + Serialize + for<'d> Deserialize<'d> + 'static,
+{
     process: ProcessRef<StateProcess<T>>,
     state: T,
 }
@@ -43,12 +47,12 @@ struct StateProcess<T> {
 
 impl<T> State<T>
 where
-    T: Clone + Serialize + for<'de> Deserialize<'de>,
+    T: Clone + Serialize + for<'de> Deserialize<'de> + 'static,
 {
     /// Initializes state by spawning a process.
     pub fn init(state: T) -> Self {
-        let name = format!("submillisecond-state-{}", std::any::type_name::<T>());
-        let process = StateProcess::start(state.clone(), Some(&name));
+        let name = StateProcessName::new::<T>();
+        let process = StateProcess::start_as(&name, state.clone()).unwrap();
         State { process, state }
     }
 
@@ -62,7 +66,7 @@ where
     ///
     /// If the state has not initialized, `None` is returned.
     pub fn load() -> Option<Self> {
-        let name = format!("submillisecond-state-{}", std::any::type_name::<T>());
+        let name = StateProcessName::new::<T>();
         let process = ProcessRef::lookup(&name)?;
         let state = process.get();
         Some(State { process, state })
@@ -87,21 +91,38 @@ where
 
 impl<T> fmt::Debug for State<T>
 where
-    T: fmt::Debug,
+    T: fmt::Debug + Clone + Serialize + for<'de> Deserialize<'de>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         <T as fmt::Debug>::fmt(&self.state, f)
     }
 }
 
+struct StateProcessName {
+    name: String,
+}
+
+impl StateProcessName {
+    fn new<T>() -> Self {
+        let name = format!("submillisecond-state-{}", std::any::type_name::<T>());
+        StateProcessName { name }
+    }
+}
+
+impl ProcessName for StateProcessName {
+    fn process_name(&self) -> &str {
+        &self.name
+    }
+}
+
 #[abstract_process]
 impl<T> StateProcess<T>
 where
-    T: Clone + Serialize + for<'de> Deserialize<'de>,
+    T: Clone + Serialize + for<'de> Deserialize<'de> + 'static,
 {
     #[init]
-    fn init(_: ProcessRef<Self>, value: T) -> Self {
-        StateProcess { value }
+    fn init(_: Config<Self>, value: T) -> Result<Self, ()> {
+        Ok(StateProcess { value })
     }
 
     #[handle_request]

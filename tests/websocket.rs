@@ -1,21 +1,14 @@
-use tungstenite::{client, handshake::client::Response, ClientHandshake, HandshakeError};
-
-use lunatic::{
-    abstract_process,
-    net::TcpStream,
-    process::{ProcessRef, StartProcess},
-    sleep, Mailbox, Process,
-};
-
 use std::time::Duration;
 
-use submillisecond::{
-    router,
-    websocket::{
-        Message, SplitSink, SplitStream, WebSocket, WebSocketConnection, WebSocketUpgrade,
-    },
-    Application,
+use lunatic::ap::{Config, ProcessRef};
+use lunatic::net::TcpStream;
+use lunatic::{abstract_process, sleep, AbstractProcess, Mailbox, Process};
+use submillisecond::websocket::{
+    Message, SplitSink, SplitStream, WebSocket, WebSocketConnection, WebSocketUpgrade,
 };
+use submillisecond::{router, Application};
+use tungstenite::handshake::client::Response;
+use tungstenite::{client, ClientHandshake, HandshakeError};
 
 #[lunatic::test]
 fn websocket_connection_test() {
@@ -41,7 +34,7 @@ struct WebSocketHandler {
 #[abstract_process]
 impl WebSocketHandler {
     #[init]
-    fn init(this: ProcessRef<Self>, ws_conn: WebSocketConnection) -> Self {
+    fn init(this: Config<Self>, ws_conn: WebSocketConnection) -> Result<Self, ()> {
         let (writer, reader) = ws_conn.split();
 
         fn read_handler(
@@ -60,9 +53,9 @@ impl WebSocketHandler {
             }
         }
 
-        Process::spawn_link((reader, this), read_handler);
+        Process::spawn_link((reader, this.self_ref()), read_handler);
 
-        WebSocketHandler { writer }
+        Ok(WebSocketHandler { writer })
     }
 
     #[handle_message]
@@ -76,14 +69,14 @@ impl WebSocketHandler {
 fn setup_server(port: u16, _: Mailbox<()>) {
     fn websocket(ws: WebSocket) -> WebSocketUpgrade {
         ws.on_upgrade((), |conn, _| {
-            WebSocketHandler::start_link(conn, None);
+            WebSocketHandler::link().start(conn).unwrap();
         })
     }
 
     Application::new(router! {
         GET "/" => websocket
     })
-    .serve(format!("0.0.0.0:{}", port))
+    .serve(format!("0.0.0.0:{port}"))
     .unwrap();
 }
 

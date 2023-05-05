@@ -14,7 +14,7 @@ fn hell_world_server(port: u16, _: Mailbox<()>) {
     Application::new(router! {
         GET "/" => hello_world_handler
     })
-    .serve(format!("localhost:{}", port))
+    .serve(format!("localhost:{port}"))
     .unwrap();
 }
 
@@ -144,7 +144,7 @@ fn panic_server(port: u16, _: Mailbox<()>) {
     Application::new(router! {
         GET "/" => panic_handler
     })
-    .serve(format!("localhost:{}", port))
+    .serve(format!("localhost:{port}"))
     .unwrap();
 }
 
@@ -177,7 +177,7 @@ fn post_echo_server(port: u16, _: Mailbox<()>) {
     Application::new(router! {
         POST "/" => hello_world_handler
     })
-    .serve(format!("localhost:{}", port))
+    .serve(format!("localhost:{port}"))
     .unwrap();
 }
 
