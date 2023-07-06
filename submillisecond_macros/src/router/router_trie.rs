@@ -95,14 +95,14 @@ impl<'r> RouterTrie<'r> {
 
     /// Expand subrouters.
     fn expand_subrouters(&self) -> TokenStream {
-        let mut subrouters_expanded = self.expand_nodes("", self.subrouters.children());
-        if !subrouters_expanded.is_empty() {
+        self.expand_nodes("", self.subrouters.children())
+        // if !subrouters_expanded.is_empty() {
 
-            // subrouters_expanded.append_all(hquote! {
-            //     req.reader.reset();
-            // })
-        }
-        subrouters_expanded
+        //     // subrouters_expanded.append_all(hquote! {
+        //     //     req.reader.reset();
+        //     // })
+        // }
+        // subrouters_expanded
     }
 
     /// Expand handlers for each http method as a match statement.
@@ -440,12 +440,7 @@ impl<'r> RouterTrie<'r> {
 
         match method {
             Some(method) => {
-                if wildcard {
-                    hquote! {
-                        let _ = ::submillisecond::http::Method::#method;
-                        #expanded
-                    }
-                } else if prefix == "/" || prefix == "" && !wildcard {
+                if wildcard || (prefix == "/" || prefix.is_empty()) {
                     hquote! {
                         let _ = ::submillisecond::http::Method::#method;
                         #expanded
