@@ -97,9 +97,10 @@ impl<'r> RouterTrie<'r> {
     fn expand_subrouters(&self) -> TokenStream {
         let mut subrouters_expanded = self.expand_nodes("", self.subrouters.children());
         if !subrouters_expanded.is_empty() {
-            subrouters_expanded.append_all(hquote! {
-                req.reader.reset();
-            })
+
+            // subrouters_expanded.append_all(hquote! {
+            //     req.reader.reset();
+            // })
         }
         subrouters_expanded
     }
@@ -225,14 +226,36 @@ impl<'r> RouterTrie<'r> {
         let ExpandedNodeParts {
             guards_expanded,
             handler_expanded,
-        } = Self::expand_node_parts(value, false);
+        } = Self::expand_node_parts(value, false, prefix);
+
+        let dangling_slash_match = if let (NodeType::Handler, "/") = (value.node_type, prefix) {
+            if guards_expanded.is_empty() {
+                hquote! {
+                else {
+                        #child_nodes_expanded
+
+                        #handler_expanded
+                    }
+                }
+            } else {
+                hquote! {
+                    else if #guards_expanded {
+                        #child_nodes_expanded
+
+                        #handler_expanded
+                    }
+                }
+            }
+        } else {
+            hquote!()
+        };
 
         quote_reader_fallback! {
             if req.reader.read_matching(#prefix) #guards_expanded {
                 #child_nodes_expanded
 
                 #handler_expanded
-            }
+            } #dangling_slash_match
         }
     }
 
@@ -240,7 +263,7 @@ impl<'r> RouterTrie<'r> {
         let ExpandedNodeParts {
             guards_expanded,
             handler_expanded,
-        } = Self::expand_node_parts(value, true);
+        } = Self::expand_node_parts(value, true, prefix);
 
         quote_reader_fallback! {
             if req.reader.read_matching(#prefix) #guards_expanded {
@@ -259,14 +282,13 @@ impl<'r> RouterTrie<'r> {
         suffix: &str,
     ) -> TokenStream {
         let mut expanded = hquote! {};
-
         match suffix {
             "" | "/" => {
                 if let Some(value) = &node.value {
                     let ExpandedNodeParts {
                         guards_expanded,
                         handler_expanded,
-                    } = Self::expand_node_parts(value, false);
+                    } = Self::expand_node_parts(value, false, prefix);
 
                     expanded.append_all(hquote! {
                         if req.reader.is_dangling_slash() #guards_expanded {
@@ -304,7 +326,7 @@ impl<'r> RouterTrie<'r> {
                         let ExpandedNodeParts {
                             guards_expanded,
                             handler_expanded,
-                        } = Self::expand_node_parts(value, false);
+                        } = Self::expand_node_parts(value, false, prefix);
 
                         expanded.append_all(quote_reader_fallback! {
                             if req.reader.read_matching(#suffix) #guards_expanded {
@@ -319,7 +341,7 @@ impl<'r> RouterTrie<'r> {
                         let ExpandedNodeParts {
                             guards_expanded,
                             handler_expanded,
-                        } = Self::expand_node_parts(value, false);
+                        } = Self::expand_node_parts(value, false, prefix);
 
                         expanded.append_all(quote_reader_fallback! {
                             if req.reader.read_matching(#suffix) #guards_expanded {
@@ -365,13 +387,16 @@ impl<'r> RouterTrie<'r> {
             node_type,
         }: &TrieValue<'r>,
         wildcard: bool,
+        prefix: &str,
     ) -> ExpandedNodeParts {
         let guards_expanded = guard
             .iter()
             .fold(hquote! {}, |acc, guard| hquote! { #acc && #guard });
 
         let handler_expanded = match node_type {
-            NodeType::Handler => Self::expand_handler(method, handler, middleware, wildcard),
+            NodeType::Handler => {
+                Self::expand_handler(method, handler, middleware, wildcard, prefix)
+            }
             NodeType::Subrouter => Self::expand_subrouter(handler, middleware),
         };
 
@@ -387,6 +412,7 @@ impl<'r> RouterTrie<'r> {
         handler: &ItemHandler,
         middleware: &'r Option<ItemWithMiddleware>,
         wildcard: bool,
+        prefix: &str,
     ) -> TokenStream {
         let expanded = match handler {
             ItemHandler::Expr(handler) => {
@@ -403,7 +429,7 @@ impl<'r> RouterTrie<'r> {
                     }
                 } else {
                     hquote! {
-                        if req.reader.is_dangling_slash() {
+                        if req.reader.is_dangling_terminal_slash() {
                             return #middleware_expanded;
                         }
                     }
@@ -415,6 +441,11 @@ impl<'r> RouterTrie<'r> {
         match method {
             Some(method) => {
                 if wildcard {
+                    hquote! {
+                        let _ = ::submillisecond::http::Method::#method;
+                        #expanded
+                    }
+                } else if prefix == "/" || prefix == "" && !wildcard {
                     hquote! {
                         let _ = ::submillisecond::http::Method::#method;
                         #expanded

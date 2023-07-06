@@ -8,3 +8,4 @@ persistence
 
 /.vscode
 Cargo.lock
+.DS_Store

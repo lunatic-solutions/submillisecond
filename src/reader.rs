@@ -33,6 +33,13 @@ impl UriReader {
         self.uri.len() == self.cursor || &self.uri[self.cursor..self.cursor + 1] == "/"
     }
 
+    /// Returns a bool indicating whether the reader has reached the end,
+    /// disregarding any trailing slash.
+    pub fn is_dangling_terminal_slash(&self) -> bool {
+        self.uri.len() == self.cursor
+            || (&self.uri[self.cursor..self.cursor + 1] == "/" && self.uri.len() - self.cursor == 1)
+    }
+
     /// Move the cursor forward based on `len`.
     pub fn read(&mut self, len: usize) {
         self.cursor += len;
