@@ -1,16 +1,14 @@
 use std::collections::{HashMap, VecDeque};
 use std::fs::{DirBuilder, File};
 use std::io::{self, Write};
-use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use base64::engine::general_purpose;
 use base64::Engine as _;
-use lunatic::ap::{AbstractProcess, Config, ProcessRef, RequestHandler, State};
-use lunatic::serializer::Bincode;
+use lunatic::ap::{AbstractProcess, Config, ProcessRef};
 use lunatic::supervisor::{Supervisor, SupervisorConfig};
-use lunatic::ProcessName;
+use lunatic::{abstract_process, ProcessName};
 use serde::{Deserialize, Serialize};
 use submillisecond::params::Params;
 use submillisecond::response::Response;
@@ -136,14 +134,10 @@ pub struct PersistenceProcess {
     wal: FileLog,
 }
 
-impl AbstractProcess for PersistenceProcess {
-    type Arg = ();
-    type State = Self;
-    type Serializer = Bincode;
-    type Handlers = ();
-    type StartupError = ();
-
-    fn init(_: Config<Self>, _: Self::Arg) -> Result<Self::State, ()> {
+#[abstract_process(visibility=pub)]
+impl PersistenceProcess {
+    #[init]
+    fn init(_: Config<Self>, _: ()) -> Result<PersistenceProcess, ()> {
         // Coordinator shouldn't die when a client dies. This makes the link
         // one-directional.
         unsafe { lunatic::host::api::process::die_when_link_dies(0) };
@@ -153,33 +147,21 @@ impl AbstractProcess for PersistenceProcess {
             wal: FileLog::new("/persistence", "todos.wal"),
         })
     }
-}
 
-#[derive(Serialize, Deserialize)]
-struct AddTodo(Uuid, Todo);
-impl RequestHandler<AddTodo> for PersistenceProcess {
-    type Response = bool;
-
-    fn handle(mut state: State<Self>, AddTodo(user_id, todo): AddTodo) -> bool {
-        let state = state.deref_mut();
-        if let Some(user) = state.users.get_mut(&user_id) {
-            state.wal.append_push_todo(user.uuid, todo.clone());
+    #[handle_request]
+    fn add_todo(&mut self, user_id: Uuid, todo: Todo) -> bool {
+        if let Some(user) = self.users.get_mut(&user_id) {
+            self.wal.append_push_todo(user.uuid, todo.clone());
             user.todos.push_back(todo);
             return true;
         }
         false
     }
-}
 
-impl RequestHandler<CreateUserDto> for PersistenceProcess {
-    type Response = Option<Uuid>;
-
-    fn handle(
-        mut state: State<Self>,
-        CreateUserDto { nickname, name }: CreateUserDto,
-    ) -> Self::Response {
+    #[handle_request]
+    fn create_user(&mut self, CreateUserDto { nickname, name }: CreateUserDto) -> Option<Uuid> {
         let user_uuid = Uuid::new_v4();
-        if state.users_nicknames.get(&nickname).is_some() {
+        if self.users_nicknames.get(&nickname).is_some() {
             // user already exists
             return None;
         }
@@ -189,55 +171,38 @@ impl RequestHandler<CreateUserDto> for PersistenceProcess {
             name,
             todos: VecDeque::new(),
         };
-        state.wal.append_new_user(&user);
-        state.users_nicknames.insert(nickname, user_uuid);
-        state.users.insert(user_uuid, user);
+        self.wal.append_new_user(&user);
+        self.users_nicknames.insert(nickname, user_uuid);
+        self.users.insert(user_uuid, user);
         Some(user_uuid)
     }
-}
 
-#[derive(Serialize, Deserialize)]
-struct PollTodo(Uuid);
-impl RequestHandler<PollTodo> for PersistenceProcess {
-    type Response = Option<Todo>;
-
-    fn handle(mut state: State<Self>, PollTodo(user_id): PollTodo) -> Self::Response {
-        let state = state.deref_mut();
-        if let Some(user) = state.users.get_mut(&user_id) {
+    #[handle_request]
+    fn poll_todo(&mut self, user_id: Uuid) -> Option<Todo> {
+        if let Some(user) = self.users.get_mut(&user_id) {
             if let Some(front) = user.todos.front() {
-                state.wal.append_poll_todo(user.uuid, front.uuid);
+                self.wal.append_poll_todo(user.uuid, front.uuid);
             }
             return user.todos.pop_front();
         }
         None
     }
-}
 
-#[derive(Serialize, Deserialize)]
-struct PeekTodo(Uuid);
-impl RequestHandler<PeekTodo> for PersistenceProcess {
-    // send clone because it will be serialized anyway
-    type Response = Option<Todo>;
-
-    fn handle(mut state: State<Self>, PeekTodo(user_id): PeekTodo) -> Self::Response {
-        if let Some(user) = state.users.get_mut(&user_id) {
+    #[handle_request]
+    fn peek_todo(&mut self, user_id: Uuid) -> Option<Todo> {
+        if let Some(user) = self.users.get_mut(&user_id) {
             if let Some(f) = user.todos.front() {
                 return Some(f.clone());
             }
         }
         None
     }
-}
 
-#[derive(Serialize, Deserialize)]
-struct ListTodos(Uuid);
-impl RequestHandler<ListTodos> for PersistenceProcess {
-    type Response = Vec<Todo>;
-
-    fn handle(mut state: State<Self>, ListTodos(user_id): ListTodos) -> Self::Response {
+    #[handle_request]
+    fn list_todos(&mut self, user_id: Uuid) -> Vec<Todo> {
         // self.todos_wal
         //     .append_confirmation(message_uuid, pubrel.clone(), SystemTime::now());
-        if let Some(user) = state.users.get_mut(&user_id) {
+        if let Some(user) = self.users.get_mut(&user_id) {
             return user.todos.iter().cloned().collect();
         }
         vec![]
@@ -263,7 +228,7 @@ pub struct User {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct CreateUserDto {
+pub struct CreateUserDto {
     nickname: String,
     name: String,
 }
@@ -282,7 +247,7 @@ struct CreateUserResponseDto {
 // routes logic
 fn create_user(user: Json<CreateUserDto>) -> Json<CreateUserResponseDto> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup(&"persistence").unwrap();
-    if let Some(uuid) = persistence.request(user.0) {
+    if let Some(uuid) = persistence.create_user(user.0) {
         return Json(CreateUserResponseDto { uuid });
     }
     panic!("Cannot create user");
@@ -291,14 +256,14 @@ fn create_user(user: Json<CreateUserDto>) -> Json<CreateUserResponseDto> {
 fn list_todos(params: Params) -> Json<Vec<Todo>> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup(&PersistenceProcessID).unwrap();
     let user_id = params.get("user_id").unwrap();
-    let todos = persistence.request(ListTodos(Uuid::from_str(user_id).unwrap()));
+    let todos = persistence.list_todos(Uuid::from_str(user_id).unwrap());
     Json(todos)
 }
 
 fn poll_todo(params: Params) -> Json<Todo> {
     let persistence = ProcessRef::<PersistenceProcess>::lookup(&PersistenceProcessID).unwrap();
     let user_id = params.get("user_id").unwrap();
-    if let Some(todo) = persistence.request(PollTodo(Uuid::from_str(user_id).unwrap())) {
+    if let Some(todo) = persistence.poll_todo(Uuid::from_str(user_id).unwrap()) {
         return Json(todo);
     }
     panic!("Cannot poll todo {params:#?}");
@@ -313,7 +278,7 @@ fn push_todo(params: Params, body: Json<CreateTodoDto>) -> Json<Option<Todo>> {
         title: body.0.title,
         description: body.0.description,
     };
-    if persistence.request(AddTodo(Uuid::from_str(user_id).unwrap(), todo.clone())) {
+    if persistence.add_todo(Uuid::from_str(user_id).unwrap(), todo.clone()) {
         return Json(Some(todo));
     }
     Json(None)

@@ -13,7 +13,7 @@ jobs:
       # Rust builds can take some time, cache them.
       - uses: Swatinem/rust-cache@v2
       - name: "Install lunatic"
-        run: cargo install --git https://github.com/lunatic-solutions/lunatic
+        run: cargo install --git https://github.com/lunatic-solutions/lunatic lunatic-runtime
       - name: Install rust
         uses: actions-rs/toolchain@v1
         with:
